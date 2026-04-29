@@ -1,0 +1,40 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "strict": true,
+    "moduleResolution": "Bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "types": [
+      "jest",
+      "react",
+      "react-native"
+    ],
+    "paths": {
+      "@app/*": [
+        "src/app/*"
+      ],
+      "@features/*": [
+        "src/features/*"
+      ],
+      "@shared/*": [
+        "src/shared/*"
+      ],
+      "@navigation/*": [
+        "src/navigation/*"
+      ]
+    }
+  },
+  "include": [
+    "src",
+    "App.tsx",
+    "index.js",
+    "jest.setup.ts"
+  ],
+  "extends": "expo/tsconfig.base"
+}

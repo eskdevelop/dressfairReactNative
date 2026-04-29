@@ -1,0 +1,53 @@
+{
+  "name": "dressfair-rn-hybrid",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "smoke:checklist": "node scripts/smoke-checklist.mjs",
+    "release:checklist": "node scripts/release-readiness.mjs"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-navigation/bottom-tabs": "^7.2.0",
+    "@react-navigation/native": "^7.0.15",
+    "@react-navigation/native-stack": "^7.2.0",
+    "@reduxjs/toolkit": "^2.5.0",
+    "axios": "^1.8.1",
+    "babel-preset-expo": "~54.0.10",
+    "expo": "^54.0.0",
+    "expo-constants": "~18.0.13",
+    "expo-device": "~8.0.10",
+    "expo-linking": "~8.0.12",
+    "expo-network": "~8.0.8",
+    "expo-notifications": "^0.32.17",
+    "react": "^19.1.0",
+    "react-native": "^0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-webview": "^13.15.0",
+    "react-redux": "^9.2.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@testing-library/react-native": "^13.1.0",
+    "@types/jest": "^29.5.14",
+    "@types/react": "~19.1.10",
+    "@types/react-native": "^0.73.0",
+    "@typescript-eslint/eslint-plugin": "^8.22.0",
+    "@typescript-eslint/parser": "^8.22.0",
+    "eas-cli": "^18.8.1",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "jest": "^29.7.0",
+    "prettier": "^3.4.2",
+    "react-test-renderer": "^19.1.0",
+    "typescript": "~5.9.2"
+  }
+}

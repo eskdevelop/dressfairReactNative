@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "DressFair",
+    "slug": "dressfair-rn-hybrid",
+    "version": "1.0.0",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "scheme": "dressfair",
+    "orientation": "portrait",
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "newArchEnabled": true,
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "bundleIdentifier": "com.dressfair.dressfairrnhybrid",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserNotificationsUsageDescription": "DressFair uses notifications for order and account updates."
+      }
+    },
+    "android": {
+      "package": "com.dressfair.dressfairrnhybrid",
+      "versionCode": 1
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5137d347-3f60-49fd-b16b-65f9c8db9665"
+      }
+    },
+    "owner": "dressfair"
+  }
+}

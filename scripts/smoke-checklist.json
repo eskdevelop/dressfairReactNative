@@ -1,0 +1,14 @@
+{
+  "items": [
+    "App launches and routes past splash correctly",
+    "Offline screen appears when internet is unavailable",
+    "WebView loads allowed DressFair domain pages",
+    "Non-allowlisted links open in external browser",
+    "Account tab routes to login when signed out",
+    "Logout clears native session and opens web logout",
+    "Push token registers and sync attempt is tracked",
+    "Notification/deeplink opens expected WebView path",
+    "Payment callback URLs emit redirect telemetry",
+    "No loading/error state leaves blank screen"
+  ]
+}
