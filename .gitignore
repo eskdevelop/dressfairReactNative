@@ -76,6 +76,7 @@ android/app/debug/
 !debug.keystore
 
 # EAS / Expo build artifacts
+build-artifacts/
 *.apk
 *.aab
 *.ipa
