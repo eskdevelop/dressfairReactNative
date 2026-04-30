@@ -6,9 +6,16 @@
   - `{ "type": "web_route", "path": "/p/<slug>" }`
 - Custom scheme:
   - `dressfair://web?path=/order/123`
-- Universal links:
-  - `https://www.dressfair.com/p/<slug>`
-  - `https://www.dressfair.com/order/<id>`
+
+## Universal Links (HTTPS deep links)
+
+Not enabled in v1.0.0. Supporting `https://www.dressfair.com/...` deep links
+requires (a) an `<intent-filter android:autoVerify="true">` for `https` in
+`android/app/src/main/AndroidManifest.xml`, (b) hosting
+`assetlinks.json` at `https://www.dressfair.com/.well-known/assetlinks.json`
+(and the regional equivalents), and (c) the iOS `Associated Domains`
+entitlement plus `apple-app-site-association` files. Track this as a
+post-launch enhancement.
 
 ## Runtime Flow
 

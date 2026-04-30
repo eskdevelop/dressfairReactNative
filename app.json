@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "DressFair",
+    "name": "Dress Fair Shopping",
     "slug": "dressfair-rn-hybrid",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -13,6 +13,12 @@
       "android"
     ],
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -20,6 +26,7 @@
       "bundleIdentifier": "com.dressfair.dressfairrnhybrid",
       "buildNumber": "1",
       "supportsTablet": false,
+      "icon": "./assets/icon.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSUserNotificationsUsageDescription": "DressFair uses notifications for order and account updates."
@@ -27,13 +34,29 @@
     },
     "android": {
       "package": "com.dressfair.dressfairrnhybrid",
-      "versionCode": 1
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.VIBRATE"
+      ],
+      "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "extra": {
       "eas": {
         "projectId": "5137d347-3f60-49fd-b16b-65f9c8db9665"
       }
     },
-    "owner": "dressfair"
+    "owner": "dressfair",
+    "plugins": [
+      "expo-secure-store"
+    ]
   }
 }

@@ -6,6 +6,15 @@ export type EnvConfig = {
   allowedDomains: string[];
   webLoginPath: string;
   webLogoutPath: string;
+  // Public web pages reachable from the in-app Settings screen. Each path is
+  // joined with `webBaseUrl` at call time so the user lands on the right
+  // regional storefront. Update the paths to match the live URLs on
+  // dressfair.com / dressfair.om / sa.dressfair.com.
+  privacyPolicyPath: string;
+  termsPath: string;
+  helpSupportPath: string;
+  accountDeletionPath: string;
+  supportEmail: string;
 };
 
 const configs: Record<CountryCode, EnvConfig> = {
@@ -16,6 +25,11 @@ const configs: Record<CountryCode, EnvConfig> = {
     allowedDomains: ['www.dressfair.com', 'backend.dressfair.com'],
     webLoginPath: '/login',
     webLogoutPath: '/logout',
+    privacyPolicyPath: '/privacy',
+    termsPath: '/terms',
+    helpSupportPath: '/contact',
+    accountDeletionPath: '/account/delete',
+    supportEmail: 'support@dressfair.com',
   },
   OMN: {
     apiBaseUrl:
@@ -24,6 +38,11 @@ const configs: Record<CountryCode, EnvConfig> = {
     allowedDomains: ['www.dressfair.om', 'backend.dressfair.om'],
     webLoginPath: '/login',
     webLogoutPath: '/logout',
+    privacyPolicyPath: '/privacy',
+    termsPath: '/terms',
+    helpSupportPath: '/contact',
+    accountDeletionPath: '/account/delete',
+    supportEmail: 'support@dressfair.om',
   },
   KSA: {
     apiBaseUrl:
@@ -32,6 +51,11 @@ const configs: Record<CountryCode, EnvConfig> = {
     allowedDomains: ['sa.dressfair.com', 'backendsa.dressfair.com'],
     webLoginPath: '/login',
     webLogoutPath: '/logout',
+    privacyPolicyPath: '/privacy',
+    termsPath: '/terms',
+    helpSupportPath: '/contact',
+    accountDeletionPath: '/account/delete',
+    supportEmail: 'support@dressfair.com',
   },
 };
 

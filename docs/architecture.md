@@ -69,12 +69,13 @@ Rules:
 
 ## Deep Link Contract
 
-- Universal link examples:
-  - `https://www.dressfair.com/p/{slug}`
-  - `https://www.dressfair.com/order/{orderId}`
-- App links map into internal route:
+- Custom scheme (shipping in v1.0.0):
   - `dressfair://web?path=/p/{slug}`
   - `dressfair://web?path=/order/{orderId}`
+- HTTPS Universal Links (`https://www.dressfair.com/...`) are not registered
+  to the app yet. Adding them requires an `autoVerify` intent-filter plus
+  `assetlinks.json` / `apple-app-site-association` hosted on the regional
+  domains. Tracked as a post-launch task.
 
 ## Session Ownership
 

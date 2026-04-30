@@ -1,6 +1,6 @@
 import * as Device from 'expo-device';
 import type * as ExpoNotifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Alert, Platform } from 'react-native';
 
 import { sessionStore } from '@features/auth/sessionStore';
 import { analytics } from '@shared/observability/analytics';
@@ -33,6 +33,32 @@ const syncPushTokenToBackend = async (token: string) => {
   }
 };
 
+const askInAppPermission = (): Promise<boolean> =>
+  new Promise(resolve => {
+    Alert.alert(
+      'Stay in the loop',
+      'DressFair sends notifications for order updates, delivery status, and important account alerts. We may also share occasional offers (you can turn these off any time in Settings).',
+      [
+        {
+          text: 'Not now',
+          style: 'cancel',
+          onPress: () => {
+            analytics.track('push_pre_prompt_declined');
+            resolve(false);
+          },
+        },
+        {
+          text: 'Allow',
+          onPress: () => {
+            analytics.track('push_pre_prompt_accepted');
+            resolve(true);
+          },
+        },
+      ],
+      { cancelable: false },
+    );
+  });
+
 export const registerForPushNotifications = async (): Promise<void> => {
   if (!shouldUseExpoNotifications()) {
     return;
@@ -40,7 +66,6 @@ export const registerForPushNotifications = async (): Promise<void> => {
 
   if (!Device.isDevice) return;
 
-   
   const Notifications = require('expo-notifications') as typeof ExpoNotifications;
 
   if (Platform.OS === 'android') {
@@ -54,7 +79,16 @@ export const registerForPushNotifications = async (): Promise<void> => {
 
   const existingStatus = await Notifications.getPermissionsAsync();
   let status = existingStatus.status;
+
   if (status !== 'granted') {
+    // Show our own context dialog before the OS prompt so the user knows why
+    // they are being asked. Required on Android 13+ where POST_NOTIFICATIONS
+    // is a runtime permission and recommended for Apple App Review.
+    const userAgreed = await askInAppPermission();
+    if (!userAgreed) {
+      analytics.track('push_permission_skipped_pre_prompt');
+      return;
+    }
     const req = await Notifications.requestPermissionsAsync();
     status = req.status;
   }

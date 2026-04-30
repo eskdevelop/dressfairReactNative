@@ -5,10 +5,21 @@
     "WebView loads allowed DressFair domain pages",
     "Non-allowlisted links open in external browser",
     "Account tab routes to login when signed out",
-    "Logout clears native session and opens web logout",
-    "Push token registers and sync attempt is tracked",
+    "Login on web inside WebView saves auth token (SecureStore-backed; survives kill-relaunch)",
+    "Logout clears native session and opens web logout (re-launch shows logged-out state)",
+    "Push pre-permission dialog appears with Allow / Not now copy on first launch",
+    "Tapping Allow then granting at OS prompt registers the token; tracked event push_token_registered",
+    "Tapping Not now skips the OS prompt (push_permission_skipped_pre_prompt event)",
     "Notification/deeplink opens expected WebView path",
-    "Payment callback URLs emit redirect telemetry",
-    "No loading/error state leaves blank screen"
+    "Custom-scheme deep link `dressfair://web?path=/p/<slug>` opens the right WebView path",
+    "Settings -> Notification preferences opens system Settings",
+    "Settings -> Help and support opens the support email composer (or in-app fallback)",
+    "Settings -> Privacy policy opens https://www.dressfair.com/privacy in OS browser",
+    "Settings -> Terms and conditions opens the terms URL in OS browser",
+    "Settings -> Delete account shows the warning Alert and opens the deletion page on Continue",
+    "Payment callback URLs emit redirect telemetry; checkout via the live gateway succeeds end-to-end",
+    "Hardware Back inside WebView navigates back, then exits the app at the storefront root",
+    "No loading/error state leaves blank screen",
+    "Manifest contains only INTERNET + VIBRATE permissions in the production AAB"
   ]
 }

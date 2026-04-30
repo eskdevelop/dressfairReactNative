@@ -12,6 +12,7 @@ import { sessionStore } from '@features/auth/sessionStore';
 import { getEnvConfig } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 import { AppAsyncState } from '@shared/ui/AppAsyncState';
+import { isAllowedUrl } from '@shared/webview/urlPolicy';
 import { detectPaymentRedirect } from './paymentRedirectPolicy';
 
 type Props = {
@@ -27,6 +28,22 @@ const looksCheckoutRelated = (url: string): boolean => {
     return CHECKOUT_PATH_HINT.test(u.pathname + u.search);
   } catch {
     return false;
+  }
+};
+
+const isHttpsUrl = (url: string): boolean => url.startsWith('https://');
+
+const isInternalWebViewUrl = (url: string): boolean =>
+  url.startsWith('about:blank') ||
+  url.startsWith('data:') ||
+  url.startsWith('blob:') ||
+  url.startsWith('javascript:');
+
+const safeHost = (url: string): string | null => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
   }
 };
 
@@ -63,13 +80,6 @@ export function WebViewScreen({ path }: Props) {
     }
   };
 
-  const isWebUrl = (url: string) => url.startsWith('http://') || url.startsWith('https://');
-  const isInternalWebViewUrl = (url: string) =>
-    url.startsWith('about:blank') ||
-    url.startsWith('data:') ||
-    url.startsWith('blob:') ||
-    url.startsWith('javascript:');
-
   React.useEffect(() => {
     if (!loading) return;
     const timer = setTimeout(() => {
@@ -82,6 +92,17 @@ export function WebViewScreen({ path }: Props) {
   }, [loading, initialLoadDone]);
 
   const handleWebMessage = async (event: WebViewMessageEvent) => {
+    // Drop bridge messages that did not originate from a first-party page so
+    // a third-party gateway page rendered mid-checkout cannot exfiltrate auth
+    // state or coerce in-app navigation.
+    const messageOriginHost = safeHost(event.nativeEvent.url);
+    if (!messageOriginHost || !allowedHostSet.has(messageOriginHost)) {
+      analytics.track('webview_message_dropped_untrusted_origin', {
+        host: messageOriginHost ?? 'unknown',
+      });
+      return;
+    }
+
     try {
       const payload = JSON.parse(event.nativeEvent.data) as {
         type?: string;
@@ -95,13 +116,14 @@ export function WebViewScreen({ path }: Props) {
         await sessionStore.clear();
         dispatch(setAuthenticated(false));
       } else if (payload.type === 'open_external' && payload.url) {
-        if (isWebUrl(payload.url)) {
+        if (isHttpsUrl(payload.url) && isAllowedUrl(payload.url)) {
           webViewRef.current?.injectJavaScript(
             `window.location.href = ${JSON.stringify(payload.url)}; true;`,
           );
           analytics.track('webview_forced_in_app_navigation', { target: payload.url });
         } else {
           await Linking.openURL(payload.url);
+          analytics.track('webview_open_external_handoff', { target: payload.url });
         }
       }
     } catch {
@@ -130,7 +152,7 @@ export function WebViewScreen({ path }: Props) {
         domStorageEnabled
         javaScriptEnabled
         setSupportMultipleWindows={false}
-        originWhitelist={['*']}
+        originWhitelist={['https://*', 'about:blank', 'data:*', 'blob:*']}
         onLoadStart={() => {
           if (!initialLoadDone) {
             setLoading(true);
@@ -156,11 +178,18 @@ export function WebViewScreen({ path }: Props) {
             if (isInternalWebViewUrl(request.url)) {
               return true;
             }
-            if (!isWebUrl(request.url)) {
+            // Only HTTPS is allowed inside the WebView. Plain HTTP and any
+            // exotic scheme (mailto:, tel:, intent:, market:, geo:, etc.) is
+            // handed to the OS so the WebView never renders insecure content.
+            if (!isHttpsUrl(request.url)) {
               Linking.openURL(request.url);
               return false;
             }
-            const host = new URL(request.url).host;
+            const host = safeHost(request.url);
+            if (!host) {
+              analytics.track('webview_blocked_invalid_url');
+              return false;
+            }
             if (allowedHostSet.has(host)) {
               if (looksCheckoutRelated(request.url)) {
                 const payment = detectPaymentRedirect(request.url);
@@ -172,6 +201,10 @@ export function WebViewScreen({ path }: Props) {
               }
               return true;
             }
+            // Cross-domain HTTPS: kept in-WebView because payment 3DS chains
+            // (Tap, HyperPay, Tabby, Tamara, etc.) bounce through gateway hosts
+            // before returning to the storefront. Telemetry lets us spot
+            // suspicious destinations in production.
             analytics.track('webview_cross_domain_in_app', { target: request.url });
             return true;
           } catch {
