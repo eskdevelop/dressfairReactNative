@@ -2,7 +2,7 @@
   "expo": {
     "name": "Dress Fair Shopping",
     "slug": "dressfair-rn-hybrid",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "runtimeVersion": {
       "policy": "appVersion"
     },
@@ -24,7 +24,7 @@
     ],
     "ios": {
       "bundleIdentifier": "com.dressfair.dressfairrnhybrid",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "supportsTablet": false,
       "icon": "./assets/icon.png",
       "infoPlist": {
@@ -34,7 +34,7 @@
     },
     "android": {
       "package": "com.dressfair.dressfairrnhybrid",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
