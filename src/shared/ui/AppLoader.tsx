@@ -1,12 +1,32 @@
 import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Image, View } from 'react-native';
 
-import { colors, spacing } from '@app/theme/tokens';
+import { colors, radii, spacing } from '@app/theme/tokens';
+
+const logo = require('../../../assets/icon.png');
 
 export function AppLoader() {
   return (
-    <View style={{ padding: spacing.lg, alignItems: 'center' }}>
-      <ActivityIndicator size="small" color={colors.brand} />
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: colors.background,
+        padding: spacing.xl,
+      }}
+    >
+      <Image
+        source={logo}
+        style={{
+          width: 96,
+          height: 96,
+          borderRadius: radii.lg,
+          marginBottom: spacing.xl,
+        }}
+        resizeMode="contain"
+      />
+      <ActivityIndicator size="large" color={colors.brand} />
     </View>
   );
 }
