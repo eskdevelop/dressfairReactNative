@@ -1,3 +1,4 @@
 <resources>
   <string name="app_name">Dress Fair Shopping</string>
+  <string name="expo_runtime_version">1.0.4</string>
 </resources>

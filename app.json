@@ -3,9 +3,7 @@
     "name": "Dress Fair Shopping",
     "slug": "dressfair-rn-hybrid",
     "version": "1.0.4",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.4",
     "scheme": "dressfair",
     "orientation": "portrait",
     "platforms": [
@@ -42,9 +40,14 @@
       },
       "permissions": [
         "android.permission.INTERNET",
+        "android.permission.VIBRATE",
+        "android.permission.INTERNET",
         "android.permission.VIBRATE"
       ],
       "blockedPermissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.SYSTEM_ALERT_WINDOW"
@@ -58,6 +61,9 @@
     "owner": "dressfair",
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "updates": {
+      "url": "https://u.expo.dev/5137d347-3f60-49fd-b16b-65f9c8db9665"
+    }
   }
 }
