@@ -12,8 +12,7 @@
     "baseUrl": ".",
     "types": [
       "jest",
-      "react",
-      "react-native"
+      "react"
     ],
     "paths": {
       "@app/*": [

@@ -3,6 +3,8 @@ package com.dressfair.dressfairrnhybrid
 import android.os.Build
 import android.os.Bundle
 
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -12,10 +14,15 @@ import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
-    // Set the theme to AppTheme BEFORE onCreate to support
-    // coloring the background, status bar, and navigation bar.
-    // This is required for expo-splash-screen.
-    setTheme(R.style.AppTheme);
+    // Install the AndroidX SplashScreen first so the system uses the
+    // small circular icon defined by Theme.App.SplashScreen instead of
+    // the legacy full-screen window background. Must run before
+    // super.onCreate(). On Android < 12 the library polyfills the same
+    // look automatically.
+    installSplashScreen()
+    // Switch to the regular app theme so the rest of the activity
+    // lifecycle does not keep painting the splash background.
+    setTheme(R.style.AppTheme)
     super.onCreate(null)
   }
 

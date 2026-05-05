@@ -24,3 +24,8 @@ export const openWebPath = (path: string): void => {
   }
   pendingPath = path;
 };
+
+export const openSettings = (): void => {
+  if (!navigationRef.isReady()) return;
+  navigationRef.dispatch(CommonActions.navigate({ name: 'Settings' }));
+};

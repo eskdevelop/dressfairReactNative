@@ -167,7 +167,7 @@ export function SettingsScreen() {
           destructive
           testID="settings-logout"
         />
-        <HealthDebugPanel />
+        {__DEV__ ? <HealthDebugPanel /> : null}
       </View>
     </ScrollView>
   );

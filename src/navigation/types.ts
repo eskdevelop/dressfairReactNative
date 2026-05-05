@@ -3,12 +3,6 @@ export type RootStackParamList = {
   MainTabs: undefined;
   Offline: undefined;
   Maintenance: undefined;
-  NotificationRouter: { path?: string } | undefined;
-};
-
-export type MainTabParamList = {
-  HomeWeb: undefined;
-  CategoriesWeb: undefined;
-  AccountWeb: undefined;
   Settings: undefined;
+  NotificationRouter: { path?: string } | undefined;
 };

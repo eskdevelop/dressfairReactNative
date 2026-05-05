@@ -167,6 +167,12 @@ dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
 
+    // Required for Theme.SplashScreen / installSplashScreen() in
+    // MainActivity. expo-splash-screen 31.x already pulls this in
+    // transitively, but pinning it explicitly here makes the splash work
+    // independently of that resolution.
+    implementation("androidx.core:core-splashscreen:1.0.1")
+
     def isGifEnabled = (findProperty('expo.gif.enabled') ?: "") == "true";
     def isWebpEnabled = (findProperty('expo.webp.enabled') ?: "") == "true";
     def isWebpAnimatedEnabled = (findProperty('expo.webp.animated') ?: "") == "true";

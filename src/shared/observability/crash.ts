@@ -1,6 +1,15 @@
+import type { CrashContext } from './transport';
+import { forwardCrashEvent } from './transport';
+
+export type { CrashContext } from './transport';
+
+const isDev = typeof __DEV__ !== 'undefined' && __DEV__;
+
 export const crashReporter = {
-  capture(error: unknown, context?: Record<string, unknown>) {
-    // Replace with Crashlytics/Sentry integration in production.
-    console.error('[crash]', error, context);
+  capture(error: unknown, context?: CrashContext) {
+    if (isDev) {
+      console.error('[crash]', error, context);
+    }
+    forwardCrashEvent(error, context);
   },
 };

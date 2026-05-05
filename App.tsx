@@ -5,6 +5,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
 import { AppRoot } from './src/app/AppRoot';
 import { store } from './src/app/store';
+import { installObservability } from './src/shared/observability/setup';
+
+// Wire global error / unhandled-promise handlers as early as possible so we
+// capture crashes that happen during bootstrap. Register a real transport
+// (Sentry, PostHog, your backend) by passing `{ transport }` here.
+installObservability();
 
 // Block the native splash screen from auto-hiding the moment JS starts.
 // It will be hidden explicitly once the WebView's first page paints

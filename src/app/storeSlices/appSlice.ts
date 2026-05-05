@@ -23,9 +23,6 @@ const slice = createSlice({
   name: 'app',
   initialState,
   reducers: {
-    setCountry(state, action: PayloadAction<CountryCode>) {
-      state.country = action.payload;
-    },
     setOffline(state, action: PayloadAction<boolean>) {
       state.isOffline = action.payload;
     },
@@ -41,11 +38,6 @@ const slice = createSlice({
   },
 });
 
-export const {
-  setCountry,
-  setOffline,
-  setMaintenanceMode,
-  setBootstrapped,
-  setAuthenticated,
-} = slice.actions;
+export const { setOffline, setMaintenanceMode, setBootstrapped, setAuthenticated } =
+  slice.actions;
 export const appReducer = slice.reducer;

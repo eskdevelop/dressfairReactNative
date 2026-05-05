@@ -22,7 +22,14 @@ const configs: Record<CountryCode, EnvConfig> = {
     apiBaseUrl:
       'https://backend.dressfair.com/index.php?route=extension/opencart',
     webBaseUrl: 'https://www.dressfair.com',
-    allowedDomains: ['www.dressfair.com', 'backend.dressfair.com'],
+    // Both apex (dressfair.com) and www must be in the allowlist because the
+    // storefront server canonicalises between them via 301 redirects. Without
+    // the apex the WebView would hand off the redirect to the OS browser.
+    allowedDomains: [
+      'dressfair.com',
+      'www.dressfair.com',
+      'backend.dressfair.com',
+    ],
     webLoginPath: '/login',
     webLogoutPath: '/logout',
     privacyPolicyPath: '/privacy',
@@ -35,7 +42,11 @@ const configs: Record<CountryCode, EnvConfig> = {
     apiBaseUrl:
       'https://backend.dressfair.om/index.php?route=extension/opencart',
     webBaseUrl: 'https://www.dressfair.om',
-    allowedDomains: ['www.dressfair.om', 'backend.dressfair.om'],
+    allowedDomains: [
+      'dressfair.om',
+      'www.dressfair.om',
+      'backend.dressfair.om',
+    ],
     webLoginPath: '/login',
     webLogoutPath: '/logout',
     privacyPolicyPath: '/privacy',
