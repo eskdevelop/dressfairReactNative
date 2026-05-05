@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { BackHandler, View } from 'react-native';
 import * as Linking from 'expo-linking';
+import * as SplashScreenModule from 'expo-splash-screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 import { WebView } from 'react-native-webview';
@@ -47,11 +48,27 @@ const safeHost = (url: string): string | null => {
   }
 };
 
+// Hide the native splash exactly once across the app's lifetime; remounts of
+// WebViewScreen (e.g. tab switches) must not retrigger preventAutoHide.
+let nativeSplashHidden = false;
+const hideNativeSplashOnce = () => {
+  if (nativeSplashHidden) return;
+  nativeSplashHidden = true;
+  SplashScreenModule.hideAsync().catch(() => {
+    // Swallow: splash can already be hidden if the user backgrounded the app.
+  });
+};
+
 export function WebViewScreen({ path }: Props) {
   const dispatch = useAppDispatch();
   const webViewRef = useRef<WebView>(null);
   const [canGoBack, setCanGoBack] = useState(false);
-  const [loading, setLoading] = useState(true);
+  // Initial load is masked by the native splash; subsequent loads keep the
+  // previously-painted page visible until the next one finishes (browser-like
+  // behaviour), so the AppLoader overlay is never used during normal
+  // navigation. It is only re-introduced when the user manually retries
+  // after an error (`reload()` flips `loading` true via that code path).
+  const [loading, setLoading] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cfg = getEnvConfig(store.getState().app.country);
@@ -80,16 +97,19 @@ export function WebViewScreen({ path }: Props) {
     }
   };
 
+  // Safety net: if the WebView never fires onLoadEnd within 15s on a fresh
+  // launch (slow network, dead host, etc.), drop the native splash and
+  // surface a retry path so the user is not stuck staring at the logo.
   React.useEffect(() => {
-    if (!loading) return;
+    if (initialLoadDone) return;
     const timer = setTimeout(() => {
       if (!initialLoadDone) {
-        setLoading(false);
+        hideNativeSplashOnce();
         setError(prev => prev ?? 'Page load is taking too long. Tap Retry.');
       }
     }, 15000);
     return () => clearTimeout(timer);
-  }, [loading, initialLoadDone]);
+  }, [initialLoadDone]);
 
   const handleWebMessage = async (event: WebViewMessageEvent) => {
     // Drop bridge messages that did not originate from a first-party page so
@@ -139,6 +159,7 @@ export function WebViewScreen({ path }: Props) {
         overlay
         onRetry={() => {
           setError(null);
+          setLoading(true);
           webViewRef.current?.reload();
         }}
       >
@@ -154,25 +175,35 @@ export function WebViewScreen({ path }: Props) {
         setSupportMultipleWindows={false}
         originWhitelist={['https://*', 'about:blank', 'data:*', 'blob:*']}
         onLoadStart={() => {
-          if (!initialLoadDone) {
-            setLoading(true);
-          }
+          // Intentionally NO setLoading(true) here:
+          //  • First load: native splash is still covering the screen.
+          //  • Subsequent loads: keep the current page visible during the
+          //    transition so we never flash an AppLoader over a working UI
+          //    (a slow redirect would otherwise leave the spinner stuck).
           setError(null);
           analytics.track('webview_load_start', { path });
         }}
         onLoadProgress={event => {
-          if (!initialLoadDone && loading && event.nativeEvent.progress > 0.25) {
+          if (loading && event.nativeEvent.progress > 0.25) {
             setLoading(false);
           }
         }}
         onLoadEnd={() => {
           setLoading(false);
-          setInitialLoadDone(true);
+          if (!initialLoadDone) {
+            setInitialLoadDone(true);
+            hideNativeSplashOnce();
+          }
           analytics.track('webview_load_end', { path });
         }}
         onNavigationStateChange={onNavChange}
         onMessage={handleWebMessage}
-        onError={() => setError('Unable to load page. Please retry.')}
+        onError={() => {
+          // If the very first load fails, the native splash must still be
+          // dropped so the user can see the error UI and retry.
+          hideNativeSplashOnce();
+          setError('Unable to load page. Please retry.');
+        }}
         onShouldStartLoadWithRequest={request => {
           try {
             if (isInternalWebViewUrl(request.url)) {

@@ -1,9 +1,7 @@
 import React from 'react';
-import { Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { colors } from '@app/theme/tokens';
 import { useAppSelector } from '@app/hooks';
 import type { RootStackParamList } from '@navigation/types';
 
@@ -26,11 +24,10 @@ export function SplashScreen() {
     navigation.replace('MainTabs');
   }, [isBootstrapped, isMaintenanceMode, isOffline, navigation]);
 
-  return (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: colors.brand, fontSize: 22, fontWeight: '700' }}>
-        DressFair
-      </Text>
-    </View>
-  );
+  // Render nothing: the native splash (expo-splash-screen) is still on
+  // screen at this point and is hidden once the WebView paints its first
+  // frame. Returning null prevents an ugly flash of placeholder UI.
+  return null;
 }
+
+
