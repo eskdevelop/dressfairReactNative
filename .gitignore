@@ -83,10 +83,10 @@ ios/Podfile.lock.tmp
 # Cursor / AI tooling caches (keep settings tracked)
 .cursor/
 
-# Firebase config files — contain API keys / sender IDs and must not be
-# committed. Download fresh copies from Firebase Console for each clone:
-#   - google-services.json       (Android, project root)
-#   - GoogleService-Info.plist   (iOS, project root)
-# See FIREBASE_SETUP.md for the full setup walkthrough.
-google-services.json
-GoogleService-Info.plist
+# Note: google-services.json and GoogleService-Info.plist ARE committed to
+# this repo. Per Firebase docs, those files don't contain private secrets —
+# they identify the Firebase project + bundle ID and end up bundled into
+# every APK/IPA install. Keeping them in git lets EAS Build pick them up
+# automatically. The actual secret you must protect is the APNs Auth Key
+# (.p8 from Apple Developer Portal). Don't commit that.
+*.p8

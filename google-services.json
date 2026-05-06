@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "83170068558",
+    "project_id": "dressfair-react-native",
+    "storage_bucket": "dressfair-react-native.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:83170068558:android:b913c0c9ebde60194a9b1f",
+        "android_client_info": {
+          "package_name": "com.dressfair.dressfairrnhybrid"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQfOnlvzO_lxoMB1-TEJ4KW7kUxqyDhhE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

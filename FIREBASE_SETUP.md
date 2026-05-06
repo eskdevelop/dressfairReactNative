@@ -15,19 +15,29 @@ number `83170068558`). The bundle ID / package name on both platforms is
 
 ---
 
-## Required local files (gitignored)
+## Required local files (committed to this private repo)
 
-These two files contain API keys and must never be committed. They live in the
-repo root:
+These two files live in the repo root and are committed to git:
 
 | File                          | Platform | Where it comes from                                       |
 | ----------------------------- | -------- | --------------------------------------------------------- |
 | `google-services.json`        | Android  | Firebase Console → Project settings → Your apps → Android |
 | `GoogleService-Info.plist`    | iOS      | Firebase Console → Project settings → Your apps → iOS     |
 
-`app.json` references both via `android.googleServicesFile` and (when present)
-`ios.googleServicesFile`. EAS Build copies them into the native projects during
-prebuild — no Gradle / Podfile edits are required.
+Per [Firebase docs](https://firebase.google.com/docs/projects/learn-more#config-files-objects),
+these files do **not** contain private secrets — they identify the Firebase
+project + bundle ID, and they ship inside every APK/IPA install regardless.
+Keeping them in git is the simplest path because EAS Build picks them up
+automatically. If your repo ever goes public, switch to EAS file env vars
+([docs](https://docs.expo.dev/eas/environment-variables/#file-environment-variables)).
+
+`app.json` references both via `android.googleServicesFile` and `ios.googleServicesFile`.
+EAS Build copies them into the regenerated native projects during prebuild —
+no Gradle / Podfile edits are required.
+
+The **real** Firebase secret is the **APNs Auth Key (`.p8`)** from Apple
+Developer Portal. That stays out of the repo (gitignored via `*.p8`) and
+lives only in Firebase Console + your local `~/Documents/Keys/Apple/` backup.
 
 ---
 
