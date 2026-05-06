@@ -12,6 +12,9 @@ import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { perf } from '@shared/observability/performance';
 import { setAuthenticated, setBootstrapped, setOffline } from './storeSlices/appSlice';
+// #region agent log
+import { debugStartupLog } from '@shared/observability/__debugStartupLog';
+// #endregion
 
 export function AppRoot() {
   const dispatch = useAppDispatch();
@@ -42,6 +45,18 @@ export function AppRoot() {
       dispatch(setOffline(isOffline));
       dispatch(setAuthenticated(Boolean(tokenResult)));
       dispatch(setBootstrapped(true));
+      // #region agent log
+      debugStartupLog(
+        'AppRoot.tsx:bootstrap.done',
+        'BOOTSTRAP_DONE',
+        {
+          isOffline,
+          networkProbeOk: networkResult !== null,
+          tokenPresent: Boolean(tokenResult),
+        },
+        'H3',
+      );
+      // #endregion
       const elapsed = perf.end('app_bootstrap');
       if (elapsed !== null) {
         analytics.track('app_bootstrap_complete', {

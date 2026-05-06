@@ -19,6 +19,9 @@ import { isPaymentGatewayHost } from '@shared/webview/paymentGateways';
 import { isAllowedUrl } from '@shared/webview/urlPolicy';
 import { parseBridgeMessage } from './bridgeMessage';
 import { detectPaymentRedirect } from './paymentRedirectPolicy';
+// #region agent log
+import { debugStartupLog } from '@shared/observability/__debugStartupLog';
+// #endregion
 
 type Props = {
   path: string;
@@ -52,10 +55,48 @@ const safeHost = (url: string): string | null => {
   }
 };
 
+// Bridge sentinel posted by the injected JS once the storefront has actually
+// painted its first frame. We hide the native splash on this signal — not on
+// `onLoadEnd`, which fires when the network load finishes but BEFORE the
+// WebView has flushed its first paint. Hiding on `onLoadEnd` exposes the
+// white SafeAreaView for the duration of (paint - load), which the user
+// perceives as a "white screen flash" between the logo and the storefront.
+const FIRST_PAINT_SENTINEL = '__dressfair_first_paint__';
+const FIRST_PAINT_INJECTION = `
+(function() {
+  if (window.__dressfairPaintNotified) return true;
+  function notify() {
+    if (window.__dressfairPaintNotified) return;
+    window.__dressfairPaintNotified = true;
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: '${FIRST_PAINT_SENTINEL}' }));
+    }
+  }
+  function whenLoaded() {
+    // Two RAFs: first one resolves layout, second resolves paint.
+    requestAnimationFrame(function() { requestAnimationFrame(notify); });
+  }
+  if (document.readyState === 'complete') {
+    whenLoaded();
+  } else {
+    window.addEventListener('load', whenLoaded, { once: true });
+  }
+})();
+true;
+`;
+
 // Hide the native splash exactly once across the app's lifetime; remounts of
 // WebViewScreen (e.g. tab switches) must not retrigger preventAutoHide.
 let nativeSplashHidden = false;
-const hideNativeSplashOnce = () => {
+const hideNativeSplashOnce = (reason: string) => {
+  // #region agent log
+  debugStartupLog(
+    'WebViewScreen.tsx:hideNativeSplashOnce',
+    'HIDE_NATIVE_SPLASH',
+    { reason, alreadyHidden: nativeSplashHidden },
+    'H1,H2,H4',
+  );
+  // #endregion
   if (nativeSplashHidden) return;
   nativeSplashHidden = true;
   SplashScreenModule.hideAsync().catch(() => {
@@ -78,6 +119,17 @@ export function WebViewScreen({ path }: Props) {
   const cfg = getEnvConfig(store.getState().app.country);
   const uri = useMemo(() => `${cfg.webBaseUrl}${path}`, [cfg.webBaseUrl, path]);
   const allowedHostSet = useMemo(() => new Set(cfg.allowedDomains), [cfg.allowedDomains]);
+
+  // #region agent log
+  React.useEffect(() => {
+    debugStartupLog(
+      'WebViewScreen.tsx:mount',
+      'WEBVIEW_MOUNT',
+      { uri, path },
+      'H3,H4,H5',
+    );
+  }, [uri, path]);
+  // #endregion
 
   React.useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -108,7 +160,7 @@ export function WebViewScreen({ path }: Props) {
     if (initialLoadDone) return;
     const timer = setTimeout(() => {
       if (!initialLoadDone) {
-        hideNativeSplashOnce();
+        hideNativeSplashOnce('safety_timeout_15s');
         setError(prev => prev ?? 'Page load is taking too long. Tap Retry.');
       }
     }, 15000);
@@ -116,6 +168,37 @@ export function WebViewScreen({ path }: Props) {
   }, [initialLoadDone]);
 
   const handleWebMessage = async (event: WebViewMessageEvent) => {
+    // Handle the first-paint sentinel BEFORE the host filter so a redirect
+    // to a payment-gateway page can't accidentally suppress it (and because
+    // the message carries no privileged data — it is a one-bit "I painted"
+    // signal). This is what dismisses the native splash, replacing the
+    // older `onLoadEnd` trigger which fired before first paint and left a
+    // white flash for (paint - load) ms.
+    try {
+      const raw = event.nativeEvent.data;
+      if (typeof raw === 'string' && raw.indexOf(FIRST_PAINT_SENTINEL) !== -1) {
+        const parsed = JSON.parse(raw) as { type?: unknown };
+        if (parsed && parsed.type === FIRST_PAINT_SENTINEL) {
+          // #region agent log
+          debugStartupLog(
+            'WebViewScreen.tsx:firstPaintMessage',
+            'FIRST_PAINT_MESSAGE',
+            { initialLoadDone, alreadyHidden: nativeSplashHidden },
+            'H2,H5',
+            'post-fix',
+          );
+          // #endregion
+          if (!initialLoadDone) {
+            setInitialLoadDone(true);
+            hideNativeSplashOnce('webview_first_paint');
+          }
+          return;
+        }
+      }
+    } catch {
+      // Fall through to the normal bridge-message path on parse errors.
+    }
+
     // Drop bridge messages that did not originate from a first-party page so
     // a third-party gateway page rendered mid-checkout cannot exfiltrate auth
     // state or coerce in-app navigation.
@@ -185,9 +268,18 @@ export function WebViewScreen({ path }: Props) {
         cacheEnabled
         domStorageEnabled
         javaScriptEnabled
+        injectedJavaScript={FIRST_PAINT_INJECTION}
         setSupportMultipleWindows={false}
         originWhitelist={['https://*', 'about:blank', 'data:*', 'blob:*']}
         onLoadStart={() => {
+          // #region agent log
+          debugStartupLog(
+            'WebViewScreen.tsx:onLoadStart',
+            'WEBVIEW_LOAD_START',
+            { initialLoadDone, uri },
+            'H5',
+          );
+          // #endregion
           // Intentionally NO setLoading(true) here:
           //  • First load: native splash is still covering the screen.
           //  • Subsequent loads: keep the current page visible during the
@@ -202,11 +294,22 @@ export function WebViewScreen({ path }: Props) {
           }
         }}
         onLoadEnd={() => {
+          // #region agent log
+          debugStartupLog(
+            'WebViewScreen.tsx:onLoadEnd',
+            'WEBVIEW_LOAD_END',
+            { initialLoadDone, uri },
+            'H2,H5',
+          );
+          // #endregion
           setLoading(false);
-          if (!initialLoadDone) {
-            setInitialLoadDone(true);
-            hideNativeSplashOnce();
-          }
+          // NOTE: Do NOT hide the native splash here. `onLoadEnd` fires when
+          // the network load finishes but BEFORE the WebView has flushed its
+          // first paint, which causes a white-flash between logo and content.
+          // The splash is now hidden by the FIRST_PAINT_SENTINEL message
+          // posted from `injectedJavaScript`. The `safety_timeout_15s`
+          // useEffect above remains as a last-resort fallback for pages
+          // where the injected JS cannot run (e.g. immediate native error).
           analytics.track('webview_load_end', { path });
         }}
         onNavigationStateChange={onNavChange}
@@ -214,7 +317,7 @@ export function WebViewScreen({ path }: Props) {
         onError={() => {
           // If the very first load fails, the native splash must still be
           // dropped so the user can see the error UI and retry.
-          hideNativeSplashOnce();
+          hideNativeSplashOnce('webview_onError');
           setError('Unable to load page. Please retry.');
         }}
         onShouldStartLoadWithRequest={request => {
