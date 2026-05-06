@@ -9,13 +9,19 @@ import { withRetry } from '@shared/network/retry';
 
 import { shouldUseExpoNotifications } from './expoPushAvailability';
 
-const syncPushTokenToBackend = async (token: string) => {
+const syncPushTokenToBackend = async (
+  token: string,
+  tokenType: 'fcm' | 'apns' | 'unknown',
+) => {
   try {
     await withRetry(
       () =>
         apiClient.post('', {
           action: 'savePushToken',
           pushToken: token,
+          // Backend uses tokenType to route through APNs vs FCM HTTP v1
+          // when sending pushes via Firebase Cloud Messaging server SDKs.
+          tokenType,
           platform: Platform.OS,
         }),
       {
@@ -25,10 +31,11 @@ const syncPushTokenToBackend = async (token: string) => {
         },
       },
     );
-    analytics.track('push_sync_success');
+    analytics.track('push_sync_success', { tokenType });
   } catch (error) {
     analytics.track('push_sync_failed', {
       reason: (error as { message?: string })?.message ?? 'unknown',
+      tokenType,
     });
   }
 };
@@ -98,11 +105,43 @@ export const registerForPushNotifications = async (): Promise<void> => {
     return;
   }
 
-  const expoToken = (await Notifications.getExpoPushTokenAsync()).data;
-  const prevToken = await sessionStore.getPushToken();
-  if (prevToken === expoToken) return;
+  // Use the raw device push token (APNs hex on iOS, FCM token on Android)
+  // rather than the Expo Push Service relay. The backend pushes through
+  // Firebase Cloud Messaging server-side, so it needs the native token to
+  // address the device directly. This keeps the runtime SDK identical
+  // (still `expo-notifications`) but switches the addressing scheme — no
+  // `@react-native-firebase` or extra config plugins required.
+  //
+  // Note: on Android `getDevicePushTokenAsync` requires Firebase Cloud
+  // Messaging to be configured for the app (google-services.json + the
+  // matching FCM project). If that setup is missing the call throws —
+  // we swallow the error and report it via analytics so the user is not
+  // shown a crash dialog while the backend team finishes wiring FCM.
+  let devicePushToken;
+  try {
+    devicePushToken = await Notifications.getDevicePushTokenAsync();
+  } catch (error) {
+    analytics.track('push_device_token_unavailable', {
+      reason: (error as { message?: string })?.message ?? 'unknown',
+      platform: Platform.OS,
+    });
+    return;
+  }
+  const tokenString =
+    typeof devicePushToken.data === 'string'
+      ? devicePushToken.data
+      : JSON.stringify(devicePushToken.data);
+  if (tokenString.length === 0) {
+    analytics.track('push_device_token_empty', { platform: Platform.OS });
+    return;
+  }
+  const tokenType: 'fcm' | 'apns' | 'unknown' =
+    Platform.OS === 'ios' ? 'apns' : Platform.OS === 'android' ? 'fcm' : 'unknown';
 
-  await sessionStore.savePushToken(expoToken);
-  await syncPushTokenToBackend(expoToken);
-  analytics.track('push_token_registered');
+  const prevToken = await sessionStore.getPushToken();
+  if (prevToken === tokenString) return;
+
+  await sessionStore.savePushToken(tokenString);
+  await syncPushTokenToBackend(tokenString, tokenType);
+  analytics.track('push_token_registered', { tokenType });
 };

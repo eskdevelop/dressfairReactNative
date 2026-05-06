@@ -8,6 +8,10 @@ import { flushPendingNavigation, navigationRef } from '@navigation/navigationRef
 import { RootNavigator } from '@navigation/RootNavigator';
 import { useAppDispatch } from './hooks';
 import { sessionStore } from '@features/auth/sessionStore';
+import {
+  bootstrapSession,
+  hydrateSessionFromStorage,
+} from '@features/api/sessionApi';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { perf } from '@shared/observability/performance';
@@ -29,7 +33,7 @@ export function AppRoot() {
       // tri-state (true / false / null=unknown); only an explicit `false`
       // is treated as offline so unknown states default to letting the
       // WebView attempt the load and surface its own error UI on failure.
-      const [networkResult, tokenResult] = await Promise.all([
+      const [networkResult, tokenResult, apiSessionResult] = await Promise.all([
         Network.getNetworkStateAsync().catch(error => {
           crashReporter.capture(error, { source: 'bootstrap.network' });
           return null;
@@ -38,6 +42,10 @@ export function AppRoot() {
           crashReporter.capture(error, { source: 'bootstrap.session' });
           return null;
         }),
+        // Hydrate the OpenCart REST session token from SecureStore. This
+        // never throws (errors are funnelled through crashReporter), so the
+        // bootstrap remains failure-isolated from the search subsystem.
+        hydrateSessionFromStorage(),
       ]);
 
       if (!mounted) return;
@@ -45,6 +53,14 @@ export function AppRoot() {
       dispatch(setOffline(isOffline));
       dispatch(setAuthenticated(Boolean(tokenResult)));
       dispatch(setBootstrapped(true));
+
+      // Fire-and-forget: refresh the API session token in the background if
+      // we did not already have one in SecureStore. Search calls succeed even
+      // before this resolves because OpenCart treats unknown sessions as
+      // anonymous; this just promotes us to a tracked session for analytics.
+      if (apiSessionResult === null && !isOffline) {
+        void bootstrapSession();
+      }
       // #region agent log
       debugStartupLog(
         'AppRoot.tsx:bootstrap.done',

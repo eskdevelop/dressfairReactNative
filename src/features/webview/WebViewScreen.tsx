@@ -5,9 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 import { WebView } from 'react-native-webview';
 
-import { useAppDispatch } from '@app/hooks';
+import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { store } from '@app/store';
 import { setAuthenticated } from '@app/storeSlices/appSlice';
+import { clearWebNav } from '@app/storeSlices/webNavSlice';
 import { sessionStore } from '@features/auth/sessionStore';
 import { openSettings } from '@navigation/navigationRef';
 import { getEnvConfig } from '@shared/config/env';
@@ -117,18 +118,64 @@ export function WebViewScreen({ path }: Props) {
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cfg = getEnvConfig(store.getState().app.country);
-  const uri = useMemo(() => `${cfg.webBaseUrl}${path}`, [cfg.webBaseUrl, path]);
   const allowedHostSet = useMemo(() => new Set(cfg.allowedDomains), [cfg.allowedDomains]);
+
+  // Cross-tab navigation channel: when the Search or Notifications tab asks
+  // to drive the Home WebView to a specific storefront path, we surface
+  // that request here through Redux. We watch the monotonic sequence
+  // number so a duplicate request (same path tapped twice) still triggers
+  // a re-navigation. The implementation swaps the WebView's `source.uri`
+  // rather than calling `injectJavaScript` because the cold-start case
+  // (notification tap launches the app) dispatches the request BEFORE the
+  // WebView has mounted; `injectJavaScript` against an unloaded WebView is
+  // a silent no-op, but baking the path into the initial source URI works
+  // every time. URI swaps still push to the WebView's history so the
+  // hardware-back / canGoBack flow keeps working as before.
+  const webNavSeq = useAppSelector(state => state.webNav.seq);
+  const webNavPendingPath = useAppSelector(state => state.webNav.pendingPath);
+
+  // Snapshot the pending path at mount so a deep link queued before this
+  // screen rendered (cold-start notification, splash → tabs hand-off) is
+  // applied as the initial URI rather than as a post-mount swap.
+  const initialPath = useMemo(() => {
+    const pending = store.getState().webNav.pendingPath;
+    return pending && pending.length > 0 ? pending : path;
+  }, [path]);
+  const [currentUri, setCurrentUri] = useState(`${cfg.webBaseUrl}${initialPath}`);
+  const lastAppliedSeqRef = useRef(0);
+
+  React.useEffect(() => {
+    // Clear any seq that was set before mount so we don't re-apply it
+    // post-mount (otherwise we'd double-navigate the cold-start path).
+    if (store.getState().webNav.pendingPath) {
+      dispatch(clearWebNav());
+    }
+    lastAppliedSeqRef.current = store.getState().webNav.seq;
+    // Intentionally [] — this is a one-shot mount snapshot; subsequent seq
+    // changes are handled by the effect below.
+  }, [dispatch]);
+
+  React.useEffect(() => {
+    if (webNavSeq <= lastAppliedSeqRef.current) return;
+    lastAppliedSeqRef.current = webNavSeq;
+    if (!webNavPendingPath) return;
+    const targetUri = `${cfg.webBaseUrl}${webNavPendingPath}`;
+    setCurrentUri(targetUri);
+    analytics.track('webview_cross_tab_navigation', {
+      target: webNavPendingPath,
+    });
+    dispatch(clearWebNav());
+  }, [cfg.webBaseUrl, dispatch, webNavPendingPath, webNavSeq]);
 
   // #region agent log
   React.useEffect(() => {
     debugStartupLog(
       'WebViewScreen.tsx:mount',
       'WEBVIEW_MOUNT',
-      { uri, path },
+      { uri: currentUri, path },
       'H3,H4,H5',
     );
-  }, [uri, path]);
+  }, [currentUri, path]);
   // #endregion
 
   React.useEffect(() => {
@@ -264,7 +311,7 @@ export function WebViewScreen({ path }: Props) {
       <WebView
         style={{ flex: 1 }}
         ref={webViewRef}
-        source={{ uri }}
+        source={{ uri: currentUri }}
         cacheEnabled
         domStorageEnabled
         javaScriptEnabled
@@ -276,7 +323,7 @@ export function WebViewScreen({ path }: Props) {
           debugStartupLog(
             'WebViewScreen.tsx:onLoadStart',
             'WEBVIEW_LOAD_START',
-            { initialLoadDone, uri },
+            { initialLoadDone, uri: currentUri },
             'H5',
           );
           // #endregion
@@ -298,7 +345,7 @@ export function WebViewScreen({ path }: Props) {
           debugStartupLog(
             'WebViewScreen.tsx:onLoadEnd',
             'WEBVIEW_LOAD_END',
-            { initialLoadDone, uri },
+            { initialLoadDone, uri: currentUri },
             'H2,H5',
           );
           // #endregion

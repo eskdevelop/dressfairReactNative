@@ -34,11 +34,15 @@ const mockNotificationsState: {
 const mockAddNotificationResponseReceivedListener = jest.fn(() => ({
   remove: jest.fn(),
 }));
+const mockAddNotificationReceivedListener = jest.fn(() => ({
+  remove: jest.fn(),
+}));
 
 jest.mock(
   'expo-notifications',
   () => ({
     addNotificationResponseReceivedListener: mockAddNotificationResponseReceivedListener,
+    addNotificationReceivedListener: mockAddNotificationReceivedListener,
     getLastNotificationResponseAsync: jest.fn(() =>
       mockNotificationsState.lastResponseError
         ? Promise.reject(mockNotificationsState.lastResponseError)
@@ -72,6 +76,7 @@ describe('startNotificationRuntime cold-start coordination', () => {
   beforeEach(() => {
     openWebPathMock.mockReset();
     mockAddNotificationResponseReceivedListener.mockClear();
+    mockAddNotificationReceivedListener.mockClear();
     mockLinkingState.initialUrl = null;
     mockLinkingState.initialUrlError = null;
     mockNotificationsState.lastResponse = null;

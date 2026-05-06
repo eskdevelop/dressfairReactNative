@@ -89,3 +89,11 @@ ios/Podfile.lock.tmp
 
 # Cursor / AI tooling caches (keep settings tracked)
 .cursor/
+
+# Firebase config files — contain API keys / sender IDs and must not be
+# committed. Download fresh copies from Firebase Console for each clone:
+#   - google-services.json       (Android, project root)
+#   - GoogleService-Info.plist   (iOS, project root)
+# See FIREBASE_SETUP.md for the full setup walkthrough.
+google-services.json
+GoogleService-Info.plist

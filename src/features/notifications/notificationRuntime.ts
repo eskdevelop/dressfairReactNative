@@ -1,11 +1,12 @@
 import * as Linking from 'expo-linking';
 import type * as ExpoNotifications from 'expo-notifications';
-import type { NotificationResponse } from 'expo-notifications';
+import type { Notification, NotificationResponse } from 'expo-notifications';
 
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { openWebPath } from '@navigation/navigationRef';
 import { shouldUseExpoNotifications } from './expoPushAvailability';
+import { notificationInbox } from './notificationInbox';
 import type { PushPayload } from './notificationRouter';
 import { mapIncomingUrlToWebPath, mapPayloadToWebPath } from './notificationRouter';
 
@@ -18,6 +19,33 @@ const getPayload = (
 ): PushPayload | undefined => {
   const data = response.notification.request.content.data;
   return (data ?? undefined) as PushPayload | undefined;
+};
+
+const getContent = (notification: Notification) => notification.request.content;
+
+const recordToInbox = (
+  notification: Notification,
+  options: { read: boolean },
+): void => {
+  const content = getContent(notification);
+  const data = (content.data ?? undefined) as Record<string, unknown> | undefined;
+  const payload = data as PushPayload | undefined;
+  const path = mapPayloadToWebPath(payload);
+  // We persist whatever the OS gave us. The router has already validated
+  // the path, so if `path` is falsy or HOME we omit it (no point routing
+  // a "tap to view" CTA to the home page).
+  void notificationInbox
+    .record({
+      id: notification.request.identifier,
+      title: content.title ?? 'DressFair',
+      body: content.body ?? '',
+      path: path && path !== HOME_PATH ? path : undefined,
+      read: options.read,
+      data,
+    })
+    .catch(error => {
+      crashReporter.capture(error, { source: 'notificationRuntime.record' });
+    });
 };
 
 // A single cold-start path is consumed across both notification taps and
@@ -41,10 +69,24 @@ const consumeColdStart = (
 const handleColdStart = async (
   notifications: typeof ExpoNotifications | null,
 ): Promise<void> => {
+  // Hydrate the inbox once on launch so the badge count and the first
+  // render of the tab show the correct state even before any new pushes
+  // arrive in this session.
+  void notificationInbox.hydrateFromStorage().catch(error => {
+    crashReporter.capture(error, { source: 'notificationRuntime.hydrate' });
+  });
+
   const responsePromise = notifications
     ? notifications
         .getLastNotificationResponseAsync()
-        .then(response => (response ? mapPayloadToWebPath(getPayload(response)) : null))
+        .then(response => {
+          if (!response) return null;
+          // The cold-start tap is also a "this is read" signal — record it
+          // into the inbox before routing so the user sees it as read when
+          // they navigate to the Notifications tab.
+          recordToInbox(response.notification, { read: true });
+          return mapPayloadToWebPath(getPayload(response));
+        })
         .catch((error: unknown) => {
           crashReporter.capture(error, { source: 'coldStart.notification' });
           return null;
@@ -80,11 +122,29 @@ export const startNotificationRuntime = (): Cleanup => {
 
     notifications = require('expo-notifications') as typeof ExpoNotifications;
 
-    const subscription = notifications.addNotificationResponseReceivedListener(
+    // Foreground arrival: the OS shows a banner (when configured), and we
+    // also archive a copy in the native inbox so the user can still find
+    // it after the banner disappears. This is one of the load-bearing
+    // 4.2 features — it makes the notifications tab a real native data
+    // surface, not a passthrough.
+    const receivedSubscription = notifications.addNotificationReceivedListener(
+      (notification: Notification) => {
+        recordToInbox(notification, { read: false });
+        analytics.track('notification_received', {
+          identifier: notification.request.identifier,
+        });
+      },
+    );
+    cleanups.push(() => receivedSubscription.remove());
+
+    const responseSubscription = notifications.addNotificationResponseReceivedListener(
       (response: NotificationResponse) => {
         const payload = getPayload(response);
         const path = mapPayloadToWebPath(payload);
         analytics.track('notification_opened', { type: payload?.type, path });
+        // A tap is implicitly "read" — record (or upsert) it as such so
+        // background-arrival writes still get the read flag flipped.
+        recordToInbox(response.notification, { read: true });
         // After cold-start the runtime is "warm"; subsequent taps always
         // navigate, but they still go through the same single openWebPath
         // entry so navigation queueing/flushing stays consistent.
@@ -92,7 +152,7 @@ export const startNotificationRuntime = (): Cleanup => {
         openWebPath(path);
       },
     );
-    cleanups.push(() => subscription.remove());
+    cleanups.push(() => responseSubscription.remove());
   }
 
   const linkSub = Linking.addEventListener('url', event => {

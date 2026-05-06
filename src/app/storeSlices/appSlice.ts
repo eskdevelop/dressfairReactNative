@@ -3,12 +3,21 @@ import { createSlice } from '@reduxjs/toolkit';
 
 import type { CountryCode } from '@shared/config/env';
 
+type ApiSessionState = {
+  token: string | null;
+  hydrated: boolean;
+};
+
 type AppState = {
   country: CountryCode;
   isOffline: boolean;
   isMaintenanceMode: boolean;
   isBootstrapped: boolean;
   isAuthenticated: boolean;
+  // OpenCart REST session — distinct from `isAuthenticated` (which tracks the
+  // user-auth token used by the storefront WebView). Read by `apiClient`'s
+  // request interceptor to attach `x-oc-session`.
+  apiSession: ApiSessionState;
 };
 
 const initialState: AppState = {
@@ -17,6 +26,10 @@ const initialState: AppState = {
   isMaintenanceMode: false,
   isBootstrapped: false,
   isAuthenticated: false,
+  apiSession: {
+    token: null,
+    hydrated: false,
+  },
 };
 
 const slice = createSlice({
@@ -35,9 +48,18 @@ const slice = createSlice({
     setAuthenticated(state, action: PayloadAction<boolean>) {
       state.isAuthenticated = action.payload;
     },
+    setApiSession(state, action: PayloadAction<string | null>) {
+      state.apiSession.token = action.payload;
+      state.apiSession.hydrated = true;
+    },
   },
 });
 
-export const { setOffline, setMaintenanceMode, setBootstrapped, setAuthenticated } =
-  slice.actions;
+export const {
+  setOffline,
+  setMaintenanceMode,
+  setBootstrapped,
+  setAuthenticated,
+  setApiSession,
+} = slice.actions;
 export const appReducer = slice.reducer;
