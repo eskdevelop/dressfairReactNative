@@ -4,16 +4,12 @@ import type { LegalBlock } from './legalBlock';
 // dressfair.com/terms. When the website copy changes, update the blocks
 // below and bump `termsLastUpdated`.
 export const termsTitle = 'Terms and Conditions';
-
 export const termsLastUpdated = 'Last updated: 06 February 2026';
-
 export const termsIsPlaceholder = false;
-
-export const termsBlocks: LegalBlock[] = [
+export const termsBlocks: LegalBlock[]=[
   {
     kind: 'p',
-    text:
-      'These Terms of Use constitute a legally binding agreement made between you, whether personally or on behalf of an entity ("you") and http://dressfair.com/ ("we," "us" or "our"), concerning your access to and use of the http://dressfair.com/ website as well as any other media form, media channel, mobile website or mobile application related, linked, or otherwise connected thereto (collectively, the "Site"). You agree that by accessing the Site, you have read, understood, and agreed to be bound by all of these Terms of Use. IF YOU DO NOT AGREE WITH ALL OF THESE TERMS OF USE, THEN YOU ARE EXPRESSLY PROHIBITED FROM USING THE SITE AND YOU MUST DISCONTINUE USE IMMEDIATELY.',
+    text:'These Terms of Use constitute a legally binding agreement made between you, whether personally or on behalf of an entity ("you") and https://www.dressfair.com ("we," "us" or "our"), concerning your access to and use of the https://www.dressfair.com website as well as any other media form, media channel, mobile website or mobile application related, linked, or otherwise connected thereto (collectively, the "Site"). You agree that by accessing the Site, you have read, understood, and agreed to be bound by all of these Terms of Use. IF YOU DO NOT AGREE WITH ALL OF THESE TERMS OF USE, THEN YOU ARE EXPRESSLY PROHIBITED FROM USING THE SITE AND YOU MUST DISCONTINUE USE IMMEDIATELY.',
   },
   {
     kind: 'p',
@@ -220,6 +216,6 @@ export const termsBlocks: LegalBlock[] = [
   {
     kind: 'p',
     text:
-      'In order to resolve a complaint regarding the Site or to receive further information regarding use of the Site, please contact us at: http://dressfair.com/  •  United Arab Emirates  •  Phone: (971) 565-6511  •  info@dressfair.com',
+      'In order to resolve a complaint regarding the Site or to receive further information regarding use of the Site, please contact us at: https://www.dressfair.com  •  United Arab Emirates  •  Phone: +971 56 565 1133  •  info@dressfair.com',
   },
 ];

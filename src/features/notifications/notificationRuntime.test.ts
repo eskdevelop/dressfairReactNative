@@ -48,6 +48,10 @@ jest.mock(
         ? Promise.reject(mockNotificationsState.lastResponseError)
         : Promise.resolve(mockNotificationsState.lastResponse),
     ),
+    // Foreground banner handler — the runtime registers this on every mount
+    // so the OS shows alerts while the app is in the foreground. The test
+    // suite never asserts against it; a no-op is enough to satisfy the call.
+    setNotificationHandler: jest.fn(),
   }),
   { virtual: true },
 );

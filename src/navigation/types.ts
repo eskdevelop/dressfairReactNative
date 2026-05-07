@@ -3,6 +3,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 export type MainTabParamList = {
   Home: { path?: string } | undefined;
   Search: undefined;
+  Wishlist: undefined;
   Notifications: undefined;
   Menu: undefined;
 };
@@ -22,4 +23,5 @@ export type RootStackParamList = {
   About: undefined;
   Faq: undefined;
   Contact: undefined;
+  OrderHistory: undefined;
 };

@@ -21,6 +21,7 @@ import { openWebPath } from '@navigation/navigationRef';
 import { productHrefForSku } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
+import { wishlist } from '@features/wishlist/wishlist';
 
 import { recentSearches } from './recentSearches';
 import type { SearchProductHit, SearchSuggestion } from './searchApi';
@@ -37,6 +38,16 @@ const GRID_GAP = spacing.md;
 
 export function SearchScreen() {
   const country = useAppSelector(state => state.app.country);
+  // Select the stable `items` reference directly; the slice replaces it
+  // wholesale on every mutation so referential equality is enough to drive
+  // re-renders without tripping Redux's "selector returned new value" warning
+  // that a `.map(...)` selector would. Then derive a productId Set inside
+  // useMemo so the per-card heart lookup remains O(1).
+  const wishlistItems = useAppSelector(state => state.wishlist.items);
+  const wishlistIdSet = useMemo(
+    () => new Set(wishlistItems.map(item => item.productId)),
+    [wishlistItems],
+  );
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
   const [committedQuery, setCommittedQuery] = useState('');
@@ -192,6 +203,25 @@ export function SearchScreen() {
     [committedQuery, persistRecent, query],
   );
 
+  const onToggleWishlist = useCallback((product: SearchProductHit) => {
+    void wishlist
+      .toggle(product)
+      .then(({ favourited }) => {
+        analytics.track(
+          favourited ? 'wishlist_item_added' : 'wishlist_item_removed_from_search',
+          {
+            productId: product.productId,
+            sku: product.sku,
+          },
+        );
+      })
+      .catch(error => {
+        crashReporter.capture(error, {
+          source: 'SearchScreen.toggleWishlist',
+        });
+      });
+  }, []);
+
   const onSuggestionPress = useCallback(
     (suggestion: SearchSuggestion) => {
       if (suggestion.kind === 'product') {
@@ -230,82 +260,116 @@ export function SearchScreen() {
   }, [persistRecent, query]);
 
   const renderProduct = useCallback(
-    ({ item, index }: { item: SearchProductHit; index: number }) => (
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel={`${item.name}${item.specialPrice ? `, on sale for ${item.specialPrice}` : ''}`}
-        onPress={() => onProductPress(item)}
-        style={{
-          width: cardWidth,
-          marginLeft: index % 2 === 0 ? 0 : GRID_GAP,
-          marginBottom: spacing.lg,
-        }}
-      >
+    ({ item, index }: { item: SearchProductHit; index: number }) => {
+      const favourited = wishlistIdSet.has(item.productId);
+      return (
         <View
           style={{
             width: cardWidth,
-            height: cardWidth,
-            borderRadius: radii.md,
-            backgroundColor: '#F3F4F6',
-            overflow: 'hidden',
-            alignItems: 'center',
-            justifyContent: 'center',
+            marginLeft: index % 2 === 0 ? 0 : GRID_GAP,
+            marginBottom: spacing.lg,
           }}
         >
-          {item.imageUrl ? (
-            <Image
-              source={{ uri: item.imageUrl }}
-              style={{ width: '100%', height: '100%' }}
-              resizeMode="cover"
-            />
-          ) : (
-            <Ionicons name="image-outline" size={28} color={colors.textMuted} />
-          )}
-        </View>
-        <Text
-          numberOfLines={2}
-          style={{
-            color: colors.textPrimary,
-            fontWeight: '600',
-            marginTop: spacing.sm,
-            fontSize: 13,
-          }}
-        >
-          {item.name}
-        </Text>
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginTop: spacing.xs,
-            gap: spacing.xs,
-            flexWrap: 'wrap',
-          }}
-        >
-          {item.specialPrice ? (
-            <>
-              <Text style={{ color: colors.brand, fontWeight: '700' }}>
-                {item.currencyCode} {item.specialPrice}
-              </Text>
-              <Text
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={`${item.name}${item.specialPrice ? `, on sale for ${item.specialPrice}` : ''}`}
+            onPress={() => onProductPress(item)}
+          >
+            <View
+              style={{
+                width: cardWidth,
+                height: cardWidth,
+                borderRadius: radii.md,
+                backgroundColor: '#F3F4F6',
+                overflow: 'hidden',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {item.imageUrl ? (
+                <Image
+                  source={{ uri: item.imageUrl }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons name="image-outline" size={28} color={colors.textMuted} />
+              )}
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={
+                  favourited
+                    ? `Remove ${item.name} from wishlist`
+                    : `Add ${item.name} to wishlist`
+                }
+                onPress={() => onToggleWishlist(item)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                testID={`search-heart-${item.productId}`}
                 style={{
-                  color: colors.textMuted,
-                  textDecorationLine: 'line-through',
-                  fontSize: 12,
+                  position: 'absolute',
+                  top: spacing.sm,
+                  right: spacing.sm,
+                  width: 32,
+                  height: 32,
+                  borderRadius: radii.pill,
+                  backgroundColor: 'rgba(255,255,255,0.9)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
-                {item.currencyCode} {item.price}
-              </Text>
-            </>
-          ) : item.price.length > 0 ? (
-            <Text style={{ color: colors.brand, fontWeight: '700' }}>
-              {item.currencyCode} {item.price}
+                <Ionicons
+                  name={favourited ? 'heart' : 'heart-outline'}
+                  size={18}
+                  color={favourited ? colors.brand : colors.textPrimary}
+                />
+              </TouchableOpacity>
+            </View>
+            <Text
+              numberOfLines={2}
+              style={{
+                color: colors.textPrimary,
+                fontWeight: '600',
+                marginTop: spacing.sm,
+                fontSize: 13,
+              }}
+            >
+              {item.name}
             </Text>
-          ) : null}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                marginTop: spacing.xs,
+                gap: spacing.xs,
+                flexWrap: 'wrap',
+              }}
+            >
+              {item.specialPrice ? (
+                <>
+                  <Text style={{ color: colors.brand, fontWeight: '700' }}>
+                    {item.currencyCode} {item.specialPrice}
+                  </Text>
+                  <Text
+                    style={{
+                      color: colors.textMuted,
+                      textDecorationLine: 'line-through',
+                      fontSize: 12,
+                    }}
+                  >
+                    {item.currencyCode} {item.price}
+                  </Text>
+                </>
+              ) : item.price.length > 0 ? (
+                <Text style={{ color: colors.brand, fontWeight: '700' }}>
+                  {item.currencyCode} {item.price}
+                </Text>
+              ) : null}
+            </View>
+          </TouchableOpacity>
         </View>
-      </TouchableOpacity>
-    ),
-    [cardWidth, onProductPress],
+      );
+    },
+    [cardWidth, onProductPress, onToggleWishlist, wishlistIdSet],
   );
 
   const renderSuggestion = useCallback(

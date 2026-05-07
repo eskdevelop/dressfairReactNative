@@ -2,6 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
 import { colors } from '@app/theme/tokens';
@@ -10,6 +11,8 @@ import { NotificationsInboxScreen } from '@features/notifications/NotificationsI
 import { notificationInbox } from '@features/notifications/notificationInbox';
 import { SearchScreen } from '@features/search/SearchScreen';
 import { WebViewScreen } from '@features/webview/WebViewScreen';
+import { WishlistScreen } from '@features/wishlist/WishlistScreen';
+import { wishlist } from '@features/wishlist/wishlist';
 import { crashReporter } from '@shared/observability/crash';
 
 import type { MainTabParamList } from './types';
@@ -33,12 +36,15 @@ const tabIcon =
   );
 
 export function MainTabs() {
-  // Hydrate the inbox once at the tab shell mount so the badge count and
-  // initial render are both correct. Subsequent updates flow through the
-  // notificationRuntime listeners.
+  // Hydrate the inbox and wishlist once at the tab shell mount so the badge
+  // counts and initial render are both correct. Subsequent updates flow
+  // through the notificationRuntime listeners and the wishlist facade.
   useEffect(() => {
     void notificationInbox.hydrateFromStorage().catch(error => {
       crashReporter.capture(error, { source: 'MainTabs.hydrate' });
+    });
+    void wishlist.hydrateFromStorage().catch(error => {
+      crashReporter.capture(error, { source: 'MainTabs.hydrateWishlist' });
     });
   }, []);
 
@@ -48,6 +54,7 @@ export function MainTabs() {
       0,
     ),
   );
+  const wishlistCount = useAppSelector(state => state.wishlist.items.length);
 
   // Memoise the badge so that switching the same value (e.g. count stays
   // at 3) doesn't re-render the navigator unnecessarily.
@@ -55,6 +62,17 @@ export function MainTabs() {
     () => (unreadCount > 0 ? unreadCount : undefined),
     [unreadCount],
   );
+  const wishlistBadge = useMemo(
+    () => (wishlistCount > 0 ? wishlistCount : undefined),
+    [wishlistCount],
+  );
+
+  // Bake the bottom safe-area inset into the tab bar height ourselves so the
+  // bar still clears the system gesture / 3-button nav, while we keep the
+  // internal padding tight (default react-navigation adds ~30-40px of empty
+  // space above the icons which the user perceives as the WebView being cut).
+  const insets = useSafeAreaInsets();
+  const tabBarHeight = 56 + insets.bottom;
 
   return (
     <Tab.Navigator
@@ -64,6 +82,17 @@ export function MainTabs() {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
           borderTopColor: colors.border,
+          borderTopWidth: 0.5,
+          paddingTop: 4,
+          paddingBottom: insets.bottom,
+          height: tabBarHeight,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 2,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          marginTop: 2,
         },
       }}
     >
@@ -81,6 +110,15 @@ export function MainTabs() {
         options={{
           tabBarLabel: 'Search',
           tabBarIcon: tabIcon('search', 'search-outline'),
+        }}
+      />
+      <Tab.Screen
+        name="Wishlist"
+        component={WishlistScreen}
+        options={{
+          tabBarLabel: 'Wishlist',
+          tabBarBadge: wishlistBadge,
+          tabBarIcon: tabIcon('heart', 'heart-outline'),
         }}
       />
       <Tab.Screen

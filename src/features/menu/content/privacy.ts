@@ -116,5 +116,5 @@ export const privacyBlocks: LegalBlock[] = [
       'For any questions regarding this Privacy Policy or your data, please contact us:',
   },
   { kind: 'li', text: 'Email: info@dressfair.com' },
-  { kind: 'li', text: 'Phone: +971-56-565-1133' },
+  { kind: 'li', text: 'Phone: +971 56 565 1133' },
 ];

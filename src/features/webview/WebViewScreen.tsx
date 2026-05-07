@@ -20,9 +20,6 @@ import { isPaymentGatewayHost } from '@shared/webview/paymentGateways';
 import { isAllowedUrl } from '@shared/webview/urlPolicy';
 import { parseBridgeMessage } from './bridgeMessage';
 import { detectPaymentRedirect } from './paymentRedirectPolicy';
-// #region agent log
-import { debugStartupLog } from '@shared/observability/__debugStartupLog';
-// #endregion
 
 type Props = {
   path: string;
@@ -89,15 +86,7 @@ true;
 // Hide the native splash exactly once across the app's lifetime; remounts of
 // WebViewScreen (e.g. tab switches) must not retrigger preventAutoHide.
 let nativeSplashHidden = false;
-const hideNativeSplashOnce = (reason: string) => {
-  // #region agent log
-  debugStartupLog(
-    'WebViewScreen.tsx:hideNativeSplashOnce',
-    'HIDE_NATIVE_SPLASH',
-    { reason, alreadyHidden: nativeSplashHidden },
-    'H1,H2,H4',
-  );
-  // #endregion
+const hideNativeSplashOnce = (_reason: string) => {
   if (nativeSplashHidden) return;
   nativeSplashHidden = true;
   SplashScreenModule.hideAsync().catch(() => {
@@ -167,17 +156,6 @@ export function WebViewScreen({ path }: Props) {
     dispatch(clearWebNav());
   }, [cfg.webBaseUrl, dispatch, webNavPendingPath, webNavSeq]);
 
-  // #region agent log
-  React.useEffect(() => {
-    debugStartupLog(
-      'WebViewScreen.tsx:mount',
-      'WEBVIEW_MOUNT',
-      { uri: currentUri, path },
-      'H3,H4,H5',
-    );
-  }, [currentUri, path]);
-  // #endregion
-
   React.useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (canGoBack) {
@@ -226,15 +204,6 @@ export function WebViewScreen({ path }: Props) {
       if (typeof raw === 'string' && raw.indexOf(FIRST_PAINT_SENTINEL) !== -1) {
         const parsed = JSON.parse(raw) as { type?: unknown };
         if (parsed && parsed.type === FIRST_PAINT_SENTINEL) {
-          // #region agent log
-          debugStartupLog(
-            'WebViewScreen.tsx:firstPaintMessage',
-            'FIRST_PAINT_MESSAGE',
-            { initialLoadDone, alreadyHidden: nativeSplashHidden },
-            'H2,H5',
-            'post-fix',
-          );
-          // #endregion
           if (!initialLoadDone) {
             setInitialLoadDone(true);
             hideNativeSplashOnce('webview_first_paint');
@@ -295,7 +264,7 @@ export function WebViewScreen({ path }: Props) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top']}>
       <AppAsyncState
         isLoading={loading}
         errorMessage={error}
@@ -319,14 +288,6 @@ export function WebViewScreen({ path }: Props) {
         setSupportMultipleWindows={false}
         originWhitelist={['https://*', 'about:blank', 'data:*', 'blob:*']}
         onLoadStart={() => {
-          // #region agent log
-          debugStartupLog(
-            'WebViewScreen.tsx:onLoadStart',
-            'WEBVIEW_LOAD_START',
-            { initialLoadDone, uri: currentUri },
-            'H5',
-          );
-          // #endregion
           // Intentionally NO setLoading(true) here:
           //  • First load: native splash is still covering the screen.
           //  • Subsequent loads: keep the current page visible during the
@@ -341,14 +302,6 @@ export function WebViewScreen({ path }: Props) {
           }
         }}
         onLoadEnd={() => {
-          // #region agent log
-          debugStartupLog(
-            'WebViewScreen.tsx:onLoadEnd',
-            'WEBVIEW_LOAD_END',
-            { initialLoadDone, uri: currentUri },
-            'H2,H5',
-          );
-          // #endregion
           setLoading(false);
           // NOTE: Do NOT hide the native splash here. `onLoadEnd` fires when
           // the network load finishes but BEFORE the WebView has flushed its

@@ -10,6 +10,7 @@ import { FaqScreen } from '@features/menu/screens/FaqScreen';
 import { PrivacyScreen } from '@features/menu/screens/PrivacyScreen';
 import { ReturnPolicyScreen } from '@features/menu/screens/ReturnPolicyScreen';
 import { TermsScreen } from '@features/menu/screens/TermsScreen';
+import { OrderHistoryScreen } from '@features/orders/OrderHistoryScreen';
 import { MainTabs } from '@navigation/MainTabs';
 import { NotificationRouterScreen } from '@navigation/NotificationRouterScreen';
 import type { RootStackParamList } from '@navigation/types';
@@ -52,6 +53,11 @@ export function RootNavigator() {
       <Stack.Screen
         name="Contact"
         component={ContactScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="OrderHistory"
+        component={OrderHistoryScreen}
         options={{ presentation: 'card' }}
       />
     </Stack.Navigator>

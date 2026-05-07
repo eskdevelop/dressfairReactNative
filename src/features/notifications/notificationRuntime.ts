@@ -31,6 +31,17 @@ const recordToInbox = (
   const data = (content.data ?? undefined) as Record<string, unknown> | undefined;
   const payload = data as PushPayload | undefined;
   const path = mapPayloadToWebPath(payload);
+  const hasTitle = (content.title ?? '').trim().length > 0;
+  const hasBody = (content.body ?? '').trim().length > 0;
+  const hasRoutablePath = Boolean(path && path !== HOME_PATH);
+  // Drop empty / silent / synthetic notifications. Some Android OEMs and
+  // FCM keep-alive pings hand the app process a content-less notification
+  // (no title, no body, no routable payload) — those are not user-facing
+  // messages and must never appear in the inbox. We only persist a
+  // notification if it carries a title, a body, or a routable deep link.
+  if (!hasTitle && !hasBody && !hasRoutablePath) {
+    return;
+  }
   // We persist whatever the OS gave us. The router has already validated
   // the path, so if `path` is falsy or HOME we omit it (no point routing
   // a "tap to view" CTA to the home page).
@@ -39,7 +50,7 @@ const recordToInbox = (
       id: notification.request.identifier,
       title: content.title ?? 'DressFair',
       body: content.body ?? '',
-      path: path && path !== HOME_PATH ? path : undefined,
+      path: hasRoutablePath ? path : undefined,
       read: options.read,
       data,
     })
@@ -122,8 +133,23 @@ export const startNotificationRuntime = (): Cleanup => {
 
     notifications = require('expo-notifications') as typeof ExpoNotifications;
 
-    // Foreground arrival: the OS shows a banner (when configured), and we
-    // also archive a copy in the native inbox so the user can still find
+    // Tell the OS to show a heads-up banner + sound + tray entry even when
+    // the app is in the foreground. Without this, foreground notifications
+    // arrive silently (only via the listeners below) and users perceive the
+    // app as "broken" compared to other messaging apps. Background and
+    // killed-state arrivals show banners automatically via the OS FCM/APNs
+    // service, regardless of this handler.
+    notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+
+    // Foreground arrival: the OS shows a banner (per the handler above) and
+    // we also archive a copy in the native inbox so the user can still find
     // it after the banner disappears. This is one of the load-bearing
     // 4.2 features — it makes the notifications tab a real native data
     // surface, not a passthrough.

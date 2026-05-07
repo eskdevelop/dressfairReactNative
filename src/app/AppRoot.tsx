@@ -3,7 +3,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import * as Network from 'expo-network';
 
 import { startNotificationRuntime } from '@features/notifications/notificationRuntime';
-import { registerForPushNotifications } from '@features/notifications/pushRegistration';
 import { flushPendingNavigation, navigationRef } from '@navigation/navigationRef';
 import { RootNavigator } from '@navigation/RootNavigator';
 import { useAppDispatch } from './hooks';
@@ -16,9 +15,6 @@ import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { perf } from '@shared/observability/performance';
 import { setAuthenticated, setBootstrapped, setOffline } from './storeSlices/appSlice';
-// #region agent log
-import { debugStartupLog } from '@shared/observability/__debugStartupLog';
-// #endregion
 
 export function AppRoot() {
   const dispatch = useAppDispatch();
@@ -61,18 +57,6 @@ export function AppRoot() {
       if (apiSessionResult === null && !isOffline) {
         void bootstrapSession();
       }
-      // #region agent log
-      debugStartupLog(
-        'AppRoot.tsx:bootstrap.done',
-        'BOOTSTRAP_DONE',
-        {
-          isOffline,
-          networkProbeOk: networkResult !== null,
-          tokenPresent: Boolean(tokenResult),
-        },
-        'H3',
-      );
-      // #endregion
       const elapsed = perf.end('app_bootstrap');
       if (elapsed !== null) {
         analytics.track('app_bootstrap_complete', {
@@ -92,12 +76,10 @@ export function AppRoot() {
     return startNotificationRuntime();
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      registerForPushNotifications();
-    }, 2500);
-    return () => clearTimeout(timer);
-  }, []);
+  // Push permission is intentionally NOT auto-requested at launch. It is
+  // user-initiated from the Menu screen ("Enable order updates"). Apple's
+  // 4.2 review feedback flagged silent push prompts as not contributing to
+  // a robust native experience, so we tie the prompt to an explicit tap.
 
   return (
     <NavigationContainer

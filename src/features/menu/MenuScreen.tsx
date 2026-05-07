@@ -18,9 +18,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
 import { logoutEverywhere } from '@features/auth/authSync';
+import { registerForPushNotifications } from '@features/notifications/pushRegistration';
 import { HealthDebugPanel } from '@features/settings/HealthDebugPanel';
 import type { RootStackParamList } from '@navigation/types';
 import { analytics } from '@shared/observability/analytics';
+import { crashReporter } from '@shared/observability/crash';
 import { getEnvConfig } from '@shared/config/env';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -105,8 +107,12 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
+// iOS link points to the storefront until the app is approved and we have a
+// real Apple App ID; swap to https://apps.apple.com/app/id<NUMERIC_ID> after
+// the first approval. Shipping the placeholder `id0000000000` would land the
+// reviewer on a dead App Store page when they exercise Menu -> Share.
 const APP_STORE_LINKS = {
-  ios: 'https://apps.apple.com/app/id0000000000',
+  ios: 'https://www.dressfair.com',
   android: 'https://play.google.com/store/apps/details?id=com.dressfair.dressfairrnhybrid',
 };
 
@@ -160,6 +166,13 @@ export function MenuScreen() {
           ? 'Open the system Settings app and find DressFair under Apps to manage notifications.'
           : 'Open the system Settings app and find DressFair to manage notifications.',
       );
+    });
+  }, []);
+
+  const onEnablePush = useCallback(() => {
+    analytics.track('menu_enable_push_pressed');
+    void registerForPushNotifications().catch(error => {
+      crashReporter.capture(error, { source: 'MenuScreen.enablePush' });
     });
   }, []);
 
@@ -223,6 +236,13 @@ export function MenuScreen() {
         </View>
 
         <SectionHeader title="App" />
+        <Row
+          icon="notifications-circle-outline"
+          label="Enable order updates"
+          hint="Get notified about your orders, delivery, and offers"
+          onPress={onEnablePush}
+          testID="menu-enable-push"
+        />
         <Row
           icon="share-social-outline"
           label="Share app"
@@ -306,6 +326,16 @@ export function MenuScreen() {
         />
 
         <SectionHeader title="Account" />
+        <Row
+          icon="bag-handle-outline"
+          label="My orders"
+          hint="View your order history"
+          onPress={() => {
+            analytics.track('menu_open_orders');
+            navigation.navigate('OrderHistory');
+          }}
+          testID="menu-my-orders"
+        />
         <Row
           icon="log-out-outline"
           label="Logout"

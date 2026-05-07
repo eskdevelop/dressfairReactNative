@@ -67,6 +67,7 @@ coverage/
 /ios
 *.keystore
 !debug.keystore
+keystore.properties
 
 # EAS / Expo build artifacts
 build-artifacts/
