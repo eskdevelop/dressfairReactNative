@@ -461,7 +461,7 @@ export function SearchScreen() {
             alignItems: 'center',
             borderWidth: 1,
             borderColor: colors.border,
-            borderRadius: radii.pill,
+            borderRadius: radii.md,
             paddingHorizontal: spacing.md,
             backgroundColor: '#F9FAFB',
           }}
@@ -488,7 +488,8 @@ export function SearchScreen() {
               flex: 1,
               paddingVertical: Platform.OS === 'ios' ? spacing.md : spacing.sm,
               color: colors.textPrimary,
-              fontSize: 16,
+              fontSize: 14,
+              fontWeight: '400',
             }}
           />
           {query.length > 0 ? (

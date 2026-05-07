@@ -19,7 +19,6 @@ import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
 import { logoutEverywhere } from '@features/auth/authSync';
 import { registerForPushNotifications } from '@features/notifications/pushRegistration';
-import { HealthDebugPanel } from '@features/settings/HealthDebugPanel';
 import type { RootStackParamList } from '@navigation/types';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
@@ -368,11 +367,6 @@ export function MenuScreen() {
           </Text>
         </View>
 
-        {__DEV__ ? (
-          <View style={{ padding: spacing.lg }}>
-            <HealthDebugPanel />
-          </View>
-        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
