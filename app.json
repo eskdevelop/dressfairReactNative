@@ -76,7 +76,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF"
         }
-      ]
+      ],
+      "./plugins/with-no-nav-bar-contrast"
     ],
     "extra": {
       "eas": {
