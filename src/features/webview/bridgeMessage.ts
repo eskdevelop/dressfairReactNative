@@ -25,11 +25,17 @@ export type OpenSettingsBridgeMessage = {
   type: 'open_settings';
 };
 
+export type CartCountBridgeMessage = {
+  type: 'cart_count';
+  quantity: number;
+};
+
 export type BridgeMessage =
   | AuthBridgeMessage
   | LogoutBridgeMessage
   | OpenExternalBridgeMessage
-  | OpenSettingsBridgeMessage;
+  | OpenSettingsBridgeMessage
+  | CartCountBridgeMessage;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -64,6 +70,12 @@ export const parseBridgeMessage = (raw: unknown): BridgeMessage | null => {
   }
   if (type === 'open_external') {
     return isNonEmptyString(parsed.url) ? { type, url: parsed.url } : null;
+  }
+  if (type === 'cart_count') {
+    const q = parsed.quantity;
+    if (typeof q !== 'number' || !Number.isFinite(q)) return null;
+    const quantity = Math.min(Math.max(Math.floor(q), 0), 9999);
+    return { type, quantity };
   }
   return null;
 };

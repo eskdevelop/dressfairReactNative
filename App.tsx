@@ -1,5 +1,5 @@
 import React from 'react';
-import { StatusBar } from 'react-native';
+import { Platform, StatusBar } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
@@ -23,7 +23,11 @@ export default function App() {
   return (
     <Provider store={store}>
       <SafeAreaProvider>
-        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+        <StatusBar
+          barStyle="dark-content"
+          translucent={Platform.OS === 'android'}
+          backgroundColor={Platform.OS === 'android' ? 'transparent' : '#ffffff'}
+        />
         <AppRoot />
       </SafeAreaProvider>
     </Provider>

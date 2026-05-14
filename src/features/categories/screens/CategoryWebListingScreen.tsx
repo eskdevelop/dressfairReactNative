@@ -16,10 +16,11 @@ type Props = NativeStackScreenProps<CategoryStackParamList, 'CategoryWebListing'
 export function CategoryWebListingScreen({ navigation, route }: Props) {
   const country = useAppSelector(s => s.app.country);
   const { slug } = route.params;
+  const searchPlaceholder = route.params.searchPlaceholder?.trim() || undefined;
 
-  const path = useMemo(() => categoryCollectionPath(slug, country), [slug, country]);
+  const collectionPath = useMemo(() => categoryCollectionPath(slug, country), [slug, country]);
 
-  if (!path) {
+  if (!collectionPath) {
     return (
       <View style={{ flex: 1, padding: 24, justifyContent: 'center', alignItems: 'center', gap: 16 }}>
         <Text style={{ textAlign: 'center', color: '#111' }}>Invalid category link.</Text>
@@ -46,12 +47,21 @@ export function CategoryWebListingScreen({ navigation, route }: Props) {
           <Ionicons name="chevron-back" size={26} color="#111" />
         </Pressable>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <CategorySearchBar style={{ marginHorizontal: 0, marginRight: 10 }} />
+          <CategorySearchBar
+            placeholder={searchPlaceholder}
+            showCameraIcon={!!searchPlaceholder}
+            style={{ marginHorizontal: 0, marginRight: 10 }}
+          />
         </View>
       </View>
 
       <View style={{ flex: 1 }}>
-        <WebViewScreen path={path} applyWebNavFromStore={false} applyTopSafeArea={false} hideStorefrontMobileHeader />
+        <WebViewScreen
+          path={collectionPath}
+          applyWebNavFromStore={false}
+          applyTopSafeArea={false}
+          hideStorefrontMobileHeader
+        />
       </View>
     </SafeAreaView>
   );

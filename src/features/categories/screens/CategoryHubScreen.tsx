@@ -14,14 +14,13 @@ import { Ionicons } from '@expo/vector-icons';
 type IonName = ComponentProps<typeof Ionicons>['name'];
 
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { StackActions } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
-import type { MainTabParamList, CategoryStackParamList } from '@navigation/types';
-import { openWebPath } from '@navigation/navigationRef';
-import { productHrefForSku } from '@shared/config/env';
+import type { CategoryStackParamList, MainTabParamList } from '@navigation/types';
 import type { CountryCode } from '@shared/config/env';
 
 import { loadCachedCategories } from '../categoryCache';
@@ -57,6 +56,26 @@ function chunkPairs<T>(items: T[]): T[][] {
 function sidebarLabel(row: CategoryRow): string {
   if (row.id === 0 && row.name === 'All') return 'Feature';
   return row.name;
+}
+
+function isFeatureHubCategory(cat: CategoryRow): boolean {
+  return cat.id === 0 && cat.name === 'All';
+}
+
+/**
+ * "View All" storefront `/c/{slug}`:
+ * - Normal categories: parent **category** slug (e.g. m-cloth, w-cloth).
+ * - Feature hub row: **first subcategory** slug until category-level URLs exist.
+ */
+function listingSlugForViewAll(cat: CategoryRow): string | null {
+  if (!cat.subCategories.length) return null;
+  if (isFeatureHubCategory(cat)) {
+    return cat.subCategories[0]?.slug?.trim() || null;
+  }
+  const c = cat.slug?.trim();
+  if (c) return c;
+  const withSlug = cat.subCategories.find(ss => (ss.slug ?? '').trim().length > 0);
+  return withSlug?.slug?.trim() ?? null;
 }
 
 function ViewAllGlyph({ size }: { size: number }) {
@@ -236,13 +255,6 @@ export function CategoryHubScreen({ navigation }: Props) {
     [categories, selectedId],
   );
 
-  const viewAllSlug = useMemo((): string | null => {
-    if (!selected?.subCategories.length) return null;
-    const subs = selected.subCategories;
-    const withSlug = subs.find(ss => (ss.slug ?? '').trim().length > 0);
-    return withSlug?.slug?.trim() ?? null;
-  }, [selected]);
-
   const viewAllCateKey = useCallback((cat: CategoryRow | null): string | null => {
     if (!cat?.subCategories.length) return null;
     const subs = cat.subCategories;
@@ -251,10 +263,14 @@ export function CategoryHubScreen({ navigation }: Props) {
   }, []);
 
   const openCategoryWeb = useCallback(
-    (slug: string, titleHint?: string) => {
-      const s = slug.trim();
+    (listingSlug: string, titleHint: string | undefined, hubCategory: CategoryRow | null) => {
+      const s = listingSlug.trim();
       if (!s) return;
-      navigation.navigate('CategoryWebListing', { slug: s, titleHint });
+      navigation.navigate('CategoryWebListing', {
+        slug: s,
+        titleHint,
+        searchPlaceholder: hubCategory?.name,
+      });
     },
     [navigation],
   );
@@ -268,32 +284,38 @@ export function CategoryHubScreen({ navigation }: Props) {
   );
 
   const onViewAllPress = useCallback(() => {
-    if (viewAllSlug) {
-      openCategoryWeb(viewAllSlug, 'View All');
+    if (!selected) return;
+    const slug = listingSlugForViewAll(selected);
+    if (slug) {
+      openCategoryWeb(slug, 'View All', selected);
       return;
     }
     const key = viewAllCateKey(selected);
     if (key) openListing(key, 'View All');
-  }, [viewAllSlug, openCategoryWeb, selected, openListing, viewAllCateKey]);
+  }, [openCategoryWeb, selected, openListing, viewAllCateKey]);
 
   const onSubcategoryPress = useCallback(
     (sub: SubCategoryRow) => {
       const s = sub.slug?.trim();
       if (s) {
-        openCategoryWeb(s, sub.name);
+        openCategoryWeb(s, sub.name, selected);
       } else {
         openListing(sub.name, sub.name);
       }
     },
-    [openCategoryWeb, openListing],
+    [openCategoryWeb, openListing, selected],
   );
 
   const openPdp = useCallback(
     (sku: string) => {
-      const href = productHrefForSku(sku, country);
-      if (href) openWebPath(href);
+      const s = sku.trim();
+      if (!s) return;
+      // CategoryHub uses a tab + stack composite `navigation`; `navigate` can
+      // target the tab navigator and miss `CategoryProductWeb`. Push targets
+      // the native stack that hosts this screen.
+      navigation.dispatch(StackActions.push('CategoryProductWeb', { sku: s }));
     },
-    [country],
+    [navigation],
   );
 
   const relatedRows = useMemo(() => chunkPairs(selected?.products ?? []), [selected?.products]);
@@ -380,7 +402,7 @@ export function CategoryHubScreen({ navigation }: Props) {
                   accessibilityRole="button"
                   accessibilityLabel="View All"
                   onPress={onViewAllPress}
-                  disabled={viewAllSlug == null && viewAllCateKey(selected) == null}
+                  disabled={!selected || (listingSlugForViewAll(selected) == null && viewAllCateKey(selected) == null)}
                 >
                   <View
                     style={{

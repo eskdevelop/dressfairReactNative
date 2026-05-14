@@ -26,7 +26,11 @@ export function RootNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Splash" component={SplashScreen} />
-      <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen
+        name="MainTabs"
+        component={MainTabs}
+        options={{ contentStyle: { backgroundColor: 'transparent' } }}
+      />
       <Stack.Screen name="Offline" component={OfflineScreen} />
       <Stack.Screen name="Maintenance" component={MaintenanceScreen} />
       <Stack.Screen name="NotificationRouter" component={NotificationRouterScreen} />

@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { BackHandler, View } from 'react-native';
 import * as SplashScreenModule from 'expo-splash-screen';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
 import { WebView } from 'react-native-webview';
 import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
@@ -10,6 +10,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { store } from '@app/store';
 import { setAuthenticated } from '@app/storeSlices/appSlice';
+import { setCartBadgeQuantity } from '@app/storeSlices/cartBadgeSlice';
 import { clearWebNav } from '@app/storeSlices/webNavSlice';
 import { sessionStore } from '@features/auth/sessionStore';
 import { openSettings } from '@navigation/navigationRef';
@@ -24,6 +25,7 @@ import { isAllowedUrl } from '@shared/webview/urlPolicy';
 import { AUTH_CAPTURE_INJECTION_BEFORE_CONTENT } from './authCaptureInjection';
 import { parseBridgeMessage } from './bridgeMessage';
 import { detectPaymentRedirect } from './paymentRedirectPolicy';
+import { CART_COUNT_BRIDGE_INJECTION } from './cartCountBridgeInjection';
 import { STOREFRONT_HIDE_MOBILE_HEADER_INJECTION } from './storefrontHideMobileHeaderInjection';
 
 type Props = {
@@ -51,10 +53,20 @@ type Props = {
    */
   applyTopSafeArea?: boolean;
   /**
+   * Immersive PDP: transparent shell and no top inset so the WebView draws under the
+   * status bar (icons over content). Overrides applyTopSafeArea for the top edge.
+   */
+  statusBarOverContent?: boolean;
+  /**
    * When true (embedded category PLP only), inject CSS/JS to hide the storefront
    * `.mobile-header` row so it does not stack under the native search bar.
    */
   hideStorefrontMobileHeader?: boolean;
+  /**
+   * When true, injects a lightweight DOM observer that posts `cart_count` bridge
+   * messages so the Cart tab badge can reflect the storefront cart.
+   */
+  reportCartCountToNative?: boolean;
 };
 
 const CHECKOUT_PATH_HINT =
@@ -561,7 +573,9 @@ export function WebViewScreen({
   tabReselectMode,
   applyWebNavFromStore = false,
   applyTopSafeArea = true,
+  statusBarOverContent = false,
   hideStorefrontMobileHeader = false,
+  reportCartCountToNative = false,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
@@ -578,14 +592,17 @@ export function WebViewScreen({
   const [error, setError] = useState<string | null>(null);
   const cfg = getEnvConfig(store.getState().app.country);
   const allowedHostSet = useMemo(() => new Set(cfg.allowedDomains), [cfg.allowedDomains]);
+  const insets = useSafeAreaInsets();
+  const shellBackgroundColor = statusBarOverContent ? 'transparent' : '#FFFFFF';
+  /** Manual top inset replaces SafeAreaView so immersive PDP never paints a white safe-area tray. */
+  const paddingTop = statusBarOverContent ? 0 : applyTopSafeArea ? insets.top : 0;
 
-  const injectedJavaScriptBundle = useMemo(
-    () =>
-      hideStorefrontMobileHeader
-        ? `${COMBINED_INJECTION}\n${STOREFRONT_HIDE_MOBILE_HEADER_INJECTION}`
-        : COMBINED_INJECTION,
-    [hideStorefrontMobileHeader],
-  );
+  const injectedJavaScriptBundle = useMemo(() => {
+    const parts = [COMBINED_INJECTION];
+    if (hideStorefrontMobileHeader) parts.push(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
+    if (reportCartCountToNative) parts.push(CART_COUNT_BRIDGE_INJECTION);
+    return parts.join('\n');
+  }, [hideStorefrontMobileHeader, reportCartCountToNative]);
 
   // Cross-tab navigation channel: when native Search or the Inbox screen asks
   // to drive the Home WebView to a specific storefront path, we surface
@@ -856,6 +873,8 @@ export function WebViewScreen({
       } else if (payload.type === 'open_settings') {
         analytics.track('webview_open_settings_requested');
         openSettings();
+      } else if (payload.type === 'cart_count') {
+        dispatch(setCartBadgeQuantity(payload.quantity));
       }
     } catch (error) {
       crashReporter.capture(error, { source: 'WebViewScreen.handleWebMessage' });
@@ -863,10 +882,7 @@ export function WebViewScreen({
   };
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: '#FFFFFF' }}
-      edges={applyTopSafeArea ? ['top'] : []}
-    >
+    <View style={{ flex: 1, backgroundColor: shellBackgroundColor, paddingTop }}>
       <AppAsyncState
         isLoading={loading}
         errorMessage={error}
@@ -881,7 +897,7 @@ export function WebViewScreen({
       </AppAsyncState>
       <View style={{ flex: 1 }}>
         <WebView
-          style={{ flex: 1 }}
+          style={{ flex: 1, backgroundColor: 'transparent' }}
           ref={webViewRef}
           source={{ uri: currentUri }}
           cacheEnabled
@@ -931,6 +947,9 @@ export function WebViewScreen({
             webViewRef.current?.injectJavaScript(HIDE_THIRD_PARTY_LOGIN_INJECTION);
             if (hideStorefrontMobileHeader) {
               webViewRef.current?.injectJavaScript(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
+            }
+            if (reportCartCountToNative) {
+              webViewRef.current?.injectJavaScript(CART_COUNT_BRIDGE_INJECTION);
             }
             if (openMobileCategoryMenuOnLoad && tabReselectMode === 'category' && isFocused) {
               // Start probing for the mega-menu as soon as the document load
@@ -993,6 +1012,6 @@ export function WebViewScreen({
           }}
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 }

@@ -5,7 +5,15 @@ import type { CustomerProfile, CustomerAddressRecord } from '@features/account/t
 export type CategoryStackParamList = {
   CategoryHub: undefined;
   CategoryListing: { cateKey: string; titleHint?: string };
-  CategoryWebListing: { slug: string; titleHint?: string };
+  CategoryWebListing: {
+    /** Initial `/c/{slug}` segment (category slug for View All; feature hub uses first sub). */
+    slug: string;
+    titleHint?: string;
+    /** Shown in the native search pill (e.g. main category title). */
+    searchPlaceholder?: string;
+  };
+  /** Storefront PDP in a stacked WebView (e.g. related products on Category hub). */
+  CategoryProductWeb: { sku: string };
 };
 
 export type MainTabParamList = {

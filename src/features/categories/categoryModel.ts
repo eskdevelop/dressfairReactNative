@@ -146,6 +146,13 @@ export function hubPriceLine(row: HubProductRow, storeCurrencyFallback?: string)
   return code.length > 0 ? `${code} ${amt}` : amt;
 }
 
+/** OpenCart / mobile payloads use `product_sku` or `model` (Flutter parity — see Search API parsers). */
+function pickProductSku(row: Record<string, unknown>): string {
+  const v =
+    row.product_sku ?? row.productSku ?? row.sku ?? row.model ?? row.product_model;
+  return String(v ?? '').trim();
+}
+
 export function parseProductRow(json: unknown): HubProductRow | null {
   if (!json || typeof json !== 'object') return null;
   const row = json as Record<string, unknown>;
@@ -181,7 +188,7 @@ export function parseProductRow(json: unknown): HubProductRow | null {
 
   return {
     productId,
-    productSku: String(row.product_sku ?? ''),
+    productSku: pickProductSku(row),
     currencyCode: String(row.currency_code ?? row.currencyCode ?? ''),
     name: String(row.name ?? ''),
     nameAr: String(row.name_ar ?? ''),

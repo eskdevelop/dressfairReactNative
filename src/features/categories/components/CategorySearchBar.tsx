@@ -23,14 +23,19 @@ import {
 type Props = {
   /** Merged after defaults; use to tighten margins when paired with a back button. */
   style?: StyleProp<ViewStyle>;
+  /** When set (e.g. current category name on PLP), replaces the default Dress Fair placeholder. */
+  placeholder?: string;
+  /** Matches storefront PLP: small camera inside the field before the search control. */
+  showCameraIcon?: boolean;
 };
 
 /** Same pill search field used on the Category hub, PLP chrome, and styled like Search tab. */
-export function CategorySearchBar({ style }: Props) {
+export function CategorySearchBar({ style, placeholder, showCameraIcon }: Props) {
+  const label = (placeholder ?? '').trim() || APP_SEARCH_PLACEHOLDER;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={APP_SEARCH_PLACEHOLDER}
+      accessibilityLabel={label}
       onPress={() => openSearchTab()}
       style={[
         {
@@ -48,9 +53,18 @@ export function CategorySearchBar({ style }: Props) {
         style,
       ]}
     >
-      <Text style={{ flex: 1, color: 'rgba(0,0,0,0.55)', fontSize: APP_SEARCH_FONT_SIZE }}>
-        {APP_SEARCH_PLACEHOLDER}
+      <Text
+        style={{ flex: 1, color: 'rgba(0,0,0,0.55)', fontSize: APP_SEARCH_FONT_SIZE }}
+        numberOfLines={1}
+      >
+        {label}
       </Text>
+      {showCameraIcon ? (
+        <>
+          <View style={{ width: 6 }} pointerEvents="none" />
+          <Ionicons name="camera-outline" size={18} color="rgba(0,0,0,0.45)" />
+        </>
+      ) : null}
       <View style={{ width: 8 }} pointerEvents="none" />
       <View
         style={{

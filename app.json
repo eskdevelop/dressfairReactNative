@@ -19,7 +19,7 @@
     },
     "androidStatusBar": {
       "barStyle": "dark-content",
-      "backgroundColor": "#FFFFFF"
+      "translucent": true
     },
     "androidNavigationBar": {
       "barStyle": "dark-content",
@@ -77,7 +77,8 @@
           "backgroundColor": "#FFFFFF"
         }
       ],
-      "./plugins/with-no-nav-bar-contrast"
+      "./plugins/with-no-nav-bar-contrast",
+      "./plugins/with-android-status-bar-edge"
     ],
     "extra": {
       "eas": {
