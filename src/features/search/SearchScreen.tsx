@@ -5,7 +5,7 @@ import {
   FlatList,
   Image,
   Keyboard,
-  Platform,
+  Pressable,
   Text,
   TextInput,
   TouchableOpacity,
@@ -22,6 +22,22 @@ import { productHrefForSku } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { wishlist } from '@features/wishlist/wishlist';
+
+import {
+  APP_SEARCH_BORDER,
+  APP_SEARCH_BORDER_WIDTH,
+  APP_SEARCH_BTN_H,
+  APP_SEARCH_BTN_RADIUS,
+  APP_SEARCH_BTN_W,
+  APP_SEARCH_FONT_SIZE,
+  APP_SEARCH_ICON_SIZE,
+  APP_SEARCH_PAD_L,
+  APP_SEARCH_PAD_R,
+  APP_SEARCH_PAD_V,
+  APP_SEARCH_PLACEHOLDER,
+  APP_SEARCH_RADIUS,
+  APP_SEARCH_SIDE_MARGIN,
+} from '@features/categories/components/appSearchBarTokens';
 
 import { recentSearches } from './recentSearches';
 import type { SearchProductHit, SearchSuggestion } from './searchApi';
@@ -440,45 +456,31 @@ export function SearchScreen() {
     >
       <View
         style={{
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.md,
+          paddingHorizontal: APP_SEARCH_SIDE_MARGIN,
+          paddingTop: 8,
           paddingBottom: spacing.sm,
         }}
       >
-        <Text
-          style={{
-            fontSize: 22,
-            fontWeight: '700',
-            color: colors.textPrimary,
-            marginBottom: spacing.md,
-          }}
-        >
-          Search
-        </Text>
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: radii.md,
-            paddingHorizontal: spacing.md,
-            backgroundColor: '#F9FAFB',
+            borderWidth: APP_SEARCH_BORDER_WIDTH,
+            borderColor: APP_SEARCH_BORDER,
+            borderRadius: APP_SEARCH_RADIUS,
+            paddingLeft: APP_SEARCH_PAD_L,
+            paddingRight: APP_SEARCH_PAD_R,
+            paddingVertical: APP_SEARCH_PAD_V,
+            backgroundColor: '#FFF',
           }}
         >
-          <Ionicons
-            name="search-outline"
-            size={18}
-            color={colors.textMuted}
-            style={{ marginRight: spacing.sm }}
-          />
           <TextInput
             ref={inputRef}
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={onSubmit}
-            placeholder="Search dresses, abayas, kids…"
-            placeholderTextColor={colors.textMuted}
+            placeholder={APP_SEARCH_PLACEHOLDER}
+            placeholderTextColor="rgba(0,0,0,0.45)"
             returnKeyType="search"
             autoCorrect={false}
             autoCapitalize="none"
@@ -486,9 +488,10 @@ export function SearchScreen() {
             testID="search-input"
             style={{
               flex: 1,
-              paddingVertical: Platform.OS === 'ios' ? spacing.md : spacing.sm,
+              minHeight: APP_SEARCH_BTN_H,
+              paddingVertical: 2,
               color: colors.textPrimary,
-              fontSize: 14,
+              fontSize: APP_SEARCH_FONT_SIZE,
               fontWeight: '400',
             }}
           />
@@ -498,10 +501,28 @@ export function SearchScreen() {
               accessibilityLabel="Clear search"
               onPress={() => setQuery('')}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ paddingRight: 4 }}
             >
               <Ionicons name="close-circle" size={18} color={colors.textMuted} />
             </TouchableOpacity>
-          ) : null}
+          ) : (
+            <View style={{ width: 4 }} />
+          )}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Run search"
+            onPress={onSubmit}
+            style={{
+              height: APP_SEARCH_BTN_H,
+              width: APP_SEARCH_BTN_W,
+              borderRadius: APP_SEARCH_BTN_RADIUS,
+              backgroundColor: '#000',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="search" size={APP_SEARCH_ICON_SIZE} color="#FFF" />
+          </Pressable>
         </View>
       </View>
 

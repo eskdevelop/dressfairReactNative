@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -35,12 +36,22 @@ export function CategoryWebListingScreen({ navigation, route }: Props) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top']}>
-      <View style={{ paddingTop: 4, paddingBottom: 6 }}>
-        <CategorySearchBar />
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 2, paddingBottom: 6, paddingLeft: 2 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          onPress={() => navigation.goBack()}
+          style={{ paddingVertical: 6, paddingHorizontal: 6 }}
+        >
+          <Ionicons name="chevron-back" size={26} color="#111" />
+        </Pressable>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <CategorySearchBar style={{ marginHorizontal: 0, marginRight: 10 }} />
+        </View>
       </View>
 
       <View style={{ flex: 1 }}>
-        <WebViewScreen path={path} applyWebNavFromStore={false} applyTopSafeArea={false} />
+        <WebViewScreen path={path} applyWebNavFromStore={false} applyTopSafeArea={false} hideStorefrontMobileHeader />
       </View>
     </SafeAreaView>
   );

@@ -24,6 +24,7 @@ import { isAllowedUrl } from '@shared/webview/urlPolicy';
 import { AUTH_CAPTURE_INJECTION_BEFORE_CONTENT } from './authCaptureInjection';
 import { parseBridgeMessage } from './bridgeMessage';
 import { detectPaymentRedirect } from './paymentRedirectPolicy';
+import { STOREFRONT_HIDE_MOBILE_HEADER_INJECTION } from './storefrontHideMobileHeaderInjection';
 
 type Props = {
   /** Relative path (e.g. `/ae/cart`) or full storefront URL (`https://…`). */
@@ -49,6 +50,11 @@ type Props = {
    * Default true for tab WebViews.
    */
   applyTopSafeArea?: boolean;
+  /**
+   * When true (embedded category PLP only), inject CSS/JS to hide the storefront
+   * `.mobile-header` row so it does not stack under the native search bar.
+   */
+  hideStorefrontMobileHeader?: boolean;
 };
 
 const CHECKOUT_PATH_HINT =
@@ -555,6 +561,7 @@ export function WebViewScreen({
   tabReselectMode,
   applyWebNavFromStore = false,
   applyTopSafeArea = true,
+  hideStorefrontMobileHeader = false,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
@@ -571,6 +578,14 @@ export function WebViewScreen({
   const [error, setError] = useState<string | null>(null);
   const cfg = getEnvConfig(store.getState().app.country);
   const allowedHostSet = useMemo(() => new Set(cfg.allowedDomains), [cfg.allowedDomains]);
+
+  const injectedJavaScriptBundle = useMemo(
+    () =>
+      hideStorefrontMobileHeader
+        ? `${COMBINED_INJECTION}\n${STOREFRONT_HIDE_MOBILE_HEADER_INJECTION}`
+        : COMBINED_INJECTION,
+    [hideStorefrontMobileHeader],
+  );
 
   // Cross-tab navigation channel: when native Search or the Inbox screen asks
   // to drive the Home WebView to a specific storefront path, we surface
@@ -872,7 +887,7 @@ export function WebViewScreen({
           cacheEnabled
           domStorageEnabled
           javaScriptEnabled
-          injectedJavaScript={COMBINED_INJECTION}
+          injectedJavaScript={injectedJavaScriptBundle}
           injectedJavaScriptBeforeContentLoaded={BEFORE_PAGE_SCRIPTS_INJECTION}
           setSupportMultipleWindows={false}
           originWhitelist={['https://*', 'about:blank', 'data:*', 'blob:*']}
@@ -914,6 +929,9 @@ export function WebViewScreen({
             // The injection is idempotent (guarded by
             // window.__dressfairSocialHiderInstalled) so re-running is free.
             webViewRef.current?.injectJavaScript(HIDE_THIRD_PARTY_LOGIN_INJECTION);
+            if (hideStorefrontMobileHeader) {
+              webViewRef.current?.injectJavaScript(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
+            }
             if (openMobileCategoryMenuOnLoad && tabReselectMode === 'category' && isFocused) {
               // Start probing for the mega-menu as soon as the document load
               // event fires; SPA hydration may still lag, handled by retries in MOBILE_CATEGORY_MENU_CLICK_JS.
