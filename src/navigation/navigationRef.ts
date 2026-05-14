@@ -12,7 +12,7 @@ let pendingPath: string | null = null;
 // Drives the Home tab's WebView to a given storefront path. Used by:
 //   • cold-start notification / universal link routing,
 //   • the in-app Notifications inbox (tap a stored push),
-//   • the native Search tab (tap a product result),
+//   • native Search (tap a product result),
 //   • the Menu tab when it deep-links into legacy account pages.
 //
 // We always:

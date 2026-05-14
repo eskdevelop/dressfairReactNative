@@ -2,7 +2,7 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
 
 // Cross-tab navigation channel for the embedded WebView. Native screens
-// (Search, Notifications inbox, Menu deep links) request a path here, and
+// (Search, Notifications inbox, Menu-driven deep links) request a path here, and
 // the Home tab's WebViewScreen subscribes to `seq` so each new request —
 // even repeats of the same path — triggers an `injectJavaScript` redirect
 // without remounting the WebView. Using a sequence number rather than just

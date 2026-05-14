@@ -94,7 +94,7 @@ const handleColdStart = async (
           if (!response) return null;
           // The cold-start tap is also a "this is read" signal — record it
           // into the inbox before routing so the user sees it as read when
-          // they navigate to the Notifications tab.
+          // they view the Inbox.
           recordToInbox(response.notification, { read: true });
           return mapPayloadToWebPath(getPayload(response));
         })

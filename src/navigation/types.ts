@@ -1,11 +1,15 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
+import type { CustomerProfile, CustomerAddressRecord } from '@features/account/types';
+
 export type MainTabParamList = {
   Home: { path?: string } | undefined;
+  Category: undefined;
   Search: undefined;
   Wishlist: undefined;
   Notifications: undefined;
   Menu: undefined;
+  Cart: undefined;
 };
 
 export type RootStackParamList = {
@@ -13,9 +17,6 @@ export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   Offline: undefined;
   Maintenance: undefined;
-  // Legacy entry kept for cold-start deep links from notifications and
-  // universal links so existing payloads keep working. New in-app
-  // navigation goes through the MainTabs Home screen with a `path` param.
   NotificationRouter: { path?: string } | undefined;
   Terms: undefined;
   Privacy: undefined;
@@ -24,4 +25,13 @@ export type RootStackParamList = {
   Faq: undefined;
   Contact: undefined;
   OrderHistory: undefined;
+  MenuSettings: undefined;
+  Profile: undefined;
+  ProfileEdit: { profile: CustomerProfile };
+  Addresses: undefined;
+  AddressForm: {
+    mode: 'add' | 'edit';
+    profileMobile: string;
+    address?: CustomerAddressRecord;
+  };
 };

@@ -1,6 +1,6 @@
 {
   "name": "dressfair-rn-hybrid",
-  "version": "1.0.9",
+  "version": "1.0.11",
   "private": true,
   "main": "index.js",
   "scripts": {
@@ -11,7 +11,10 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "smoke:checklist": "node scripts/smoke-checklist.mjs",
-    "release:checklist": "node scripts/release-readiness.mjs"
+    "release:checklist": "node scripts/release-readiness.mjs",
+    "build:ios": "eas build --platform ios --profile production",
+    "build:ios:simulator": "eas build --platform ios --profile ios-simulator",
+    "submit:ios": "eas submit --platform ios --latest"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

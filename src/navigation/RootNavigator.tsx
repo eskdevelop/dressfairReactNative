@@ -10,6 +10,11 @@ import { FaqScreen } from '@features/menu/screens/FaqScreen';
 import { PrivacyScreen } from '@features/menu/screens/PrivacyScreen';
 import { ReturnPolicyScreen } from '@features/menu/screens/ReturnPolicyScreen';
 import { TermsScreen } from '@features/menu/screens/TermsScreen';
+import { ProfileScreen } from '@features/account/ProfileScreen';
+import { ProfileEditScreen } from '@features/account/ProfileEditScreen';
+import { AddressListScreen } from '@features/account/AddressListScreen';
+import { AddressFormScreen } from '@features/account/AddressFormScreen';
+import { MenuSettingsScreen } from '@features/menu/screens/MenuSettingsScreen';
 import { OrderHistoryScreen } from '@features/orders/OrderHistoryScreen';
 import { MainTabs } from '@navigation/MainTabs';
 import { NotificationRouterScreen } from '@navigation/NotificationRouterScreen';
@@ -58,6 +63,31 @@ export function RootNavigator() {
       <Stack.Screen
         name="OrderHistory"
         component={OrderHistoryScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="MenuSettings"
+        component={MenuSettingsScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="ProfileEdit"
+        component={ProfileEditScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="Addresses"
+        component={AddressListScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="AddressForm"
+        component={AddressFormScreen}
         options={{ presentation: 'card' }}
       />
     </Stack.Navigator>

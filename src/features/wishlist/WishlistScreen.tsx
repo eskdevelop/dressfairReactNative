@@ -1,3 +1,4 @@
+
 import React, { useCallback, useMemo } from 'react';
 import {
   Alert,
@@ -17,7 +18,6 @@ import { colors, radii, spacing } from '@app/theme/tokens';
 import { openWebPath } from '@navigation/navigationRef';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
-
 import { wishlist } from './wishlist';
 import type { WishlistItem } from './wishlistStore';
 
@@ -26,12 +26,11 @@ const GRID_GAP = spacing.md;
 
 export function WishlistScreen() {
   const items = useAppSelector(state => state.wishlist.items);
-
+/// Wishlist
   const cardWidth = useMemo(() => {
     const screenWidth = Dimensions.get('window').width;
     return Math.floor((screenWidth - GRID_HORIZONTAL_PADDING * 2 - GRID_GAP) / 2);
   }, []);
-
   // Re-hydrate on every focus so a remove from another screen shows here
   // immediately. The runtime listeners already update Redux on mutation,
   // but a focus-driven hydrate keeps the list eventually consistent if
@@ -112,6 +111,7 @@ export function WishlistScreen() {
           accessibilityLabel={item.name}
           onPress={() => onPressItem(item)}
         >
+        
           <View
             style={{
               width: cardWidth,

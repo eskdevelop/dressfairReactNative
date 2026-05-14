@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import * as Application from 'expo-application';
 import { Ionicons } from '@expo/vector-icons';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { CompositeNavigationProp } from '@react-navigation/native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,7 +21,7 @@ import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
 import { logoutEverywhere } from '@features/auth/authSync';
 import { registerForPushNotifications } from '@features/notifications/pushRegistration';
-import type { RootStackParamList } from '@navigation/types';
+import type { MainTabParamList, RootStackParamList } from '@navigation/types';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { getEnvConfig } from '@shared/config/env';
@@ -106,20 +108,44 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
-// iOS link points to the storefront until the app is approved and we have a
-// real Apple App ID; swap to https://apps.apple.com/app/id<NUMERIC_ID> after
-// the first approval. Shipping the placeholder `id0000000000` would land the
-// reviewer on a dead App Store page when they exercise Menu -> Share.
 const APP_STORE_LINKS = {
   ios: 'https://www.dressfair.com',
   android: 'https://play.google.com/store/apps/details?id=com.dressfair.dressfairrnhybrid',
 };
 
+type MenuScreenNavigationProp = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, 'Menu'>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
+
 export function MenuScreen() {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<MenuScreenNavigationProp>();
   const country = useAppSelector(state => state.app.country);
   const cfg = getEnvConfig(country);
+
+  const unreadCount = useAppSelector(state =>
+    state.notifications.items.reduce(
+      (acc, item) => (item.read ? acc : acc + 1),
+      0,
+    ),
+  );
+  const wishlistCount = useAppSelector(state => state.wishlist.items.length);
+
+  const searchHint = 'Search dresses, abayas, kids and more';
+  const wishlistHint = useMemo(
+    () =>
+      wishlistCount > 0
+        ? `${wishlistCount} saved ${wishlistCount === 1 ? 'item' : 'items'}`
+        : 'Saved items',
+    [wishlistCount],
+  );
+  const inboxHint = useMemo(
+    () =>
+      unreadCount > 0
+        ? `${unreadCount} unread ${unreadCount === 1 ? 'message' : 'messages'}`
+        : 'Order updates and messages',
+    [unreadCount],
+  );
 
   const versionLabel = useMemo(() => {
     const version =
@@ -140,8 +166,7 @@ export function MenuScreen() {
         title: 'DressFair',
       });
     } catch {
-      // Cancelled / failure — Share.share rejects when the user dismisses
-      // the sheet on some platforms. Nothing to do.
+      /* user cancelled */
     }
   }, []);
 
@@ -233,6 +258,38 @@ export function MenuScreen() {
             Manage your DressFair experience
           </Text>
         </View>
+
+        <SectionHeader title="Shortcuts" />
+        <Row
+          icon="search-outline"
+          label="Search"
+          hint={searchHint}
+          onPress={() => {
+            analytics.track('menu_open_search');
+            navigation.navigate('Search');
+          }}
+          testID="menu-search"
+        />
+        <Row
+          icon="heart-outline"
+          label="Wishlist"
+          hint={wishlistHint}
+          onPress={() => {
+            analytics.track('menu_open_wishlist');
+            navigation.navigate('Wishlist');
+          }}
+          testID="menu-wishlist"
+        />
+        <Row
+          icon="notifications-outline"
+          label="Inbox"
+          hint={inboxHint}
+          onPress={() => {
+            analytics.track('menu_open_inbox');
+            navigation.navigate('Notifications');
+          }}
+          testID="menu-inbox"
+        />
 
         <SectionHeader title="App" />
         <Row
@@ -366,7 +423,6 @@ export function MenuScreen() {
             {versionLabel}
           </Text>
         </View>
-
       </ScrollView>
     </SafeAreaView>
   );

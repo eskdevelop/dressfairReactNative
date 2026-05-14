@@ -1,12 +1,10 @@
 import axios from 'axios';
 
 import { store } from '@app/store';
-import {
-  OC_MERCHANT_ID,
-  OC_MERCHANT_LANGUAGE,
-} from '@features/api/sessionApi';
-import { sessionStore } from '@features/auth/sessionStore';
+import { clearStoredUserSession } from '@features/auth/authSync';
 import { getEnvConfig } from '@shared/config/env';
+import { buildStorefrontAuthHeaders } from '@shared/network/storefrontAuthHeaders';
+import { analytics } from '@shared/observability/analytics';
 
 import type {
   Order,
@@ -121,32 +119,6 @@ const mapCustomer = (raw: unknown): OrderCustomer | undefined => {
   };
 };
 
-const buildAuthHeaders = async (): Promise<Record<string, string>> => {
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'x-oc-merchant-id': OC_MERCHANT_ID,
-    'x-oc-merchant-language': OC_MERCHANT_LANGUAGE,
-  };
-  // OpenCart REST session token — anonymous calls already piggy-back on this
-  // for catalogue endpoints. We forward it so the backend can correlate the
-  // request to the right merchant context.
-  const apiSessionToken = store.getState().app.apiSession?.token;
-  if (apiSessionToken && apiSessionToken.length > 0) {
-    headers['x-oc-session'] = apiSessionToken;
-  }
-  // The customer's auth token (saved by the WebView bridge after login). We
-  // forward it via three common header names so the backend resolves it
-  // regardless of which is configured. If exactly one is required, drop the
-  // others to reduce noise.
-  const userToken = await sessionStore.getToken();
-  if (userToken && userToken.length > 0) {
-    headers.Authorization = `Bearer ${userToken}`;
-    headers['x-customer-token'] = userToken;
-    headers['x-customer-session'] = userToken;
-  }
-  return headers;
-};
-
 export type FetchOrdersOptions = {
   signal?: AbortSignal;
 };
@@ -155,29 +127,40 @@ export const fetchOrderHistory = async (
   options?: FetchOrdersOptions,
 ): Promise<OrderHistoryResponse> => {
   const url = buildOrdersUrl();
-  const headers = await buildAuthHeaders();
-  const response = await axios.get(url, {
-    timeout: REQUEST_TIMEOUT_MS,
-    signal: options?.signal,
-    headers,
-  });
-  const data =
-    response.data && typeof response.data === 'object'
-      ? (response.data as Record<string, unknown>)
-      : {};
-  const success =
-    data.success === true ||
-    data.success === 1 ||
-    data.success === '1' ||
-    data.success === 'true';
-  const ordersRaw = Array.isArray(data.orders) ? data.orders : [];
-  const orders = ordersRaw
-    .map(mapOrder)
-    .filter((order): order is Order => order !== null);
-  return {
-    success,
-    message: typeof data.message === 'string' ? data.message : undefined,
-    customer: mapCustomer(data.customer),
-    orders,
-  };
+  const headers = await buildStorefrontAuthHeaders();
+  try {
+    const response = await axios.get(url, {
+      timeout: REQUEST_TIMEOUT_MS,
+      signal: options?.signal,
+      headers,
+    });
+    const data =
+      response.data && typeof response.data === 'object'
+        ? (response.data as Record<string, unknown>)
+        : {};
+    const success =
+      data.success === true ||
+      data.success === 1 ||
+      data.success === '1' ||
+      data.success === 'true';
+    const ordersRaw = Array.isArray(data.orders) ? data.orders : [];
+    const orders = ordersRaw
+      .map(mapOrder)
+      .filter((order): order is Order => order !== null);
+    return {
+      success,
+      message: typeof data.message === 'string' ? data.message : undefined,
+      customer: mapCustomer(data.customer),
+      orders,
+    };
+  } catch (error: unknown) {
+    if (
+      axios.isAxiosError(error) &&
+      ((error.response?.status ?? 0) === 401)
+    ) {
+      analytics.track('customer_token_rejected_clearing_native_session');
+      await clearStoredUserSession();
+    }
+    throw error;
+  }
 };

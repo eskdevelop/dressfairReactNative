@@ -26,6 +26,23 @@ export type EnvConfig = {
   // (see `productHrefForSku`). The prefix begins with the regional locale
   // segment (`/ae`, `/om`, `/sa`) so cross-region deep-links cannot bleed.
   productPathPrefix: string;
+  // Storefront JSON REST used by the Flutter app (`/api/rest/store/checkout/...`).
+  // Must match the host that accepts the same JWT as WebView login.
+  storefrontCheckoutApiBaseUrl: string;
+  // Regional "New in" collection path on the marketing site (Menu WebView).
+  webNewInPath: string;
+  // Regional storefront home path where the Category tab WebView lands. `/ae`
+  // does not expose `/ae/categories` (404); the categories UI is a SPA overlay on
+  // the locale root toggled via the `.menu-icons-mobile` header button — see
+  // WebViewScreen `openMobileCategoryMenuOnLoad`.
+  webCategoriesPath: string;
+  // Storefront cart URL for the Cart tab WebView (`https://…`). UAE uses apex
+  // `dressfair.com` so `/ae/cart` matches the live storefront.
+  webCartUrl: string;
+  // Path param for `GET /api/rest/store/cities/{id}` (OpenCart country id).
+  storefrontCitiesCountryId: string;
+  // Customer profile `image` field is relative to this CDN (Flutter `SimpleMethode.imageUrl`).
+  customerAvatarCdnBaseUrl: string;
 };
 
 const configs: Record<CountryCode, EnvConfig> = {
@@ -51,6 +68,13 @@ const configs: Record<CountryCode, EnvConfig> = {
     accountDeletionPath: '/account/delete',
     supportEmail: 'support@dressfair.com',
     productPathPrefix: '/ae/p',
+    storefrontCheckoutApiBaseUrl: 'https://backend.dressfair.com',
+    webNewInPath: '/ae/new-in',
+    webCategoriesPath: '/ae',
+    webCartUrl: 'https://dressfair.com/ae/cart',
+    storefrontCitiesCountryId: '223',
+    customerAvatarCdnBaseUrl:
+      'https://ecomdoor-images.s3.ap-southeast-1.amazonaws.com',
   },
   OMN: {
     apiBaseUrl:
@@ -73,6 +97,13 @@ const configs: Record<CountryCode, EnvConfig> = {
     // CONFIRM: Oman storefront locale prefix. `/om/p/<sku>` is the assumed
     // mirror of the UAE pattern. Update once verified on the live site.
     productPathPrefix: '/om/p',
+    storefrontCheckoutApiBaseUrl: 'https://backend.dressfair.om',
+    webNewInPath: '/om/new-in',
+    webCategoriesPath: '/om',
+    webCartUrl: 'https://www.dressfair.om/om/cart',
+    storefrontCitiesCountryId: '162',
+    customerAvatarCdnBaseUrl:
+      'https://ecomdoor-images.s3.ap-southeast-1.amazonaws.com',
   },
   KSA: {
     apiBaseUrl:
@@ -91,6 +122,13 @@ const configs: Record<CountryCode, EnvConfig> = {
     // CONFIRM: KSA storefront locale prefix. `/sa/p/<sku>` is the assumed
     // mirror of the UAE pattern. Update once verified on the live site.
     productPathPrefix: '/sa/p',
+    storefrontCheckoutApiBaseUrl: 'https://backendsa.dressfair.com',
+    webNewInPath: '/sa/new-in',
+    webCategoriesPath: '/sa',
+    webCartUrl: 'https://sa.dressfair.com/sa/cart',
+    storefrontCitiesCountryId: '184',
+    customerAvatarCdnBaseUrl:
+      'https://ecomdoor-images.s3.ap-southeast-1.amazonaws.com',
   },
 };
 

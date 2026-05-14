@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
@@ -14,6 +15,7 @@ import { WebViewScreen } from '@features/webview/WebViewScreen';
 import { WishlistScreen } from '@features/wishlist/WishlistScreen';
 import { wishlist } from '@features/wishlist/wishlist';
 import { crashReporter } from '@shared/observability/crash';
+import { getEnvConfig } from '@shared/config/env';
 
 import type { MainTabParamList } from './types';
 
@@ -24,7 +26,31 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 // `webNav` slice for in-session cross-tab navigation requests.
 function HomeTab({ route }: { route: RouteProp<MainTabParamList, 'Home'> }) {
   const initialPath = route.params?.path ?? '/';
-  return <WebViewScreen path={initialPath} />;
+  return (
+    <WebViewScreen
+      path={initialPath}
+      applyWebNavFromStore
+      tabReselectMode="home"
+    />
+  );
+}
+
+function CategoryTab() {
+  const country = useAppSelector(state => state.app.country);
+  const path = getEnvConfig(country).webCategoriesPath;
+  return (
+    <WebViewScreen
+      path={path}
+      openMobileCategoryMenuOnLoad
+      tabReselectMode="category"
+    />
+  );
+}
+
+function CartTab() {
+  const country = useAppSelector(state => state.app.country);
+  const uri = getEnvConfig(country).webCartUrl;
+  return <WebViewScreen path={uri} tabReselectMode="cart" />;
 }
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -35,9 +61,18 @@ const tabIcon =
     <Ionicons name={focused ? focusedName : name} color={color} size={size} />
   );
 
+const hiddenTabBarButton = () => null;
+
+/** Hidden tabs still mount `BottomTabItem` wrappers; overriding flex/layout keeps
+ *  ghost routes from reserving columns (otherwise only ~4/7 of the bar is
+ *  usable and labels truncate). RN `display` collapses layout on modern Yoga. */
+const hiddenTabBarItemStyle: StyleProp<ViewStyle> = {
+  display: 'none',
+};
+
 export function MainTabs() {
-  // Hydrate the inbox and wishlist once at the tab shell mount so the badge
-  // counts and initial render are both correct. Subsequent updates flow
+  // Hydrate the inbox and wishlist once at the tab shell mount so counts on
+  // the Menu screen and initial state are correct. Subsequent updates flow
   // through the notificationRuntime listeners and the wishlist facade.
   useEffect(() => {
     void notificationInbox.hydrateFromStorage().catch(error => {
@@ -47,25 +82,6 @@ export function MainTabs() {
       crashReporter.capture(error, { source: 'MainTabs.hydrateWishlist' });
     });
   }, []);
-
-  const unreadCount = useAppSelector(state =>
-    state.notifications.items.reduce(
-      (acc, item) => (item.read ? acc : acc + 1),
-      0,
-    ),
-  );
-  const wishlistCount = useAppSelector(state => state.wishlist.items.length);
-
-  // Memoise the badge so that switching the same value (e.g. count stays
-  // at 3) doesn't re-render the navigator unnecessarily.
-  const notificationBadge = useMemo(
-    () => (unreadCount > 0 ? unreadCount : undefined),
-    [unreadCount],
-  );
-  const wishlistBadge = useMemo(
-    () => (wishlistCount > 0 ? wishlistCount : undefined),
-    [wishlistCount],
-  );
 
   // Bake the bottom safe-area inset into the tab bar height ourselves so the
   // bar still clears the system gesture / 3-button nav, while we keep the
@@ -77,6 +93,7 @@ export function MainTabs() {
   return (
     <Tab.Navigator
       screenOptions={{
+        lazy: true,
         headerShown: false,
         tabBarActiveTintColor: colors.brand,
         tabBarInactiveTintColor: colors.textMuted,
@@ -88,11 +105,16 @@ export function MainTabs() {
           height: tabBarHeight,
         },
         tabBarItemStyle: {
-          paddingVertical: 2,
+          flex: 1,
+          minWidth: 0,
+          paddingVertical: 4,
+          paddingHorizontal: 2,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           marginTop: 2,
+          textAlign: 'center',
+          width: '100%',
         },
       }}
     >
@@ -105,29 +127,11 @@ export function MainTabs() {
         }}
       />
       <Tab.Screen
-        name="Search"
-        component={SearchScreen}
+        name="Category"
+        component={CategoryTab}
         options={{
-          tabBarLabel: 'Search',
-          tabBarIcon: tabIcon('search', 'search-outline'),
-        }}
-      />
-      <Tab.Screen
-        name="Wishlist"
-        component={WishlistScreen}
-        options={{
-          tabBarLabel: 'Wishlist',
-          tabBarBadge: wishlistBadge,
-          tabBarIcon: tabIcon('heart', 'heart-outline'),
-        }}
-      />
-      <Tab.Screen
-        name="Notifications"
-        component={NotificationsInboxScreen}
-        options={{
-          tabBarLabel: 'Inbox',
-          tabBarBadge: notificationBadge,
-          tabBarIcon: tabIcon('notifications', 'notifications-outline'),
+          tabBarLabel: 'Category',
+          tabBarIcon: tabIcon('grid', 'grid-outline'),
         }}
       />
       <Tab.Screen
@@ -136,6 +140,38 @@ export function MainTabs() {
         options={{
           tabBarLabel: 'Menu',
           tabBarIcon: tabIcon('menu', 'menu-outline'),
+        }}
+      />
+      <Tab.Screen
+        name="Cart"
+        component={CartTab}
+        options={{
+          tabBarLabel: 'Cart',
+          tabBarIcon: tabIcon('cart', 'cart-outline'),
+        }}
+      />
+      <Tab.Screen
+        name="Search"
+        component={SearchScreen}
+        options={{
+          tabBarButton: hiddenTabBarButton,
+          tabBarItemStyle: hiddenTabBarItemStyle,
+        }}
+      />
+      <Tab.Screen
+        name="Wishlist"
+        component={WishlistScreen}
+        options={{
+          tabBarButton: hiddenTabBarButton,
+          tabBarItemStyle: hiddenTabBarItemStyle,
+        }}
+      />
+      <Tab.Screen
+        name="Notifications"
+        component={NotificationsInboxScreen}
+        options={{
+          tabBarButton: hiddenTabBarButton,
+          tabBarItemStyle: hiddenTabBarItemStyle,
         }}
       />
     </Tab.Navigator>
