@@ -3,13 +3,15 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { useAppSelector } from '@app/hooks';
 import { colors } from '@app/theme/tokens';
+import { CategorySearchBar } from '@features/categories/components/CategorySearchBar';
 import { CategoryNavigator } from '@features/categories/CategoryNavigator';
 import { MenuScreen } from '@features/menu/MenuScreen';
 import { NotificationsInboxScreen } from '@features/notifications/NotificationsInboxScreen';
 import { notificationInbox } from '@features/notifications/notificationInbox';
-import { selectUnreadNotificationCount } from '@features/notifications/selectors';
 import { SearchScreen } from '@features/search/SearchScreen';
 import { WebViewScreen } from '@features/webview/WebViewScreen';
 import { WishlistScreen } from '@features/wishlist/WishlistScreen';
@@ -37,19 +39,37 @@ function formatTabBadge(count: number): string | undefined {
 function HomeTab({ route }: { route: RouteProp<MainTabParamList, 'Home'> }) {
   const initialPath = route.params?.path ?? '/';
   return (
-    <WebViewScreen
-      path={initialPath}
-      applyWebNavFromStore
-      tabReselectMode="home"
-      reportCartCountToNative
-    />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top']}>
+      <View style={{ paddingTop: 6 }}>
+        <CategorySearchBar />
+      </View>
+      <View style={{ height: 8 }} />
+      <View style={{ flex: 1 }}>
+        <WebViewScreen
+          path={initialPath}
+          applyWebNavFromStore
+          tabReselectMode="home"
+          reportCartCountToNative
+          hideStorefrontMobileHeader
+          applyTopSafeArea={false}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
 function CartTab() {
   const country = useAppSelector(state => state.app.country);
   const uri = getEnvConfig(country).webCartUrl;
-  return <WebViewScreen path={uri} tabReselectMode="cart" reportCartCountToNative />;
+  return (
+    <WebViewScreen
+      path={uri}
+      tabReselectMode="cart"
+      reportCartCountToNative
+      hideStorefrontMobileHeader
+      reloadWebWhenTabFocused
+    />
+  );
 }
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -112,8 +132,10 @@ const hiddenTabBarItemStyle: StyleProp<ViewStyle> = {
   display: 'none',
 };
 
+/** Static Temu-style profile promotions cue (tab bar); inbox unread stays on Menu screen list only. */
+const YOU_TAB_BAR_BADGE = '99+';
+
 export function MainTabs() {
-  const unreadNotifications = useAppSelector(selectUnreadNotificationCount);
   const cartQuantity = useAppSelector(state => state.cartBadge.quantity);
 
   // Hydrate the inbox and wishlist once at the tab shell mount so counts on
@@ -202,7 +224,7 @@ export function MainTabs() {
           options={{
             tabBarLabel: 'You',
             tabBarIcon: tabIcon('person', 'person-outline'),
-            tabBarBadge: formatTabBadge(unreadNotifications),
+            tabBarBadge: YOU_TAB_BAR_BADGE,
           }}
         />
         <Tab.Screen

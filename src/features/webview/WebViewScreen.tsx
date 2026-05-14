@@ -67,6 +67,12 @@ type Props = {
    * messages so the Cart tab badge can reflect the storefront cart.
    */
   reportCartCountToNative?: boolean;
+  /**
+   * Cart tab: Home and Cart use separate WebViews; adding items on Home updates cookies
+   * but the Cart WebView can keep stale SPA HTML until remount/reload. Reload when this
+   * screen gains focus after the first visit so line items match the badge.
+   */
+  reloadWebWhenTabFocused?: boolean;
 };
 
 const CHECKOUT_PATH_HINT =
@@ -576,11 +582,13 @@ export function WebViewScreen({
   statusBarOverContent = false,
   hideStorefrontMobileHeader = false,
   reportCartCountToNative = false,
+  reloadWebWhenTabFocused = false,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const dispatch = useAppDispatch();
   const webViewRef = useRef<WebView>(null);
+  const skipFirstFocusReloadRef = useRef(true);
   const [canGoBack, setCanGoBack] = useState(false);
   // Initial load is masked by the native splash; subsequent loads keep the
   // previously-painted page visible until the next one finishes (browser-like
@@ -751,6 +759,27 @@ export function WebViewScreen({
       path,
       tabReselectMode,
     ]),
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!reloadWebWhenTabFocused) return undefined;
+      if (skipFirstFocusReloadRef.current) {
+        skipFirstFocusReloadRef.current = false;
+        return undefined;
+      }
+      let cancelled = false;
+      const frame = requestAnimationFrame(() => {
+        if (!cancelled && webViewRef.current) {
+          webViewRef.current.reload();
+          analytics.track('webview_reload_on_tab_focus');
+        }
+      });
+      return () => {
+        cancelled = true;
+        cancelAnimationFrame(frame);
+      };
+    }, [reloadWebWhenTabFocused]),
   );
 
   React.useEffect(() => {
