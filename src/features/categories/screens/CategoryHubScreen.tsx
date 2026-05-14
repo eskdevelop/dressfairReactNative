@@ -236,12 +236,56 @@ export function CategoryHubScreen({ navigation }: Props) {
     [categories, selectedId],
   );
 
+  const viewAllSlug = useMemo((): string | null => {
+    if (!selected?.subCategories.length) return null;
+    const subs = selected.subCategories;
+    const withSlug = subs.find(ss => (ss.slug ?? '').trim().length > 0);
+    return withSlug?.slug?.trim() ?? null;
+  }, [selected]);
+
+  const viewAllCateKey = useCallback((cat: CategoryRow | null): string | null => {
+    if (!cat?.subCategories.length) return null;
+    const subs = cat.subCategories;
+    if (subs.length === 1) return subs[0].name;
+    return subs[1].name;
+  }, []);
+
+  const openCategoryWeb = useCallback(
+    (slug: string, titleHint?: string) => {
+      const s = slug.trim();
+      if (!s) return;
+      navigation.navigate('CategoryWebListing', { slug: s, titleHint });
+    },
+    [navigation],
+  );
+
   const openListing = useCallback(
     (cateKey: string | null | undefined, titleHint?: string) => {
       if (!cateKey) return;
       navigation.navigate('CategoryListing', { cateKey, titleHint });
     },
     [navigation],
+  );
+
+  const onViewAllPress = useCallback(() => {
+    if (viewAllSlug) {
+      openCategoryWeb(viewAllSlug, 'View All');
+      return;
+    }
+    const key = viewAllCateKey(selected);
+    if (key) openListing(key, 'View All');
+  }, [viewAllSlug, openCategoryWeb, selected, openListing, viewAllCateKey]);
+
+  const onSubcategoryPress = useCallback(
+    (sub: SubCategoryRow) => {
+      const s = sub.slug?.trim();
+      if (s) {
+        openCategoryWeb(s, sub.name);
+      } else {
+        openListing(sub.name, sub.name);
+      }
+    },
+    [openCategoryWeb, openListing],
   );
 
   const openPdp = useCallback(
@@ -251,13 +295,6 @@ export function CategoryHubScreen({ navigation }: Props) {
     },
     [country],
   );
-
-  const viewAllCateKey = useCallback((cat: CategoryRow | null): string | null => {
-    if (!cat?.subCategories.length) return null;
-    const subs = cat.subCategories;
-    if (subs.length === 1) return subs[0].name;
-    return subs[1].name;
-  }, []);
 
   const relatedRows = useMemo(() => chunkPairs(selected?.products ?? []), [selected?.products]);
   const relPad = 6;
@@ -342,8 +379,8 @@ export function CategoryHubScreen({ navigation }: Props) {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="View All"
-                  onPress={() => openListing(viewAllCateKey(selected))}
-                  disabled={viewAllCateKey(selected) == null}
+                  onPress={onViewAllPress}
+                  disabled={viewAllSlug == null && viewAllCateKey(selected) == null}
                 >
                   <View
                     style={{
@@ -374,7 +411,7 @@ export function CategoryHubScreen({ navigation }: Props) {
                   sub={sub}
                   country={country}
                   cellWidth={cellWidth}
-                  onPress={() => openListing(sub.name, sub.name)}
+                  onPress={() => onSubcategoryPress(sub)}
                 />
               ))}
             </View>

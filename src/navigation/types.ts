@@ -5,6 +5,7 @@ import type { CustomerProfile, CustomerAddressRecord } from '@features/account/t
 export type CategoryStackParamList = {
   CategoryHub: undefined;
   CategoryListing: { cateKey: string; titleHint?: string };
+  CategoryWebListing: { slug: string; titleHint?: string };
 };
 
 export type MainTabParamList = {

@@ -160,3 +160,17 @@ export const productHrefForSku = (
   const { productPathPrefix } = getEnvConfig(country);
   return `${productPathPrefix}/${encodeURIComponent(trimmed)}`;
 };
+
+/** Next.js category PLP path: `{webCategoriesPath}/c/{slug}` (e.g. `/ae/c/m-tops-blouses`). */
+export const categoryCollectionPath = (
+  slug: string,
+  country: CountryCode,
+): string | null => {
+  const trimmed = slug.trim().replace(/^\/+|\/+$/g, '');
+  if (trimmed.length === 0) return null;
+  const { webCategoriesPath } = getEnvConfig(country);
+  const base = webCategoriesPath.replace(/\/+$/, '') || '';
+  const segments = trimmed.split('/').filter(Boolean);
+  const encoded = segments.map(s => encodeURIComponent(s)).join('/');
+  return `${base}/c/${encoded}`;
+};

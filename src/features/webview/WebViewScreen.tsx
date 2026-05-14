@@ -43,6 +43,12 @@ type Props = {
    * the Home WebView — otherwise Search/inbox product taps rewrite Category/Cart URIs.
    */
   applyWebNavFromStore?: boolean;
+  /**
+   * When false, skips top safe-area inset so a parent screen can provide its own
+   * header without double-padding (e.g. category PLP WebView under a search bar).
+   * Default true for tab WebViews.
+   */
+  applyTopSafeArea?: boolean;
 };
 
 const CHECKOUT_PATH_HINT =
@@ -548,6 +554,7 @@ export function WebViewScreen({
   openMobileCategoryMenuOnLoad = false,
   tabReselectMode,
   applyWebNavFromStore = false,
+  applyTopSafeArea = true,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
@@ -841,7 +848,10 @@ export function WebViewScreen({
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top']}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: '#FFFFFF' }}
+      edges={applyTopSafeArea ? ['top'] : []}
+    >
       <AppAsyncState
         isLoading={loading}
         errorMessage={error}
