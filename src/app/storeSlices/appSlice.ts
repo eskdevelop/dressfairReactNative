@@ -18,6 +18,10 @@ type AppState = {
   // user-auth token used by the storefront WebView). Read by `apiClient`'s
   // request interceptor to attach `x-oc-session`.
   apiSession: ApiSessionState;
+  /** Flutter `SessionController.countryConfig` — `/api/rest/store/setting`. */
+  storeCurrencyCode: string;
+  storeCurrencyTitle: string;
+  storeSettingsHydrated: boolean;
 };
 
 const initialState: AppState = {
@@ -30,6 +34,9 @@ const initialState: AppState = {
     token: null,
     hydrated: false,
   },
+  storeCurrencyCode: '',
+  storeCurrencyTitle: '',
+  storeSettingsHydrated: false,
 };
 
 const slice = createSlice({
@@ -52,6 +59,14 @@ const slice = createSlice({
       state.apiSession.token = action.payload;
       state.apiSession.hydrated = true;
     },
+    setStoreCurrencySettings(
+      state,
+      action: PayloadAction<{ currencyCode: string; currencyTitle: string }>,
+    ) {
+      state.storeCurrencyCode = action.payload.currencyCode;
+      state.storeCurrencyTitle = action.payload.currencyTitle;
+      state.storeSettingsHydrated = true;
+    },
   },
 });
 
@@ -61,5 +76,6 @@ export const {
   setBootstrapped,
   setAuthenticated,
   setApiSession,
+  setStoreCurrencySettings,
 } = slice.actions;
 export const appReducer = slice.reducer;

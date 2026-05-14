@@ -11,10 +11,21 @@ import {
   bootstrapSession,
   hydrateSessionFromStorage,
 } from '@features/api/sessionApi';
+import { prefetchCategoryCacheIfStale } from '@features/categories/categoryHydration';
+import { fetchStoreSettingsFromNetwork } from '@features/store/storeSettingsApi';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { perf } from '@shared/observability/performance';
-import { setAuthenticated, setBootstrapped, setOffline } from './storeSlices/appSlice';
+import { store } from './store';
+import { setAuthenticated, setBootstrapped, setOffline, setStoreCurrencySettings } from './storeSlices/appSlice';
+
+const CATEGORY_PREFETCH_MAX_MS = 2500;
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(resolve, ms);
+  });
+}
 
 export function AppRoot() {
   const dispatch = useAppDispatch();
@@ -48,21 +59,51 @@ export function AppRoot() {
       const isOffline = networkResult?.isInternetReachable === false;
       dispatch(setOffline(isOffline));
       dispatch(setAuthenticated(Boolean(tokenResult)));
+
+      if (apiSessionResult === null && !isOffline) {
+        await bootstrapSession();
+      }
+
+      let categoryPrefetchMs = 0;
+      let categoryPrefetchOutcome: 'offline' | 'skipped' | 'ok' | 'fail' | 'timeout' = 'offline';
+      const country = store.getState().app.country;
+      const prefetchT0 = Date.now();
+
+      if (!isOffline) {
+        void fetchStoreSettingsFromNetwork(country).then(res => {
+          if (!mounted || !res.ok || !res.settings) return;
+          dispatch(setStoreCurrencySettings(res.settings));
+        });
+
+        const prefetchPromise = prefetchCategoryCacheIfStale(country).then(r => ({
+          timedOut: false as const,
+          ok: r.ok,
+          skipped: r.skipped,
+        }));
+        const race = await Promise.race([
+          prefetchPromise,
+          delay(CATEGORY_PREFETCH_MAX_MS).then(() => ({ timedOut: true as const })),
+        ]);
+        categoryPrefetchMs = Date.now() - prefetchT0;
+        if ('timedOut' in race && race.timedOut) {
+          categoryPrefetchOutcome = 'timeout';
+        } else if (!race.timedOut) {
+          if (race.skipped) categoryPrefetchOutcome = 'skipped';
+          else if (race.ok) categoryPrefetchOutcome = 'ok';
+          else categoryPrefetchOutcome = 'fail';
+        }
+      }
+
       dispatch(setBootstrapped(true));
 
-      // Fire-and-forget: refresh the API session token in the background if
-      // we did not already have one in SecureStore. Search calls succeed even
-      // before this resolves because OpenCart treats unknown sessions as
-      // anonymous; this just promotes us to a tracked session for analytics.
-      if (apiSessionResult === null && !isOffline) {
-        void bootstrapSession();
-      }
       const elapsed = perf.end('app_bootstrap');
       if (elapsed !== null) {
         analytics.track('app_bootstrap_complete', {
           elapsedMs: elapsed,
           networkProbeOk: networkResult !== null,
           isOffline,
+          categoryPrefetchMs,
+          categoryPrefetchOutcome,
         });
       }
     };

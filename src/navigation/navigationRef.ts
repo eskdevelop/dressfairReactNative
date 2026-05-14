@@ -62,3 +62,14 @@ export const openSettings = (): void => {
     }),
   );
 };
+
+/** Switch to hidden Search tab (Category hub search pill). */
+export const openSearchTab = (): void => {
+  if (!navigationRef.isReady()) return;
+  navigationRef.dispatch(
+    CommonActions.navigate({
+      name: 'MainTabs',
+      params: { screen: 'Search' },
+    }),
+  );
+};

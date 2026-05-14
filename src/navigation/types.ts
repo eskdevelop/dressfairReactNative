@@ -2,9 +2,14 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { CustomerProfile, CustomerAddressRecord } from '@features/account/types';
 
+export type CategoryStackParamList = {
+  CategoryHub: undefined;
+  CategoryListing: { cateKey: string; titleHint?: string };
+};
+
 export type MainTabParamList = {
   Home: { path?: string } | undefined;
-  Category: undefined;
+  Category: NavigatorScreenParams<CategoryStackParamList>;
   Search: undefined;
   Wishlist: undefined;
   Notifications: undefined;

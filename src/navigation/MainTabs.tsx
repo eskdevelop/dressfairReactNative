@@ -1,12 +1,13 @@
 import React, { useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
-import type { StyleProp, ViewStyle } from 'react-native';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
 import { colors } from '@app/theme/tokens';
+import { CategoryNavigator } from '@features/categories/CategoryNavigator';
 import { MenuScreen } from '@features/menu/MenuScreen';
 import { NotificationsInboxScreen } from '@features/notifications/NotificationsInboxScreen';
 import { notificationInbox } from '@features/notifications/notificationInbox';
@@ -31,18 +32,6 @@ function HomeTab({ route }: { route: RouteProp<MainTabParamList, 'Home'> }) {
       path={initialPath}
       applyWebNavFromStore
       tabReselectMode="home"
-    />
-  );
-}
-
-function CategoryTab() {
-  const country = useAppSelector(state => state.app.country);
-  const path = getEnvConfig(country).webCategoriesPath;
-  return (
-    <WebViewScreen
-      path={path}
-      openMobileCategoryMenuOnLoad
-      tabReselectMode="category"
     />
   );
 }
@@ -91,6 +80,7 @@ export function MainTabs() {
   const tabBarHeight = 56 + insets.bottom;
 
   return (
+    <View style={{ flex: 1 }}>
     <Tab.Navigator
       screenOptions={{
         lazy: true,
@@ -128,18 +118,29 @@ export function MainTabs() {
       />
       <Tab.Screen
         name="Category"
-        component={CategoryTab}
+        component={CategoryNavigator}
         options={{
           tabBarLabel: 'Category',
-          tabBarIcon: tabIcon('grid', 'grid-outline'),
+          tabBarIcon: ({ color, size, focused }) => (
+            <MaterialIcons name="category" color={color} size={focused ? Math.min(size + 2, 30) : size} />
+          ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            navigation.navigate({
+              name: 'Category',
+              params: { screen: 'CategoryHub' },
+              merge: true,
+            });
+          },
+        })}
       />
       <Tab.Screen
         name="Menu"
         component={MenuScreen}
         options={{
-          tabBarLabel: 'Menu',
-          tabBarIcon: tabIcon('menu', 'menu-outline'),
+          tabBarLabel: 'You',
+          tabBarIcon: tabIcon('person', 'person-outline'),
         }}
       />
       <Tab.Screen
@@ -175,5 +176,6 @@ export function MainTabs() {
         }}
       />
     </Tab.Navigator>
+    </View>
   );
 }

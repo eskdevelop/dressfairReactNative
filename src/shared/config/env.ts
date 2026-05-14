@@ -29,6 +29,13 @@ export type EnvConfig = {
   // Storefront JSON REST used by the Flutter app (`/api/rest/store/checkout/...`).
   // Must match the host that accepts the same JWT as WebView login.
   storefrontCheckoutApiBaseUrl: string;
+  /**
+   * Origin for `GET /api/rest/mobile-categories` **only** when it differs from `storefrontCheckoutApiBaseUrl`.
+   * `backend.dressfair.*` often serves Next.js HTML for `/api/rest/*` (SPA), not OpenCart JSON — the Flutter
+   * app still calls the ecomplug OC origin from `SessionController.baseUrl*`. Once infra proxies OC JSON on
+   * the dressfair backend, remove this override.
+   */
+  mobileCategoriesApiBaseUrl?: string;
   // Regional "New in" collection path on the marketing site (Menu WebView).
   webNewInPath: string;
   // Regional storefront home path where the Category tab WebView lands. `/ae`
@@ -69,6 +76,7 @@ const configs: Record<CountryCode, EnvConfig> = {
     supportEmail: 'support@dressfair.com',
     productPathPrefix: '/ae/p',
     storefrontCheckoutApiBaseUrl: 'https://backend.dressfair.com',
+    mobileCategoriesApiBaseUrl: 'https://9711694.ecomplug.com',
     webNewInPath: '/ae/new-in',
     webCategoriesPath: '/ae',
     webCartUrl: 'https://dressfair.com/ae/cart',
@@ -98,6 +106,7 @@ const configs: Record<CountryCode, EnvConfig> = {
     // mirror of the UAE pattern. Update once verified on the live site.
     productPathPrefix: '/om/p',
     storefrontCheckoutApiBaseUrl: 'https://backend.dressfair.om',
+    mobileCategoriesApiBaseUrl: 'https://9681695.ecomplug.com',
     webNewInPath: '/om/new-in',
     webCategoriesPath: '/om',
     webCartUrl: 'https://www.dressfair.om/om/cart',
@@ -123,6 +132,7 @@ const configs: Record<CountryCode, EnvConfig> = {
     // mirror of the UAE pattern. Update once verified on the live site.
     productPathPrefix: '/sa/p',
     storefrontCheckoutApiBaseUrl: 'https://backendsa.dressfair.com',
+    mobileCategoriesApiBaseUrl: 'https://9661696.ecomplug.com',
     webNewInPath: '/sa/new-in',
     webCategoriesPath: '/sa',
     webCartUrl: 'https://sa.dressfair.com/sa/cart',
