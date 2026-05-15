@@ -45,9 +45,10 @@ export const CART_COUNT_BRIDGE_INJECTION = `
 
   function scanOnce() {
     try {
-      var links = document.querySelectorAll('a[href*="/cart"]');
+      var links = document.querySelectorAll(
+        'a[href*="/cart"], a[href*="checkout/cart"], a[href*="shopping_cart"], a[href*="route=checkout/cart"]'
+      );
       if (!links.length) {
-        post(0);
         return;
       }
       var best = 0;
@@ -57,7 +58,7 @@ export const CART_COUNT_BRIDGE_INJECTION = `
       }
       post(best);
     } catch (err) {
-      post(0);
+      return;
     }
   }
 

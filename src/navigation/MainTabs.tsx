@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
@@ -135,6 +135,79 @@ const hiddenTabBarItemStyle: StyleProp<ViewStyle> = {
 /** Static Temu-style profile promotions cue (tab bar); inbox unread stays on Menu screen list only. */
 const YOU_TAB_BAR_BADGE = '99+';
 
+/** Matches `@react-navigation/bottom-tabs` TabBarIcon `wrapperUikit` (31×28) so rows align with other tabs. */
+const TAB_BAR_ICON_FRAME = { width: 31, height: 28 } as const;
+
+function TabBarBadgeChip({
+  label,
+  right = -9,
+  top = 1,
+}: {
+  label: string;
+  right?: number;
+  top?: number;
+}) {
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        top,
+        right,
+        backgroundColor: colors.brand,
+        borderRadius: 8,
+        paddingHorizontal: 3,
+        paddingVertical: 1,
+        minWidth: 14,
+        minHeight: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}
+    >
+      <Text style={{ color: '#FFF', fontSize: 8, fontWeight: '700', lineHeight: 10 }}>{label}</Text>
+    </View>
+  );
+}
+
+function YouTabBarIcon({
+  color,
+  size,
+  focused,
+}: {
+  color: string;
+  size: number;
+  focused: boolean;
+}) {
+  const name = focused ? 'person' : 'person-outline';
+  return (
+    <View style={[TAB_BAR_ICON_FRAME, { alignItems: 'center', justifyContent: 'center' }]}>
+      <Ionicons name={name} color={color} size={size} />
+      <TabBarBadgeChip label={YOU_TAB_BAR_BADGE} />
+    </View>
+  );
+}
+
+function CartTabBarIcon({
+  color,
+  size,
+  focused,
+  quantity,
+}: {
+  color: string;
+  size: number;
+  focused: boolean;
+  quantity: number;
+}) {
+  const name = focused ? 'cart' : 'cart-outline';
+  const badge = formatTabBadge(quantity);
+  return (
+    <View style={[TAB_BAR_ICON_FRAME, { alignItems: 'center', justifyContent: 'center' }]}>
+      <Ionicons name={name} color={color} size={size} />
+      {badge != null ? <TabBarBadgeChip label={badge} right={-5} top={-1} /> : null}
+    </View>
+  );
+}
+
 export function MainTabs() {
   const cartQuantity = useAppSelector(state => state.cartBadge.quantity);
 
@@ -184,10 +257,6 @@ export function MainTabs() {
             textAlign: 'center',
             width: '100%',
           },
-          tabBarBadgeStyle: {
-            fontSize: 10,
-            fontWeight: '700',
-          },
           sceneStyle: { backgroundColor: 'transparent' },
         }}
       >
@@ -223,8 +292,7 @@ export function MainTabs() {
           component={MenuScreen}
           options={{
             tabBarLabel: 'You',
-            tabBarIcon: tabIcon('person', 'person-outline'),
-            tabBarBadge: YOU_TAB_BAR_BADGE,
+            tabBarIcon: props => <YouTabBarIcon {...props} />,
           }}
         />
         <Tab.Screen
@@ -232,8 +300,7 @@ export function MainTabs() {
           component={CartTab}
           options={{
             tabBarLabel: 'Cart',
-            tabBarIcon: tabIcon('cart', 'cart-outline'),
-            tabBarBadge: formatTabBadge(cartQuantity),
+            tabBarIcon: props => <CartTabBarIcon {...props} quantity={cartQuantity} />,
           }}
         />
         <Tab.Screen
