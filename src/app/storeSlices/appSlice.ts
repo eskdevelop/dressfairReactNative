@@ -67,6 +67,9 @@ const slice = createSlice({
       state.storeCurrencyTitle = action.payload.currencyTitle;
       state.storeSettingsHydrated = true;
     },
+    setCountry(state, action: PayloadAction<CountryCode>) {
+      state.country = action.payload;
+    },
   },
 });
 
@@ -77,5 +80,6 @@ export const {
   setAuthenticated,
   setApiSession,
   setStoreCurrencySettings,
+  setCountry,
 } = slice.actions;
 export const appReducer = slice.reducer;

@@ -105,3 +105,23 @@ export const customerAvatarUri = (
   const path = img.replace(/^\/+/, '');
   return `${base}/${path}`;
 };
+
+/**
+ * Letter shown when there is no image URL — Flutter parity:
+ * firstname → lastname → first [a-zA-Z] in email.
+ */
+export const customerAvatarFallbackLetter = (
+  profile: Pick<CustomerProfile, 'firstname' | 'lastname' | 'email'> | null,
+): string => {
+  if (!profile) return '?';
+  const fn = profile.firstname?.trim();
+  if (fn?.length) return fn[0].toUpperCase();
+  const ln = profile.lastname?.trim();
+  if (ln?.length) return ln[0].toUpperCase();
+  const em = profile.email?.trim();
+  if (em?.length) {
+    const letter = em.match(/[a-zA-Z]/);
+    if (letter) return letter[0].toUpperCase();
+  }
+  return '?';
+};

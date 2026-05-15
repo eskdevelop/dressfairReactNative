@@ -1,4 +1,5 @@
 import {
+  customerAvatarFallbackLetter,
   customerAvatarUri,
   parseCustomerProfileResponse,
 } from '@features/account/parseCustomerProfile';
@@ -64,5 +65,42 @@ describe('customerAvatarUri', () => {
         'https://cdn.example.com',
       ),
     ).toBe('https://other.com/x.png');
+  });
+});
+
+describe('customerAvatarFallbackLetter', () => {
+  it('uses first name then last name then email letter', () => {
+    expect(
+      customerAvatarFallbackLetter({
+        firstname: 'Ada',
+        lastname: 'Lovelace',
+        email: 'ada@example.com',
+      }),
+    ).toBe('A');
+    expect(
+      customerAvatarFallbackLetter({
+        firstname: '',
+        lastname: 'Lovelace',
+        email: '',
+      }),
+    ).toBe('L');
+    expect(
+      customerAvatarFallbackLetter({
+        firstname: '',
+        lastname: '',
+        email: 'namepk61@gmail.com',
+      }),
+    ).toBe('N');
+  });
+
+  it('returns ? when nothing usable', () => {
+    expect(customerAvatarFallbackLetter(null)).toBe('?');
+    expect(
+      customerAvatarFallbackLetter({
+        firstname: '',
+        lastname: '',
+        email: '@@@',
+      }),
+    ).toBe('?');
   });
 });

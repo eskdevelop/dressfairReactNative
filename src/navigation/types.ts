@@ -1,6 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { CustomerProfile, CustomerAddressRecord } from '@features/account/types';
+import type { OrderHistoryShortcut } from '@features/orders/orderShortcutFilter';
 
 export type CategoryStackParamList = {
   CategoryHub: undefined;
@@ -28,6 +29,8 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   Splash: undefined;
+  /** Embedded storefront login (same web UI as dressfair.com). */
+  StorefrontLoginWeb: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   Offline: undefined;
   Maintenance: undefined;
@@ -38,8 +41,11 @@ export type RootStackParamList = {
   About: undefined;
   Faq: undefined;
   Contact: undefined;
-  OrderHistory: undefined;
+  OrderHistory: { shortcut?: OrderHistoryShortcut } | undefined;
   MenuSettings: undefined;
+  AccountSetting: undefined;
+  SafetyCenter: undefined;
+  AppPermissions: undefined;
   Profile: undefined;
   ProfileEdit: { profile: CustomerProfile };
   Addresses: undefined;

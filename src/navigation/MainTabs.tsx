@@ -9,7 +9,7 @@ import { useAppSelector } from '@app/hooks';
 import { colors } from '@app/theme/tokens';
 import { CategorySearchBar } from '@features/categories/components/CategorySearchBar';
 import { CategoryNavigator } from '@features/categories/CategoryNavigator';
-import { MenuScreen } from '@features/menu/MenuScreen';
+import { AccountScreen } from '@features/account/AccountScreen';
 import { NotificationsInboxScreen } from '@features/notifications/NotificationsInboxScreen';
 import { notificationInbox } from '@features/notifications/notificationInbox';
 import { SearchScreen } from '@features/search/SearchScreen';
@@ -147,6 +147,7 @@ function TabBarBadgeChip({
   right?: number;
   top?: number;
 }) {
+  const h = 15;
   return (
     <View
       pointerEvents="none"
@@ -155,16 +156,16 @@ function TabBarBadgeChip({
         top,
         right,
         backgroundColor: colors.brand,
-        borderRadius: 8,
-        paddingHorizontal: 3,
-        paddingVertical: 1,
-        minWidth: 14,
-        minHeight: 14,
+        borderRadius: h / 2,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        minWidth: h,
+        minHeight: h,
         justifyContent: 'center',
         alignItems: 'center',
       }}
     >
-      <Text style={{ color: '#FFF', fontSize: 8, fontWeight: '700', lineHeight: 10 }}>{label}</Text>
+      <Text style={{ color: '#FFF', fontSize: 8, fontWeight: '700', lineHeight: 11 }}>{label}</Text>
     </View>
   );
 }
@@ -289,7 +290,7 @@ export function MainTabs() {
         />
         <Tab.Screen
           name="Menu"
-          component={MenuScreen}
+          component={AccountScreen}
           options={{
             tabBarLabel: 'You',
             tabBarIcon: props => <YouTabBarIcon {...props} />,

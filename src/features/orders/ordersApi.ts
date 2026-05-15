@@ -3,6 +3,7 @@ import axios from 'axios';
 import { store } from '@app/store';
 import { clearStoredUserSession } from '@features/auth/authSync';
 import { getEnvConfig } from '@shared/config/env';
+import { storefrontCheckoutUrl } from '@shared/config/storefrontUrls';
 import { buildStorefrontAuthHeaders } from '@shared/network/storefrontAuthHeaders';
 import { analytics } from '@shared/observability/analytics';
 
@@ -16,14 +17,8 @@ import type {
 
 const REQUEST_TIMEOUT_MS = 15000;
 
-const buildOrdersUrl = (): string => {
-  const country = store.getState().app.country;
-  const { apiHost, apiRoutePrefix } = getEnvConfig(country);
-  // Endpoint follows the same OpenCart REST convention as `rest_api.session`
-  // and `rest_api.productsLp`. If the backend route name diverges, edit
-  // this single line — everything else (auth, parsing) stays the same.
-  return `${apiHost}${apiRoutePrefix}/rest_api.orders`;
-};
+/** Flutter `AppUrl.orderHistoryApi`: GET `/api/rest/store/checkout/orders` + Bearer JWT. */
+const buildOrdersUrl = (): string => storefrontCheckoutUrl('orders');
 
 const resolveImageUrl = (raw: unknown): string => {
   if (typeof raw !== 'string' || raw.length === 0) return '';

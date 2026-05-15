@@ -14,8 +14,12 @@ import { ProfileScreen } from '@features/account/ProfileScreen';
 import { ProfileEditScreen } from '@features/account/ProfileEditScreen';
 import { AddressListScreen } from '@features/account/AddressListScreen';
 import { AddressFormScreen } from '@features/account/AddressFormScreen';
+import { AccountSettingScreen } from '@features/settings/AccountSettingScreen';
+import { AppPermissionsScreen } from '@features/settings/AppPermissionsScreen';
+import { SafetyCenterScreen } from '@features/settings/SafetyCenterScreen';
 import { MenuSettingsScreen } from '@features/menu/screens/MenuSettingsScreen';
 import { OrderHistoryScreen } from '@features/orders/OrderHistoryScreen';
+import { StorefrontLoginScreen } from '@features/account/StorefrontLoginScreen';
 import { MainTabs } from '@navigation/MainTabs';
 import { NotificationRouterScreen } from '@navigation/NotificationRouterScreen';
 import type { RootStackParamList } from '@navigation/types';
@@ -30,6 +34,16 @@ export function RootNavigator() {
         name="MainTabs"
         component={MainTabs}
         options={{ contentStyle: { backgroundColor: 'transparent' } }}
+      />
+      <Stack.Screen
+        name="StorefrontLoginWeb"
+        component={StorefrontLoginScreen}
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          headerShown: false,
+          gestureEnabled: true,
+        }}
       />
       <Stack.Screen name="Offline" component={OfflineScreen} />
       <Stack.Screen name="Maintenance" component={MaintenanceScreen} />
@@ -72,6 +86,21 @@ export function RootNavigator() {
       <Stack.Screen
         name="MenuSettings"
         component={MenuSettingsScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="AccountSetting"
+        component={AccountSettingScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="SafetyCenter"
+        component={SafetyCenterScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="AppPermissions"
+        component={AppPermissionsScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen

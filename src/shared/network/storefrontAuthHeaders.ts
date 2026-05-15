@@ -30,3 +30,25 @@ export const buildStorefrontAuthHeaders = async (): Promise<
   }
   return headers;
 };
+
+/** Same auth as JSON storefront calls but omits `Content-Type` so multipart boundary is set automatically. */
+export const buildStorefrontAuthHeadersMultipart = async (): Promise<
+  Record<string, string>
+> => {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'x-oc-merchant-id': OC_MERCHANT_ID,
+    'x-oc-merchant-language': OC_MERCHANT_LANGUAGE,
+  };
+  const apiSessionToken = store.getState().app.apiSession?.token;
+  if (apiSessionToken && apiSessionToken.length > 0) {
+    headers['x-oc-session'] = apiSessionToken;
+  }
+  const userToken = await sessionStore.getToken();
+  if (userToken && userToken.length > 0) {
+    headers.Authorization = `Bearer ${userToken}`;
+    headers['x-customer-token'] = userToken;
+    headers['x-customer-session'] = userToken;
+  }
+  return headers;
+};

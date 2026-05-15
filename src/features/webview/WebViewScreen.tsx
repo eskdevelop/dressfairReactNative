@@ -12,6 +12,7 @@ import { store } from '@app/store';
 import { setAuthenticated } from '@app/storeSlices/appSlice';
 import { setCartBadgeQuantity } from '@app/storeSlices/cartBadgeSlice';
 import { clearWebNav } from '@app/storeSlices/webNavSlice';
+import { clearCachedProfile } from '@features/account/customerProfileCache';
 import { sessionStore } from '@features/auth/sessionStore';
 import { openSettings } from '@navigation/navigationRef';
 import type { MainTabParamList } from '@navigation/types';
@@ -27,6 +28,7 @@ import { parseBridgeMessage } from './bridgeMessage';
 import { detectPaymentRedirect } from './paymentRedirectPolicy';
 import { CART_COUNT_BRIDGE_INJECTION } from './cartCountBridgeInjection';
 import { STOREFRONT_HIDE_MOBILE_HEADER_INJECTION } from './storefrontHideMobileHeaderInjection';
+import { STOREFRONT_OPEN_LOGIN_MODAL_INJECTION } from './storefrontOpenLoginModalInjection';
 
 type Props = {
   /** Relative path (e.g. `/ae/cart`) or full storefront URL (`https://…`). */
@@ -72,6 +74,11 @@ type Props = {
    * reload whenever this tab gains focus after the first visit (badge DOM may be hidden on Home).
    */
   reloadWebWhenTabFocused?: boolean;
+  /**
+   * After loading regional storefront home, inject JS that opens the web "Sign In / Register" modal
+   * (SPA — no workable `/login` URL in RN WebViews). Implies `.mobile-header` must stay visible.
+   */
+  openStorefrontLoginModal?: boolean;
 };
 
 const CHECKOUT_PATH_HINT =
@@ -582,6 +589,7 @@ export function WebViewScreen({
   hideStorefrontMobileHeader = false,
   reportCartCountToNative = false,
   reloadWebWhenTabFocused = false,
+  openStorefrontLoginModal = false,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
@@ -608,8 +616,9 @@ export function WebViewScreen({
     const parts = [COMBINED_INJECTION];
     if (hideStorefrontMobileHeader) parts.push(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
     if (reportCartCountToNative) parts.push(CART_COUNT_BRIDGE_INJECTION);
+    if (openStorefrontLoginModal) parts.push(STOREFRONT_OPEN_LOGIN_MODAL_INJECTION);
     return parts.join('\n');
-  }, [hideStorefrontMobileHeader, reportCartCountToNative]);
+  }, [hideStorefrontMobileHeader, openStorefrontLoginModal, reportCartCountToNative]);
 
   // Cross-tab navigation channel: when native Search or the Inbox screen asks
   // to drive the Home WebView to a specific storefront path, we surface
@@ -880,10 +889,15 @@ export function WebViewScreen({
 
     try {
       if (payload.type === 'auth') {
+        await clearCachedProfile();
         await sessionStore.saveToken(payload.token);
         dispatch(setAuthenticated(true));
+        analytics.track('webview_customer_jwt_saved', {
+          token_length: payload.token.length,
+        });
       } else if (payload.type === 'logout') {
         await sessionStore.clear();
+        await clearCachedProfile();
         dispatch(setAuthenticated(false));
       } else if (payload.type === 'open_external') {
         if (isHttpsUrl(payload.url) && isAllowedUrl(payload.url)) {
@@ -980,6 +994,15 @@ export function WebViewScreen({
             }
             if (reportCartCountToNative) {
               webViewRef.current?.injectJavaScript(CART_COUNT_BRIDGE_INJECTION);
+            }
+            if (openStorefrontLoginModal) {
+              webViewRef.current?.injectJavaScript(STOREFRONT_OPEN_LOGIN_MODAL_INJECTION);
+              void setTimeout(() => {
+                webViewRef.current?.injectJavaScript(STOREFRONT_OPEN_LOGIN_MODAL_INJECTION);
+              }, 980);
+              void setTimeout(() => {
+                webViewRef.current?.injectJavaScript(STOREFRONT_OPEN_LOGIN_MODAL_INJECTION);
+              }, 2820);
             }
             if (openMobileCategoryMenuOnLoad && tabReselectMode === 'category' && isFocused) {
               // Start probing for the mega-menu as soon as the document load

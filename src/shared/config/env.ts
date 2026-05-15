@@ -75,7 +75,9 @@ const configs: Record<CountryCode, EnvConfig> = {
     accountDeletionPath: '/account/delete',
     supportEmail: 'support@dressfair.com',
     productPathPrefix: '/ae/p',
-    storefrontCheckoutApiBaseUrl: 'https://backend.dressfair.com',
+    // Same OC JSON origin as Flutter `SessionController` / JWT (`mobileCategoriesApiBaseUrl`).
+    // `backend.dressfair.com` often does not serve `/api/rest/store/checkout/*` JSON for this JWT.
+    storefrontCheckoutApiBaseUrl: 'https://9711694.ecomplug.com',
     mobileCategoriesApiBaseUrl: 'https://9711694.ecomplug.com',
     webNewInPath: '/ae/new-in',
     webCategoriesPath: '/ae',
@@ -105,7 +107,7 @@ const configs: Record<CountryCode, EnvConfig> = {
     // CONFIRM: Oman storefront locale prefix. `/om/p/<sku>` is the assumed
     // mirror of the UAE pattern. Update once verified on the live site.
     productPathPrefix: '/om/p',
-    storefrontCheckoutApiBaseUrl: 'https://backend.dressfair.om',
+    storefrontCheckoutApiBaseUrl: 'https://9681695.ecomplug.com',
     mobileCategoriesApiBaseUrl: 'https://9681695.ecomplug.com',
     webNewInPath: '/om/new-in',
     webCategoriesPath: '/om',
@@ -131,7 +133,7 @@ const configs: Record<CountryCode, EnvConfig> = {
     // CONFIRM: KSA storefront locale prefix. `/sa/p/<sku>` is the assumed
     // mirror of the UAE pattern. Update once verified on the live site.
     productPathPrefix: '/sa/p',
-    storefrontCheckoutApiBaseUrl: 'https://backendsa.dressfair.com',
+    storefrontCheckoutApiBaseUrl: 'https://9661696.ecomplug.com',
     mobileCategoriesApiBaseUrl: 'https://9661696.ecomplug.com',
     webNewInPath: '/sa/new-in',
     webCategoriesPath: '/sa',
@@ -143,6 +145,14 @@ const configs: Record<CountryCode, EnvConfig> = {
 };
 
 export const getEnvConfig = (country: CountryCode): EnvConfig => configs[country];
+
+/** Canonical marketing-site privacy policy URL per region (e.g. UAE → …/ae/privacy-policy). */
+export const privacyPolicyUrl = (country: CountryCode): string => {
+  const { webBaseUrl, webCategoriesPath } = getEnvConfig(country);
+  const base = webBaseUrl.replace(/\/+$/, '');
+  const locale = webCategoriesPath.replace(/\/+$/, '');
+  return `${base}${locale}/privacy-policy`;
+};
 
 // Build a relative storefront path for a product, given its SKU (the OpenCart
 // `model` field on result items, or the `sku` field on suggestion items).
@@ -162,7 +172,7 @@ export const productHrefForSku = (
 };
 
 /** Next.js category PLP path: `{webCategoriesPath}/c/{slug}` (e.g. `/ae/c/m-tops-blouses`). */
-export const categoryCollectionPath = (
+export const categoryCollectionPath=(
   slug: string,
   country: CountryCode,
 ): string | null => {

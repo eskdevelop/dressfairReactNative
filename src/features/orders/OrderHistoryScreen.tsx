@@ -9,18 +9,21 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
+import { openStorefrontLogin } from '@features/account/requireStorefrontLogin';
 import { openWebPath } from '@navigation/navigationRef';
 import type { RootStackParamList } from '@navigation/types';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 
 import { fetchOrderHistory } from './ordersApi';
+import { orderMatchesShortcut, type OrderHistoryShortcut } from './orderShortcutFilter';
 import type { Order, OrderCustomer, OrderStatusFilter } from './types';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
@@ -30,6 +33,14 @@ const FILTERS: { id: OrderStatusFilter; label: string }[] = [
   { id: 'pending', label: 'Pending' },
   { id: 'completed', label: 'Completed' },
 ];
+
+const SHORTCUT_LABELS: Record<OrderHistoryShortcut, string> = {
+  pending_payment: 'Pending payment',
+  processing: 'Processing',
+  shipped: 'Shipped',
+  delivered: 'Delivered',
+  returns: 'Returns',
+};
 
 // Map a free-text order status (Pending / Processing / Shipped / Delivered /
 // Cancelled / Complete / etc.) to a stable bucket plus a colour. Anything we
@@ -68,7 +79,9 @@ const statusBucket = (raw: string): { kind: 'pending' | 'completed' | 'cancelled
 export function OrderHistoryScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'OrderHistory'>>();
   const isAuthenticated = useAppSelector(state => state.app.isAuthenticated);
+  const country = useAppSelector(state => state.app.country);
 
   const [status, setStatus] = useState<Status>('idle');
   const [orders, setOrders] = useState<Order[]>([]);
@@ -76,6 +89,13 @@ export function OrderHistoryScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<OrderStatusFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [shortcutFilter, setShortcutFilter] = useState<OrderHistoryShortcut | null>(
+    route.params?.shortcut ?? null,
+  );
+
+  useEffect(() => {
+    setShortcutFilter(route.params?.shortcut ?? null);
+  }, [route.params?.shortcut]);
 
   const loadOrders = useCallback(async () => {
     setStatus('loading');
@@ -119,13 +139,8 @@ export function OrderHistoryScreen() {
 
   const onSignIn = useCallback(() => {
     analytics.track('orders_sign_in_pressed');
-    // The storefront serves login as a modal triggered from the header
-    // button, not a dedicated `/login` page. Land the user on Home so they
-    // can tap "Sign in / Register" — once they finish, the WebView bridge
-    // emits the auth message that flips `isAuthenticated` and this screen
-    // reloads the orders automatically.
-    openWebPath('/');
-  }, []);
+    openStorefrontLogin(country);
+  }, [country]);
 
   const onOpenOrder = useCallback(
     (order: Order) => {
@@ -139,6 +154,9 @@ export function OrderHistoryScreen() {
   );
 
   const filtered = useMemo(() => {
+    if (shortcutFilter) {
+      return orders.filter(o => orderMatchesShortcut(o.orderStatus, shortcutFilter));
+    }
     if (filter === 'all') return orders;
     return orders.filter(order => {
       const bucket = statusBucket(order.orderStatus).kind;
@@ -146,7 +164,7 @@ export function OrderHistoryScreen() {
       if (filter === 'completed') return bucket === 'completed';
       return true;
     });
-  }, [filter, orders]);
+  }, [filter, orders, shortcutFilter]);
 
   const renderHeader = () => (
     <View>
@@ -176,6 +194,29 @@ export function OrderHistoryScreen() {
           </Text>
         ) : null}
       </View>
+      {shortcutFilter ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: spacing.lg,
+            paddingBottom: spacing.sm,
+          }}
+        >
+          <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: '600' }}>
+            Showing: {SHORTCUT_LABELS[shortcutFilter]}
+          </Text>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Clear order status filter"
+            onPress={() => setShortcutFilter(null)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '700' }}>Clear</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
       <View
         style={{
           flexDirection: 'row',
@@ -185,12 +226,15 @@ export function OrderHistoryScreen() {
         }}
       >
         {FILTERS.map(item => {
-          const active = filter === item.id;
+          const active = shortcutFilter === null && filter === item.id;
           return (
             <TouchableOpacity
               key={item.id}
               accessibilityRole="button"
-              onPress={() => setFilter(item.id)}
+              onPress={() => {
+                setShortcutFilter(null);
+                setFilter(item.id);
+              }}
               style={{
                 paddingHorizontal: spacing.md,
                 paddingVertical: spacing.xs,

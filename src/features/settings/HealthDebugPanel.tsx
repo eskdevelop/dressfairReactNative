@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
 import * as Network from 'expo-network';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useAppSelector } from '@app/hooks';
 import { sessionStore } from '@features/auth/sessionStore';
@@ -9,27 +10,29 @@ import { colors, radii, spacing } from '@app/theme/tokens';
 export function HealthDebugPanel() {
   const app = useAppSelector(state => state.app);
   const [networkType, setNetworkType] = React.useState<string>('unknown');
-  const [hasSessionToken, setHasSessionToken] = React.useState<boolean>(false);
+  const [hasCustomerJwt, setHasCustomerJwt] = React.useState<boolean>(false);
   const [hasPushToken, setHasPushToken] = React.useState<boolean>(false);
 
-  React.useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      const [network, sessionToken, pushToken] = await Promise.all([
-        Network.getNetworkStateAsync(),
-        sessionStore.getToken(),
-        sessionStore.getPushToken(),
-      ]);
-      if (!mounted) return;
-      setNetworkType(network.type ?? 'unknown');
-      setHasSessionToken(Boolean(sessionToken));
-      setHasPushToken(Boolean(pushToken));
-    };
-    load();
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      let mounted = true;
+      const load = async () => {
+        const [network, customerJwt, pushToken] = await Promise.all([
+          Network.getNetworkStateAsync(),
+          sessionStore.getToken(),
+          sessionStore.getPushToken(),
+        ]);
+        if (!mounted) return;
+        setNetworkType(network.type ?? 'unknown');
+        setHasCustomerJwt(Boolean(customerJwt));
+        setHasPushToken(Boolean(pushToken));
+      };
+      void load();
+      return () => {
+        mounted = false;
+      };
+    }, []),
+  );
 
   const item = (label: string, value: string) => (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -55,7 +58,10 @@ export function HealthDebugPanel() {
       {item('Bootstrapped', app.isBootstrapped ? 'Yes' : 'No')}
       {item('Authenticated', app.isAuthenticated ? 'Yes' : 'No')}
       {item('Network type', networkType)}
-      {item('Session token', hasSessionToken ? 'Present' : 'Missing')}
+      {item(
+        'Customer JWT (Bearer)',
+        hasCustomerJwt ? 'Present — native APIs use Authorization: Bearer …' : 'Missing',
+      )}
       {item('Push token', hasPushToken ? 'Present' : 'Missing')}
     </View>
   );

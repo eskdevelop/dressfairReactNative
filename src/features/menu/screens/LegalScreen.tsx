@@ -27,6 +27,8 @@ type Props = {
   // Optional anchor on the live website. When provided, a "View on web" link
   // appears at the bottom for users who want to verify the canonical copy.
   webPath?: string;
+  /** Full URL (e.g. regional `/ae/privacy-policy` page); overrides `webPath` when both exist. */
+  absoluteWebUrl?: string;
   webEventName?: string;
   isPlaceholder?: boolean;
 };
@@ -40,6 +42,7 @@ export function LegalScreen({
   blocks,
   paragraphs,
   webPath,
+  absoluteWebUrl,
   webEventName,
   isPlaceholder = false,
 }: Props) {
@@ -51,11 +54,14 @@ export function LegalScreen({
   const resolvedBlocks =
     blocks ?? (paragraphs ? blocksFromParagraphs(paragraphs) : []);
 
+  const webLinkTarget =
+    absoluteWebUrl?.trim() ||
+    (webPath ? `${cfg.webBaseUrl}${webPath}` : '');
+
   const openOnWeb = () => {
-    if (!webPath) return;
-    const url = `${cfg.webBaseUrl}${webPath}`;
-    if (webEventName) analytics.track(webEventName, { url });
-    Linking.openURL(url).catch(() => {
+    if (!webLinkTarget) return;
+    if (webEventName) analytics.track(webEventName, { url: webLinkTarget });
+    Linking.openURL(webLinkTarget).catch(() => {
       // Best-effort — the in-app text is already authoritative.
     });
   };
@@ -205,7 +211,7 @@ export function LegalScreen({
           );
         })}
 
-        {webPath ? (
+        {webLinkTarget ? (
           <TouchableOpacity
             onPress={openOnWeb}
             accessibilityRole="link"
