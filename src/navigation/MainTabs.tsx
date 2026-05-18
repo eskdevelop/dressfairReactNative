@@ -38,6 +38,8 @@ function formatTabBadge(count: number): string | undefined {
 // `webNav` slice for in-session cross-tab navigation requests.
 function HomeTab({ route }: { route: RouteProp<MainTabParamList, 'Home'> }) {
   const initialPath = route.params?.path ?? '/';
+  const country = useAppSelector(s => s.app.country);
+  const storefrontSurfaceGeneration = useAppSelector(s => s.app.storefrontSurfaceGeneration);
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top']}>
       <View style={{ paddingTop: 6 }}>
@@ -46,6 +48,7 @@ function HomeTab({ route }: { route: RouteProp<MainTabParamList, 'Home'> }) {
       <View style={{ height: 8 }} />
       <View style={{ flex: 1 }}>
         <WebViewScreen
+          key={`home-tab-wv-${country}-${storefrontSurfaceGeneration}`}
           path={initialPath}
           applyWebNavFromStore
           tabReselectMode="home"

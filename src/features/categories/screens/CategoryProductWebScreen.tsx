@@ -12,6 +12,7 @@ type Props = NativeStackScreenProps<CategoryStackParamList, 'CategoryProductWeb'
 
 export function CategoryProductWebScreen({ navigation, route }: Props) {
   const country = useAppSelector(s => s.app.country);
+  const storefrontSurfaceGeneration = useAppSelector(s => s.app.storefrontSurfaceGeneration);
   const { sku } = route.params;
 
   const path = useMemo(() => productHrefForSku(sku.trim(), country), [sku, country]);
@@ -44,6 +45,7 @@ export function CategoryProductWebScreen({ navigation, route }: Props) {
   return (
     <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <WebViewScreen
+        key={`category-product-web-${sku.trim()}-${country}-${storefrontSurfaceGeneration}`}
         path={path}
         applyWebNavFromStore={false}
         applyTopSafeArea={false}

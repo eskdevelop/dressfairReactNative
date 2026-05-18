@@ -1,5 +1,57 @@
 export type CountryCode = 'UAE' | 'OMN' | 'KSA';
 
+/**
+ * First path segment on the marketing storefront (`/ae`, `/om`, `/sa`) maps to app region.
+ * Users can switch locale inside the embedded WebView; native Redux must follow the URL.
+ */
+const STOREFRONT_LOCALE_SEGMENT_TO_COUNTRY = {
+  ae: 'UAE',
+  om: 'OMN',
+  sa: 'KSA',
+} as const satisfies Record<string, CountryCode>;
+
+/** Hostnames that serve locale-prefixed storefront paths used for native ↔ web sync. */
+const STOREFRONT_LOCALE_SYNC_HOSTS = [
+  'dressfair.com',
+  'dressfair.om',
+  'sa.dressfair.com',
+] as const;
+
+function hostnameMatchesLocaleSyncList(hostname: string): boolean {
+  const h = hostname.replace(/^www\./i, '').toLowerCase();
+  return STOREFRONT_LOCALE_SYNC_HOSTS.some(
+    suffix => h === suffix || h.endsWith(`.${suffix}`),
+  );
+}
+
+/**
+ * Derive `CountryCode` from a loaded storefront URL (path prefix), or null if unknown / off-storefront.
+ */
+export function countryFromStorefrontBrowsingUrl(url: string): CountryCode | null {
+  try {
+    const u = new URL(url);
+    if (!hostnameMatchesLocaleSyncList(u.hostname)) return null;
+    const seg = u.pathname.replace(/^\/+|\/+$/g, '').split('/')[0]?.toLowerCase();
+    if (!seg) return null;
+    const mapped = STOREFRONT_LOCALE_SEGMENT_TO_COUNTRY[seg as keyof typeof STOREFRONT_LOCALE_SEGMENT_TO_COUNTRY];
+    return mapped ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Matches store-setting payload `iso_code_2` for each country code. */
+export function countryIsoCode2(country: CountryCode): 'AE' | 'OM' | 'SA' {
+  switch (country) {
+    case 'UAE':
+      return 'AE';
+    case 'OMN':
+      return 'OM';
+    case 'KSA':
+      return 'SA';
+  }
+}
+
 export type EnvConfig = {
   apiBaseUrl: string;
   // Split apiHost / apiRoutePrefix make it possible to compose REST URLs that
@@ -92,9 +144,12 @@ const configs: Record<CountryCode, EnvConfig> = {
     apiHost: 'https://backend.dressfair.om',
     apiRoutePrefix: '/index.php?route=extension/opencart',
     webBaseUrl: 'https://www.dressfair.om',
+    // Oman locale may load on dressfair.com/om before we re-base to dressfair.om; keep apex allowlisted.
     allowedDomains: [
       'dressfair.om',
       'www.dressfair.om',
+      'dressfair.com',
+      'www.dressfair.com',
       'backend.dressfair.om',
     ],
     webLoginPath: '/login',
@@ -121,8 +176,10 @@ const configs: Record<CountryCode, EnvConfig> = {
       'https://backendsa.dressfair.com/index.php?route=extension/opencart',
     apiHost: 'https://backendsa.dressfair.com',
     apiRoutePrefix: '/index.php?route=extension/opencart',
-    webBaseUrl: 'https://sa.dressfair.com',
-    allowedDomains: ['sa.dressfair.com', 'backendsa.dressfair.com'],
+    // Saudi storefront is served at dressfair.com/sa (path locale); sa.dressfair.com
+    // does not resolve in many environments (WebView ERR_NAME_NOT_RESOLVED).
+    webBaseUrl: 'https://www.dressfair.com',
+    allowedDomains: ['dressfair.com', 'www.dressfair.com', 'backendsa.dressfair.com'],
     webLoginPath: '/login',
     webLogoutPath: '/logout',
     privacyPolicyPath: '/privacy',
@@ -137,7 +194,7 @@ const configs: Record<CountryCode, EnvConfig> = {
     mobileCategoriesApiBaseUrl: 'https://9661696.ecomplug.com',
     webNewInPath: '/sa/new-in',
     webCategoriesPath: '/sa',
-    webCartUrl: 'https://sa.dressfair.com/sa/cart',
+    webCartUrl: 'https://www.dressfair.com/sa/cart',
     storefrontCitiesCountryId: '184',
     customerAvatarCdnBaseUrl:
       'https://ecomdoor-images.s3.ap-southeast-1.amazonaws.com',
@@ -154,6 +211,14 @@ export const privacyPolicyUrl = (country: CountryCode): string => {
   return `${base}${locale}/privacy-policy`;
 };
 
+/** Embedded Settings WebView: storefront country / region / language hub. */
+export const storefrontCountryRegionLanguageUrl = (country: CountryCode): string => {
+  const { webBaseUrl, webCategoriesPath } = getEnvConfig(country);
+  const base = webBaseUrl.replace(/\/+$/, '');
+  const locale = webCategoriesPath.replace(/\/+$/, '');
+  return `${base}${locale}/user/country-region-language`;
+};
+
 // Build a relative storefront path for a product, given its SKU (the OpenCart
 // `model` field on result items, or the `sku` field on suggestion items).
 // The path is intentionally relative so callers can dispatch it through
@@ -161,6 +226,7 @@ export const privacyPolicyUrl = (country: CountryCode): string => {
 //
 // Returns `null` when `sku` is empty so callers can fall back to a generic
 // search results URL rather than navigate to a 404.
+
 export const productHrefForSku = (
   sku: string,
   country: CountryCode,

@@ -10,6 +10,13 @@ type ApiSessionState = {
 
 type AppState = {
   country: CountryCode;
+  /**
+   * When set, OpenCart JSON/checkout requests use this origin (from store/setting
+   * `allowed_countries[].base_url`) instead of the hardcoded host in env config.
+   */
+  storefrontCheckoutApiOriginOverride: string | null;
+  /** Increment to force storefront WebView remounts after a region switch. */
+  storefrontSurfaceGeneration: number;
   isOffline: boolean;
   isMaintenanceMode: boolean;
   isBootstrapped: boolean;
@@ -26,6 +33,8 @@ type AppState = {
 
 const initialState: AppState = {
   country: 'UAE',
+  storefrontCheckoutApiOriginOverride: null,
+  storefrontSurfaceGeneration: 0,
   isOffline: false,
   isMaintenanceMode: false,
   isBootstrapped: false,
@@ -70,6 +79,13 @@ const slice = createSlice({
     setCountry(state, action: PayloadAction<CountryCode>) {
       state.country = action.payload;
     },
+    setStorefrontCheckoutApiOriginOverride(state, action: PayloadAction<string | null>) {
+      const t = action.payload?.trim() ?? '';
+      state.storefrontCheckoutApiOriginOverride = t.length > 0 ? t : null;
+    },
+    bumpStorefrontSurfaceGeneration(state) {
+      state.storefrontSurfaceGeneration += 1;
+    },
   },
 });
 
@@ -81,5 +97,7 @@ export const {
   setApiSession,
   setStoreCurrencySettings,
   setCountry,
+  setStorefrontCheckoutApiOriginOverride,
+  bumpStorefrontSurfaceGeneration,
 } = slice.actions;
 export const appReducer = slice.reducer;

@@ -138,10 +138,12 @@ export function formatHubPriceAmount(amount: number): string {
 
 /**
  * Flutter: `currencyCode` on product rows is often blank; UI uses `SessionController.countryConfig.currencyCode`.
+ * When Redux already has store currency (after `/store/setting`), prefer it over a mismatched API echo (e.g. AED on a `/sa` session).
  */
 export function hubPriceLine(row: HubProductRow, storeCurrencyFallback?: string): string {
-  const rowCode = row.currencyCode?.trim();
-  const code = rowCode?.length ? rowCode : (storeCurrencyFallback ?? '').trim();
+  const fb = (storeCurrencyFallback ?? '').trim();
+  const rowCode = (row.currencyCode ?? '').trim();
+  const code = fb.length > 0 ? fb : rowCode;
   const amt = formatHubPriceAmount(displayPriceFor(row.price));
   return code.length > 0 ? `${code} ${amt}` : amt;
 }

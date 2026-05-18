@@ -16,8 +16,9 @@ import { fetchStoreSettingsFromNetwork } from '@features/store/storeSettingsApi'
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { perf } from '@shared/observability/performance';
+import { loadPersistedCountry } from '@features/region/persistedCountry';
 import { store } from './store';
-import { setAuthenticated, setBootstrapped, setOffline, setStoreCurrencySettings } from './storeSlices/appSlice';
+import { setAuthenticated, setBootstrapped, setCountry, setOffline, setStoreCurrencySettings } from './storeSlices/appSlice';
 
 const CATEGORY_PREFETCH_MAX_MS = 2500;
 
@@ -34,6 +35,11 @@ export function AppRoot() {
     let mounted = true;
     perf.start('app_bootstrap');
     const bootstrap = async () => {
+      const persistedCountry = await loadPersistedCountry();
+      if (persistedCountry) {
+        dispatch(setCountry(persistedCountry));
+      }
+
       // Resolve network and session in parallel but isolate their failure
       // domains: a SecureStore hiccup must not flip the user offline, and a
       // network probe error must not log them out. `isInternetReachable` is

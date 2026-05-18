@@ -7,6 +7,8 @@ export function getStorefrontCheckoutApiOrigin(
   country?: CountryCode,
 ): string {
   const c = country ?? store.getState().app.country;
+  const override = store.getState().app.storefrontCheckoutApiOriginOverride?.trim();
+  if (override) return trimSlash(override);
   return trimSlash(getEnvConfig(c).storefrontCheckoutApiBaseUrl);
 }
 

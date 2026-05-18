@@ -1,11 +1,16 @@
 import React from 'react';
-import { Dimensions, Pressable, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Dimensions, Platform, Pressable, Text, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 
 import { colors, radii } from '@app/theme/tokens';
 
 const { width: screenW } = Dimensions.get('window');
 const BUTTON_MAX = 300;
+
+/** Matches Flutter `Colors.grey.shade200` */
+const ICON_CIRCLE_BG = '#EEEEEE';
+/** Matches Flutter `Colors.grey.shade600` for secondary labels */
+const SUBTITLE_COLOR = '#757575';
 
 type Props = {
   onPressSignIn: () => void;
@@ -23,12 +28,12 @@ export function YouGuestAuthBlock({ onPressSignIn }: Props): React.ReactElement 
       <View style={{ paddingHorizontal: 16, paddingVertical: 20, width: '100%' }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-evenly' }}>
           <ColumnCircle
-            icon="car-outline"
+            icon="local-shipping"
             title="Free shipping"
             subtitle="On Limited orders"
           />
           <ColumnCircle
-            icon="return-down-back-outline"
+            icon="assignment-return"
             title="Easy returns"
             subtitle="Up to 2 days"
           />
@@ -60,10 +65,12 @@ function ColumnCircle({
   title,
   subtitle,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
+  icon: React.ComponentProps<typeof MaterialIcons>['name'];
   title: string;
   subtitle: string;
 }): React.ReactElement {
+  const textTrim = Platform.OS === 'android' ? ({ includeFontPadding: false } as const) : null;
+
   return (
     <View style={{ alignItems: 'center', maxWidth: screenW * 0.42 }}>
       <View
@@ -71,15 +78,29 @@ function ColumnCircle({
           width: 50,
           height: 50,
           borderRadius: 25,
-          backgroundColor: '#E5E7EB',
+          backgroundColor: ICON_CIRCLE_BG,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Ionicons name={icon} color={colors.brand} size={28} />
+        <MaterialIcons name={icon} color={colors.brand} size={28} />
       </View>
-      <Text style={{ marginTop: 8, fontWeight: '700', fontSize: 14 }}>{title}</Text>
-      <Text style={{ marginTop: 2, fontSize: 12, color: '#6B7280', textAlign: 'center' }}>{subtitle}</Text>
+      <Text
+        style={[
+          { marginTop: 8, fontWeight: '700', fontSize: 14, color: '#000', textAlign: 'center' },
+          textTrim,
+        ]}
+      >
+        {title}
+      </Text>
+      <Text
+        style={[
+          { marginTop: 2, fontSize: 12, color: SUBTITLE_COLOR, textAlign: 'center' },
+          textTrim,
+        ]}
+      >
+        {subtitle}
+      </Text>
     </View>
   );
 }

@@ -1,6 +1,7 @@
 import axios from 'axios';
 
 import type { CountryCode } from '@shared/config/env';
+import { countryIsoCode2 } from '@shared/config/env';
 import { storefrontStoreSettingUrlCandidates } from '@shared/config/storefrontUrls';
 import { buildStorefrontAuthHeaders } from '@shared/network/storefrontAuthHeaders';
 
@@ -27,6 +28,38 @@ export type StoreCurrencySettings = {
   currencyTitle: string;
 };
 
+function trimSlashLocal(s: string): string {
+  return s.replace(/\/+$/, '');
+}
+
+/**
+ * Resolve OC JSON origin from `allowed_countries[].base_url` for the active ISO2
+ * (Flutter `CountryConfigModel.allowedCountries`).
+ */
+export function parseCheckoutOriginOverride(
+  data: Record<string, unknown>,
+  country: CountryCode,
+): string | null {
+  const targetIso = countryIsoCode2(country);
+  const raw = data.allowed_countries;
+  if (!Array.isArray(raw)) return null;
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const iso = String(o.iso_code_2 ?? o.isoCode2 ?? '').trim().toUpperCase();
+    if (iso !== targetIso) continue;
+    const host = String(o.base_url ?? o.baseUrl ?? '').trim();
+    if (!host) return null;
+    const withScheme = /^https?:\/\//i.test(host) ? host : `https://${host}`;
+    try {
+      return trimSlashLocal(new URL(withScheme).origin);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 /** Flutter `CountryConfigModel.fromJson` currency fields (`config_model.dart`). */
 export function parseStoreSettingCurrency(data: Record<string, unknown>): StoreCurrencySettings | null {
   const currencyCode = String(data.currency_code ?? data.currencyCode ?? '').trim();
@@ -38,6 +71,8 @@ export function parseStoreSettingCurrency(data: Record<string, unknown>): StoreC
 export type StoreSettingsFetchResult = {
   ok: boolean;
   settings?: StoreCurrencySettings;
+  /** When store/setting lists this region in `allowed_countries`, prefer this OC origin. */
+  checkoutApiOriginOverride?: string | null;
   error?: string;
 };
 
@@ -96,7 +131,8 @@ export async function fetchStoreSettingsFromNetwork(country: CountryCode): Promi
       lastError = `${url} missing currency in setting payload`;
       continue;
     }
-    return { ok: true, settings };
+    const checkoutApiOriginOverride = parseCheckoutOriginOverride(row, country);
+    return { ok: true, settings, checkoutApiOriginOverride };
   }
 
   return { ok: false, error: lastError };

@@ -1,70 +1,152 @@
 import React, { type ComponentProps } from 'react';
 import {
   Modal,
+  Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   View,
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { colors } from '@app/theme/tokens';
 
 type IonName = ComponentProps<typeof Ionicons>['name'];
+
+const OFFER_ICON_GREEN = colors.success;
 
 type Props = {
   visible: boolean;
   onClose: () => void;
 };
 
-/** Port of Flutter `available_offers_sheet.dart` — English parity. */
+/** Port of Flutter `available_offers_sheet.dart` — bottom sheet + English parity. */
 export function OffersModal({ visible, onClose }: Props) {
   const { height } = useWindowDimensions();
-  return (
-    <Modal transparent={false} visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, paddingTop: 12, paddingHorizontal: 14, paddingBottom: 8 }}>
-        <View style={{ alignItems: 'center' }}>
-          <View
-            style={{
-              width: 36,
-              height: 4,
-              borderRadius: 12,
-              backgroundColor: '#9CA3AF',
-              marginBottom: 12,
-            }}
-          />
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 15, fontWeight: '600' }}>Available offers</Text>
-          <TouchableOpacity accessibilityRole="button" onPress={onClose}>
-            <Ionicons name="close" size={22} />
-          </TouchableOpacity>
-        </View>
-        <View style={{ height: 1, backgroundColor: '#E5E7EB', marginVertical: 8 }} />
+  const insets = useSafeAreaInsets();
+  const sheetMaxHeight = height * 0.82;
 
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          style={{ maxHeight: Math.min(height * 0.76, height - 64) }}
+  return (
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
+      <View style={styles.overlay} pointerEvents="box-none">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+        />
+        <View
+          style={[
+            styles.sheet,
+            {
+              maxHeight: sheetMaxHeight,
+              paddingBottom: Math.max(insets.bottom, 12),
+            },
+          ]}
+          pointerEvents="auto"
         >
-          <SectionTitle title="Delivery guarantee" />
-          <OfferCard
-            ion="car-outline"
-            title="Reliable delivery"
-            details={['Consistent fulfilment logistics on every order']}
-          />
-          <SectionTitle title="Shopping benefits" />
-          <OfferCard ion="flash-outline" title="Fast dispatch" details={["Usually dispatched within two to three working days"]} />
-          <OfferCard ion="gift-outline" title="Free shipping" details={['Eligible cart-value promotions may apply']} />
-          <OfferCard ion="cash-outline" title="Cash on delivery" details={['Pay when you receive your order']} />
-          <SectionTitle title="Safe payments" />
-          <OfferCard ion="shield-checkmark-outline" title="Secure checkout" details={['Industry-standard TLS on payment steps']} />
-          <SectionTitle title="Privacy" />
-          <OfferCard ion="lock-closed-outline" title="Protecting your data" details={['We only collect what checkout needs to fulfil your orders']} />
-          <View style={{ height: 24 }} />
-        </ScrollView>
+          <View style={{ alignItems: 'center' }}>
+            <View style={styles.grabber} />
+          </View>
+          <View style={styles.titleRow}>
+            <Text style={styles.title}>Available Offers</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={onClose} hitSlop={10}>
+              <Ionicons name="close" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.divider} />
+
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            style={{ maxHeight: sheetMaxHeight - 100 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <SectionTitle title="Delivery guarantee" />
+            <OfferCard
+              ion="car-outline"
+              title="Reliable Delivery"
+              details={[
+                'We work with reliable fulfilment partners so your DressFair orders keep moving from warehouse to doorstep with consistent tracking and support.',
+              ]}
+            />
+
+            <SectionTitle title="Shopping Benefits" />
+            <OfferCard
+              ion="flash-outline"
+              title="Fast Shipping"
+              details={['Normally delivered in 2–3 days']}
+            />
+            <OfferCard
+              ion="gift-outline"
+              title="Free shipping"
+              details={['Free shipping applied on eligible orders']}
+            />
+            <OfferCard
+              ion="cash-outline"
+              title="Cash On Delivery"
+              details={['Pay when you receive your order']}
+            />
+
+            <SectionTitle title="Safe Payments" />
+            <OfferCard
+              ion="shield-checkmark-outline"
+              title="Fast & Secure"
+              details={['Real-time, encrypted checkout with industry-standard protection on payment steps']}
+            />
+
+            <SectionTitle title="Privacy" />
+            <OfferCard
+              ion="lock-closed-outline"
+              title="Protecting your data"
+              details={['We only collect what checkout needs to fulfil your orders']}
+            />
+            <View style={{ height: 24 }} />
+          </ScrollView>
+        </View>
       </View>
     </Modal>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+  },
+  grabber: {
+    width: 36,
+    height: 4,
+    borderRadius: 12,
+    backgroundColor: '#9CA3AF',
+    marginBottom: 12,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 8,
+  },
+});
 
 function SectionTitle({ title }: { title: string }) {
   return (
@@ -74,7 +156,7 @@ function SectionTitle({ title }: { title: string }) {
         marginBottom: 6,
         fontSize: 13,
         fontWeight: '600',
-        color: '#374151',
+        color: '#6B7280',
       }}
     >
       {title}
@@ -89,27 +171,28 @@ function OfferCard({ ion, title, details }: { ion: IonName; title: string; detai
         marginBottom: 10,
         borderRadius: 10,
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: colors.border,
         flexDirection: 'row',
-        padding: 10,
+        padding: 12,
+        backgroundColor: '#FFFFFF',
       }}
     >
       <View
         style={{
-          width: 36,
-          height: 36,
-          borderRadius: 18,
-          backgroundColor: '#F3F4F6',
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: '#ECFDF5',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Ionicons name={ion} size={22} color="#374151" />
+        <Ionicons name={ion} size={22} color={OFFER_ICON_GREEN} />
       </View>
-      <View style={{ flex: 1, paddingLeft: 10 }}>
-        <Text style={{ fontWeight: '600', fontSize: 13 }}>{title}</Text>
-        {details.map(line => (
-          <Text key={line} style={{ marginTop: 4, fontSize: 11.5, color: '#4B5563' }}>
+      <View style={{ flex: 1, paddingLeft: 12 }}>
+        <Text style={{ fontWeight: '700', fontSize: 14, color: colors.textPrimary }}>{title}</Text>
+        {details.map((line, idx) => (
+          <Text key={`${title}-${idx}`} style={{ marginTop: 4, fontSize: 12, color: colors.textMuted, lineHeight: 18 }}>
             {line}
           </Text>
         ))}
@@ -117,4 +200,3 @@ function OfferCard({ ion, title, details }: { ion: IonName; title: string; detai
     </View>
   );
 }
-

@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, View } from 'react-native';
 import * as SplashScreenModule from 'expo-splash-screen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,10 +13,11 @@ import { setAuthenticated } from '@app/storeSlices/appSlice';
 import { setCartBadgeQuantity } from '@app/storeSlices/cartBadgeSlice';
 import { clearWebNav } from '@app/storeSlices/webNavSlice';
 import { clearCachedProfile } from '@features/account/customerProfileCache';
+import { applyCountryChange } from '@features/region/applyCountryChange';
 import { sessionStore } from '@features/auth/sessionStore';
 import { openSettings } from '@navigation/navigationRef';
 import type { MainTabParamList } from '@navigation/types';
-import { getEnvConfig } from '@shared/config/env';
+import { countryFromStorefrontBrowsingUrl, getEnvConfig } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { AppAsyncState } from '@shared/ui/AppAsyncState';
@@ -27,6 +28,7 @@ import { AUTH_CAPTURE_INJECTION_BEFORE_CONTENT } from './authCaptureInjection';
 import { parseBridgeMessage } from './bridgeMessage';
 import { detectPaymentRedirect } from './paymentRedirectPolicy';
 import { CART_COUNT_BRIDGE_INJECTION } from './cartCountBridgeInjection';
+import { STOREFRONT_HIDE_EMBEDDED_SITE_APP_BAR_INJECTION } from './storefrontHideEmbeddedSiteAppBarInjection';
 import { STOREFRONT_HIDE_MOBILE_HEADER_INJECTION } from './storefrontHideMobileHeaderInjection';
 import { STOREFRONT_OPEN_LOGIN_MODAL_INJECTION } from './storefrontOpenLoginModalInjection';
 
@@ -65,6 +67,11 @@ type Props = {
    */
   hideStorefrontMobileHeader?: boolean;
   /**
+   * Native Settings shell already shows back + title; hide duplicate in-page
+   * storefront toolbar (see `storefrontHideEmbeddedSiteAppBarInjection.ts`).
+   */
+  hideEmbeddedSiteAppBar?: boolean;
+  /**
    * When true, injects a lightweight DOM observer that posts `cart_count` bridge
    * messages so the Cart tab badge can reflect the storefront cart.
    */
@@ -79,6 +86,12 @@ type Props = {
    * (SPA — no workable `/login` URL in RN WebViews). Implies `.mobile-header` must stay visible.
    */
   openStorefrontLoginModal?: boolean;
+  /**
+   * When the user changes country inside the storefront (SPA), the URL path prefix
+   * (`/ae`, `/om`, `/sa`) updates but Redux would otherwise stay stale — Home/Cart
+   * and APIs would keep the old region. Watch navigations and align native state.
+   */
+  syncAppCountryFromStorefrontLocale?: boolean;
 };
 
 const CHECKOUT_PATH_HINT =
@@ -102,6 +115,17 @@ const storefrontUri = (seed: string, webBaseUrl: string): string => {
     return s;
   }
   return s.startsWith('/') ? `${webBaseUrl}${s}` : `${webBaseUrl}/${s}`;
+};
+
+/** After Redux `country` changes, keep pathname/query/hash but switch origin to the new regional base. */
+const rebaselineStorefrontOrigin = (fullUrl: string, newWebBaseUrl: string): string => {
+  try {
+    const u = new URL(fullUrl);
+    const base = newWebBaseUrl.replace(/\/+$/, '');
+    return `${base}${u.pathname}${u.search}${u.hash}`;
+  } catch {
+    return `${newWebBaseUrl.replace(/\/+$/, '')}/`;
+  }
 };
 
 const storefrontUrlComparable = (uri: string): string | null => {
@@ -587,13 +611,17 @@ export function WebViewScreen({
   applyTopSafeArea = true,
   statusBarOverContent = false,
   hideStorefrontMobileHeader = false,
+  hideEmbeddedSiteAppBar = false,
   reportCartCountToNative = false,
   reloadWebWhenTabFocused = false,
   openStorefrontLoginModal = false,
+  syncAppCountryFromStorefrontLocale = false,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const dispatch = useAppDispatch();
+  const country = useAppSelector(s => s.app.country);
+  const cfg = useMemo(() => getEnvConfig(country), [country]);
   const webViewRef = useRef<WebView>(null);
   const isFirstCartFocusRef = useRef(true);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -605,7 +633,6 @@ export function WebViewScreen({
   const [loading, setLoading] = useState(false);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const cfg = getEnvConfig(store.getState().app.country);
   const allowedHostSet = useMemo(() => new Set(cfg.allowedDomains), [cfg.allowedDomains]);
   const insets = useSafeAreaInsets();
   const shellBackgroundColor = statusBarOverContent ? 'transparent' : '#FFFFFF';
@@ -615,10 +642,16 @@ export function WebViewScreen({
   const injectedJavaScriptBundle = useMemo(() => {
     const parts = [COMBINED_INJECTION];
     if (hideStorefrontMobileHeader) parts.push(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
+    if (hideEmbeddedSiteAppBar) parts.push(STOREFRONT_HIDE_EMBEDDED_SITE_APP_BAR_INJECTION);
     if (reportCartCountToNative) parts.push(CART_COUNT_BRIDGE_INJECTION);
     if (openStorefrontLoginModal) parts.push(STOREFRONT_OPEN_LOGIN_MODAL_INJECTION);
     return parts.join('\n');
-  }, [hideStorefrontMobileHeader, openStorefrontLoginModal, reportCartCountToNative]);
+  }, [
+    hideEmbeddedSiteAppBar,
+    hideStorefrontMobileHeader,
+    openStorefrontLoginModal,
+    reportCartCountToNative,
+  ]);
 
   // Cross-tab navigation channel: when native Search or the Inbox screen asks
   // to drive the Home WebView to a specific storefront path, we surface
@@ -679,6 +712,20 @@ export function WebViewScreen({
     webNavPendingPath,
     webNavSeq,
   ]);
+
+  const prevCountryForUriRef = useRef(country);
+  useEffect(() => {
+    if (prevCountryForUriRef.current === country) return;
+    prevCountryForUriRef.current = country;
+    setCurrentUri(prev => rebaselineStorefrontOrigin(prev, cfg.webBaseUrl));
+  }, [country, cfg.webBaseUrl]);
+
+  const prevPathPropRef = useRef(path);
+  useEffect(() => {
+    if (prevPathPropRef.current === path) return;
+    prevPathPropRef.current = path;
+    setCurrentUri(storefrontUri(path, cfg.webBaseUrl));
+  }, [path, cfg.webBaseUrl]);
 
   const flushCategoryMegaMenuProbe = useCallback(
     (reason: 'load_end' | 'tab_focus' | 'tab_reselect') => {
@@ -803,8 +850,29 @@ export function WebViewScreen({
     return () => sub.remove();
   }, [canGoBack]);
 
+  const maybeSyncCountryFromUrl = useCallback(
+    (url: string) => {
+      if (!syncAppCountryFromStorefrontLocale) return;
+      // Background-tab WebViews fire navigation callbacks against stale URLs and
+      // would corrupt Redux `country` — only the focused surface may sync (Settings).
+      if (!isFocused) return;
+      const detected = countryFromStorefrontBrowsingUrl(url);
+      if (!detected) return;
+      const current = store.getState().app.country;
+      if (detected === current) return;
+      analytics.track('webview_storefront_locale_sync', { detected, from: current });
+      void applyCountryChange({
+        dispatch,
+        nextCountry: detected,
+        reason: 'storefront_url',
+      });
+    },
+    [dispatch, isFocused, syncAppCountryFromStorefrontLocale],
+  );
+
   const onNavChange = (nav: WebViewNavigation) => {
     lastKnownUrlRef.current = nav.url;
+    maybeSyncCountryFromUrl(nav.url);
     setCanGoBack(nav.canGoBack);
     if (!looksCheckoutRelated(nav.url)) return;
     const payment = detectPaymentRedirect(nav.url);
@@ -975,6 +1043,7 @@ export function WebViewScreen({
             // useEffect above remains as a last-resort fallback for pages
             // where the injected JS cannot run (e.g. immediate native error).
             analytics.track('webview_load_end', { path });
+            maybeSyncCountryFromUrl(lastKnownUrlRef.current);
             // Belt-and-suspenders re-injection. The `injectedJavaScript` prop
             // is captured by the native WebView at mount time, so a Fast
             // Refresh of the JS bundle does NOT push a new injection into an

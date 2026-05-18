@@ -23,6 +23,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList, 'StorefrontLoginWeb'>;
 export function StorefrontLoginScreen(): React.ReactElement {
   const navigation = useNavigation<Nav>();
   const country = useAppSelector(s => s.app.country);
+  const storefrontSurfaceGeneration = useAppSelector(s => s.app.storefrontSurfaceGeneration);
   const isAuthenticated = useAppSelector(s => s.app.isAuthenticated);
 
   const openedAsGuestRef = useRef<boolean | null>(null);
@@ -63,6 +64,7 @@ export function StorefrontLoginScreen(): React.ReactElement {
 
       <View style={{ flex: 1 }}>
         <WebViewScreen
+          key={`storefront-login-${country}-${storefrontSurfaceGeneration}`}
           path={path}
           openStorefrontLoginModal
           hideStorefrontMobileHeader={false}

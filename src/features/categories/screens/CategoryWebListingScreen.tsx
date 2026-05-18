@@ -15,6 +15,7 @@ type Props = NativeStackScreenProps<CategoryStackParamList, 'CategoryWebListing'
 
 export function CategoryWebListingScreen({ navigation, route }: Props) {
   const country = useAppSelector(s => s.app.country);
+  const storefrontSurfaceGeneration = useAppSelector(s => s.app.storefrontSurfaceGeneration);
   const { slug } = route.params;
   const searchPlaceholder = route.params.searchPlaceholder?.trim() || undefined;
 
@@ -57,6 +58,7 @@ export function CategoryWebListingScreen({ navigation, route }: Props) {
 
       <View style={{ flex: 1 }}>
         <WebViewScreen
+          key={`category-web-listing-${slug}-${country}-${storefrontSurfaceGeneration}`}
           path={collectionPath}
           applyWebNavFromStore={false}
           applyTopSafeArea={false}

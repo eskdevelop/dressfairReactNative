@@ -1,12 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
 import {
   ActivityIndicator,
   FlatList,
-  Image,
+  Platform,
   RefreshControl,
+  ScrollView,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -15,95 +18,60 @@ import type { RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
-import { colors, radii, spacing } from '@app/theme/tokens';
+import { colors, spacing } from '@app/theme/tokens';
+import { OffersModal } from '@features/categories/components/OffersModal';
 import { openStorefrontLogin } from '@features/account/requireStorefrontLogin';
-import { openWebPath } from '@navigation/navigationRef';
 import type { RootStackParamList } from '@navigation/types';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 
 import { fetchOrderHistory } from './ordersApi';
-import { orderMatchesShortcut, type OrderHistoryShortcut } from './orderShortcutFilter';
-import type { Order, OrderCustomer, OrderStatusFilter } from './types';
-
-type Status = 'idle' | 'loading' | 'success' | 'error';
-
-const FILTERS: { id: OrderStatusFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'pending', label: 'Pending' },
-  { id: 'completed', label: 'Completed' },
-];
-
-const SHORTCUT_LABELS: Record<OrderHistoryShortcut, string> = {
-  pending_payment: 'Pending payment',
-  processing: 'Processing',
-  shipped: 'Shipped',
-  delivered: 'Delivered',
-  returns: 'Returns',
-};
-
-// Map a free-text order status (Pending / Processing / Shipped / Delivered /
-// Cancelled / Complete / etc.) to a stable bucket plus a colour. Anything we
-// don't recognise renders neutral so the screen never crashes on a new
-// status the backend introduces.
-const statusBucket = (raw: string): { kind: 'pending' | 'completed' | 'cancelled' | 'other'; tint: string } => {
-  const lower = raw.toLowerCase();
-  if (
-    lower.includes('cancel') ||
-    lower.includes('refund') ||
-    lower.includes('void') ||
-    lower.includes('failed')
-  ) {
-    return { kind: 'cancelled', tint: colors.danger };
-  }
-  if (
-    lower.includes('complete') ||
-    lower.includes('deliver') ||
-    lower.includes('shipped') ||
-    lower.includes('paid') ||
-    lower.includes('success')
-  ) {
-    return { kind: 'completed', tint: colors.success };
-  }
-  if (
-    lower.includes('pend') ||
-    lower.includes('process') ||
-    lower.includes('await') ||
-    lower.includes('hold')
-  ) {
-    return { kind: 'pending', tint: colors.brand };
-  }
-  return { kind: 'other', tint: colors.textMuted };
-};
+import { OrderTrackCard } from './OrderTrackCard';
+import { OrdersTrackPromoBanner } from './OrdersTrackPromoBanner';
+import {
+  partitionOrdersForTrackTabs,
+  shortcutToTrackTab,
+  TRACK_TABS,
+  type TrackTabId,
+} from './orderStatusPartition';
+import type { Order, OrderCustomer } from './types';
 
 export function OrderHistoryScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, 'OrderHistory'>>();
+  const { width: windowWidth } = useWindowDimensions();
+  const pagerRef = useRef<ScrollView>(null);
+
   const isAuthenticated = useAppSelector(state => state.app.isAuthenticated);
   const country = useAppSelector(state => state.app.country);
 
-  const [status, setStatus] = useState<Status>('idle');
+  const [fetchStatus, setFetchStatus] = useState<
+    'idle' | 'loading' | 'success' | 'error'
+  >('idle');
   const [orders, setOrders] = useState<Order[]>([]);
   const [customer, setCustomer] = useState<OrderCustomer | undefined>(undefined);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [filter, setFilter] = useState<OrderStatusFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
-  const [shortcutFilter, setShortcutFilter] = useState<OrderHistoryShortcut | null>(
-    route.params?.shortcut ?? null,
-  );
+  const [activeTab, setActiveTab] = useState<TrackTabId>('all');
+  const [offersOpen, setOffersOpen] = useState(false);
+  const activeTabRef = useRef<TrackTabId>(activeTab);
+  activeTabRef.current = activeTab;
 
   useEffect(() => {
-    setShortcutFilter(route.params?.shortcut ?? null);
+    const shortcut = route.params?.shortcut;
+    if (shortcut) {
+      setActiveTab(shortcutToTrackTab(shortcut));
+    }
   }, [route.params?.shortcut]);
 
   const loadOrders = useCallback(async () => {
-    setStatus('loading');
+    setFetchStatus('loading');
     setErrorMessage(null);
     try {
       const result = await fetchOrderHistory();
       if (!result.success) {
-        setStatus('error');
+        setFetchStatus('error');
         setErrorMessage(
           result.message && result.message.length > 0
             ? result.message
@@ -113,11 +81,11 @@ export function OrderHistoryScreen() {
       }
       setOrders(result.orders);
       setCustomer(result.customer);
-      setStatus('success');
+      setFetchStatus('success');
       analytics.track('orders_loaded', { count: result.orders.length });
     } catch (error) {
       crashReporter.capture(error, { source: 'OrderHistoryScreen.load' });
-      setStatus('error');
+      setFetchStatus('error');
       setErrorMessage('Unable to load your orders. Please try again.');
     }
   }, []);
@@ -127,6 +95,8 @@ export function OrderHistoryScreen() {
       void loadOrders();
     }
   }, [isAuthenticated, loadOrders]);
+
+  const partition = useMemo(() => partitionOrdersForTrackTabs(orders), [orders]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -142,272 +112,162 @@ export function OrderHistoryScreen() {
     openStorefrontLogin(country);
   }, [country]);
 
-  const onOpenOrder = useCallback(
-    (order: Order) => {
-      analytics.track('orders_item_opened', { orderId: order.orderId });
-      // Storefront convention: /account/order-info/<id> on OpenCart. Any
-      // path the storefront actually exposes works — adjust here if your
-      // theme uses a different route (e.g. /account/order/<id>).
-      openWebPath(`/account/order-info/${order.orderId}`);
+  /**
+   * Show main shell (tabs + pager) whenever we are not in: unauthenticated,
+   * initial loading spinner, or hard error with no data.
+   */
+  const showOrdersShell =
+    isAuthenticated &&
+    !(orders.length === 0 && (fetchStatus === 'idle' || fetchStatus === 'loading')) &&
+    !(fetchStatus === 'error' && orders.length === 0);
+
+  /** Sync pager when data loads or width changes. Swipe-driven `activeTab` changes are ignored (no deps on tab). */
+  useLayoutEffect(() => {
+    if (!showOrdersShell || fetchStatus !== 'success' || windowWidth <= 0) return;
+    const i = TRACK_TABS.findIndex(t => t.id === activeTabRef.current);
+    if (i < 0) return;
+    pagerRef.current?.scrollTo({ x: i * windowWidth, animated: false });
+  }, [showOrdersShell, fetchStatus, windowWidth]);
+
+  const onTabPress = useCallback(
+    (id: TrackTabId) => {
+      const i = TRACK_TABS.findIndex(t => t.id === id);
+      if (i < 0) return;
+      setActiveTab(id);
+      pagerRef.current?.scrollTo({ x: i * windowWidth, animated: true });
     },
-    [],
+    [windowWidth],
   );
 
-  const filtered = useMemo(() => {
-    if (shortcutFilter) {
-      return orders.filter(o => orderMatchesShortcut(o.orderStatus, shortcutFilter));
-    }
-    if (filter === 'all') return orders;
-    return orders.filter(order => {
-      const bucket = statusBucket(order.orderStatus).kind;
-      if (filter === 'pending') return bucket === 'pending';
-      if (filter === 'completed') return bucket === 'completed';
-      return true;
-    });
-  }, [filter, orders, shortcutFilter]);
+  const onPagerMomentumEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const x = e.nativeEvent.contentOffset.x;
+      const page = Math.round(x / Math.max(1, windowWidth));
+      const i = Math.max(0, Math.min(TRACK_TABS.length - 1, page));
+      setActiveTab(TRACK_TABS[i].id);
+    },
+    [windowWidth],
+  );
 
-  const renderHeader = () => (
-    <View>
-      <View
-        style={{
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.sm,
-          paddingBottom: spacing.md,
-        }}
-      >
-        {customer?.customerName ? (
-          <Text
-            style={{
-              color: colors.textPrimary,
-              fontSize: 13,
-              fontWeight: '600',
-            }}
-          >
-            Hi {customer.customerName}
-          </Text>
-        ) : null}
-        {customer?.customerMobile ? (
-          <Text
-            style={{ color: colors.textMuted, fontSize: 12, marginTop: 2 }}
-          >
-            +{customer.customerMobile}
-          </Text>
-        ) : null}
-      </View>
-      {shortcutFilter ? (
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: spacing.lg,
-            paddingBottom: spacing.sm,
-          }}
-        >
-          <Text style={{ color: colors.textPrimary, fontSize: 13, fontWeight: '600' }}>
-            Showing: {SHORTCUT_LABELS[shortcutFilter]}
-          </Text>
+  const renderTrackTabs = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      bounces={false}
+      contentContainerStyle={{
+        paddingHorizontal: 10,
+        paddingTop: 6,
+        paddingBottom: 0,
+        alignItems: 'flex-end',
+      }}
+    >
+      {TRACK_TABS.map(tab => {
+        const active = activeTab === tab.id;
+        return (
           <TouchableOpacity
+            key={tab.id}
             accessibilityRole="button"
-            accessibilityLabel="Clear order status filter"
-            onPress={() => setShortcutFilter(null)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={{ color: colors.brand, fontSize: 13, fontWeight: '700' }}>Clear</Text>
-          </TouchableOpacity>
-        </View>
-      ) : null}
-      <View
-        style={{
-          flexDirection: 'row',
-          paddingHorizontal: spacing.lg,
-          paddingBottom: spacing.md,
-          gap: spacing.sm,
-        }}
-      >
-        {FILTERS.map(item => {
-          const active = shortcutFilter === null && filter === item.id;
-          return (
-            <TouchableOpacity
-              key={item.id}
-              accessibilityRole="button"
-              onPress={() => {
-                setShortcutFilter(null);
-                setFilter(item.id);
-              }}
-              style={{
-                paddingHorizontal: spacing.md,
-                paddingVertical: spacing.xs,
-                borderRadius: radii.pill,
-                borderWidth: 1,
-                borderColor: active ? colors.brand : colors.border,
-                backgroundColor: active ? colors.brand : '#FFFFFF',
-              }}
-            >
-              <Text
-                style={{
-                  color: active ? '#FFFFFF' : colors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: '600',
-                }}
-              >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    </View>
-  );
-
-  const renderItem = ({ item }: { item: Order }) => {
-    const bucket = statusBucket(item.orderStatus);
-    const previewImages = item.products
-      .flatMap(product => product.images)
-      .slice(0, 3);
-    const itemCount = item.products.reduce(
-      (acc, product) => acc + (Number.isFinite(product.quantity) ? product.quantity : 0),
-      0,
-    );
-    return (
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel={`Order ${item.orderId}, ${item.orderStatus}`}
-        onPress={() => onOpenOrder(item)}
-        style={{
-          marginHorizontal: spacing.lg,
-          marginBottom: spacing.md,
-          padding: spacing.md,
-          borderRadius: radii.md,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: '#FFFFFF',
-        }}
-      >
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <Text
+            accessibilityState={{ selected: active }}
+            onPress={() => onTabPress(tab.id)}
             style={{
-              color: colors.textPrimary,
-              fontWeight: '700',
-              fontSize: 14,
-            }}
-          >
-            Order #{item.orderId}
-          </Text>
-          <View
-            style={{
-              paddingHorizontal: spacing.sm,
-              paddingVertical: 2,
-              borderRadius: radii.pill,
-              backgroundColor: `${bucket.tint}1A`,
+              marginHorizontal: 8,
+              paddingBottom: 10,
+              borderBottomWidth: active ? 3 : 0,
+              borderBottomColor: active ? colors.brand : 'transparent',
             }}
           >
             <Text
-              style={{ color: bucket.tint, fontSize: 11, fontWeight: '700' }}
-            >
-              {item.orderStatus}
-            </Text>
-          </View>
-        </View>
-        {item.products.length > 0 ? (
-          <Text
-            numberOfLines={1}
-            style={{
-              color: colors.textPrimary,
-              marginTop: spacing.xs,
-              fontSize: 13,
-            }}
-          >
-            {item.products[0].productName}
-            {item.products.length > 1
-              ? ` and ${item.products.length - 1} more`
-              : ''}
-          </Text>
-        ) : null}
-        <View
-          style={{
-            flexDirection: 'row',
-            marginTop: spacing.sm,
-            gap: spacing.xs,
-          }}
-        >
-          {previewImages.map((image, idx) => (
-            <Image
-              key={`${image.id ?? idx}-${idx}`}
-              source={{ uri: image.url }}
               style={{
-                width: 48,
-                height: 48,
-                borderRadius: radii.sm,
-                backgroundColor: '#F3F4F6',
+                fontSize: 13,
+                fontWeight: '600',
+                color: active ? colors.brand : colors.textSecondary,
               }}
-              resizeMode="cover"
-            />
-          ))}
-        </View>
-        <View
+            >
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+
+  const renderHeaderBar = () => (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
+        backgroundColor: '#FFFFFF',
+      }}
+    >
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        style={{ width: 40, paddingVertical: spacing.xs }}
+      >
+        <Ionicons name="chevron-back" size={22} color="rgba(0,0,0,0.7)" />
+      </TouchableOpacity>
+      <View style={{ flex: 1, alignItems: 'center' }}>
+        <Text
           style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginTop: spacing.md,
+            fontSize: 16,
+            fontWeight: '600',
+            color: colors.textPrimary,
           }}
         >
-          <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-            {itemCount === 1 ? '1 item' : `${itemCount} items`}
-          </Text>
-          <Text
-            style={{ color: colors.textPrimary, fontWeight: '700', fontSize: 14 }}
-          >
-            {item.currencyCode} {item.orderTotalAmount}
-          </Text>
-        </View>
-      </TouchableOpacity>
+          Your orders
+        </Text>
+      </View>
+      <View style={{ width: 40 }} />
+    </View>
+  );
+
+  const androidText = Platform.OS === 'android' ? { includeFontPadding: false } : undefined;
+
+  const renderOrderPage = (tabId: TrackTabId) => {
+    const listData = partition[tabId];
+    return (
+      <View style={{ width: windowWidth, flex: 1 }} key={tabId}>
+        <FlatList
+          data={listData}
+          keyExtractor={item => String(item.orderId)}
+          renderItem={({ item }) => <OrderTrackCard order={item} customer={customer} />}
+          contentContainerStyle={{
+            paddingHorizontal: 12,
+            paddingTop: 12,
+            paddingBottom: spacing.xl,
+            flexGrow: 1,
+          }}
+          nestedScrollEnabled
+          ListEmptyComponent={
+            <Text
+              style={{
+                textAlign: 'center',
+                marginTop: 40,
+                color: colors.textMuted,
+                fontSize: 14,
+                ...androidText,
+              }}
+            >
+              No data found
+            </Text>
+          }
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />
+          }
+        />
+      </View>
     );
   };
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      edges={['top']}
-    >
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          paddingHorizontal: spacing.md,
-          paddingVertical: spacing.sm,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
-        }}
-      >
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={{ padding: spacing.sm }}
-        >
-          <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text
-          style={{
-            fontSize: 17,
-            fontWeight: '600',
-            color: colors.textPrimary,
-            marginLeft: spacing.sm,
-          }}
-        >
-          My orders
-        </Text>
-      </View>
-
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.pageMuted }} edges={['top']}>
+      {renderHeaderBar()}
       {!isAuthenticated ? (
         <View
           style={{
@@ -424,6 +284,7 @@ export function OrderHistoryScreen() {
               fontWeight: '600',
               marginTop: spacing.md,
               fontSize: 16,
+              ...androidText,
             }}
           >
             Sign in to see your orders
@@ -433,11 +294,11 @@ export function OrderHistoryScreen() {
               color: colors.textMuted,
               textAlign: 'center',
               marginTop: spacing.xs,
+              ...androidText,
             }}
           >
-            Your orders, delivery status, and payment history will appear
-            here once you sign in. Tap below to go to the home page and use
-            the &ldquo;Sign in / Register&rdquo; button at the top.
+            Your orders, delivery status, and payment history will appear here once you sign in. Tap
+            below to open sign in.
           </Text>
           <TouchableOpacity
             onPress={onSignIn}
@@ -447,22 +308,22 @@ export function OrderHistoryScreen() {
               marginTop: spacing.lg,
               paddingHorizontal: spacing.lg,
               paddingVertical: spacing.md,
-              borderRadius: radii.pill,
+              borderRadius: 999,
               backgroundColor: colors.brand,
             }}
           >
-            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
+            <Text style={{ color: '#FFFFFF', fontWeight: '700', ...androidText }}>
               Go to home to sign in
             </Text>
           </TouchableOpacity>
         </View>
-      ) : status === 'loading' && orders.length === 0 ? (
-        <View
-          style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
-        >
+      ) : isAuthenticated &&
+        orders.length === 0 &&
+        (fetchStatus === 'idle' || fetchStatus === 'loading') ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={colors.brand} />
         </View>
-      ) : status === 'error' && orders.length === 0 ? (
+      ) : fetchStatus === 'error' && orders.length === 0 ? (
         <View
           style={{
             flex: 1,
@@ -477,6 +338,8 @@ export function OrderHistoryScreen() {
               color: colors.textPrimary,
               fontWeight: '600',
               marginTop: spacing.md,
+              textAlign: 'center',
+              ...androidText,
             }}
           >
             {errorMessage}
@@ -488,73 +351,36 @@ export function OrderHistoryScreen() {
               marginTop: spacing.lg,
               paddingHorizontal: spacing.lg,
               paddingVertical: spacing.sm,
-              borderRadius: radii.pill,
+              borderRadius: 999,
               borderWidth: 1,
               borderColor: colors.border,
             }}
           >
-            <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>
-              Retry
-            </Text>
+            <Text style={{ color: colors.textPrimary, fontWeight: '600', ...androidText }}>Retry</Text>
           </TouchableOpacity>
         </View>
-      ) : orders.length === 0 ? (
-        <View
-          style={{
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: spacing.xl,
-          }}
-        >
-          <Ionicons name="receipt-outline" size={48} color={colors.textMuted} />
-          <Text
-            style={{
-              color: colors.textPrimary,
-              fontWeight: '600',
-              marginTop: spacing.md,
-            }}
-          >
-            No orders yet
-          </Text>
-          <Text
-            style={{
-              color: colors.textMuted,
-              textAlign: 'center',
-              marginTop: spacing.xs,
-            }}
-          >
-            Start shopping and your orders will appear here.
-          </Text>
-        </View>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={item => String(item.orderId)}
-          renderItem={renderItem}
-          ListHeaderComponent={renderHeader}
-          contentContainerStyle={{ paddingBottom: spacing.xl }}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor={colors.brand}
-            />
-          }
-          ListEmptyComponent={
-            <View
-              style={{
-                paddingVertical: spacing.xl,
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{ color: colors.textMuted }}>
-                No orders match the selected filter.
-              </Text>
-            </View>
-          }
-        />
+        <View style={{ flex: 1 }}>
+          <View style={{ backgroundColor: '#FFFFFF' }}>
+            {renderTrackTabs()}
+            <OrdersTrackPromoBanner onPress={() => setOffersOpen(true)} />
+          </View>
+          <ScrollView
+            ref={pagerRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            onMomentumScrollEnd={onPagerMomentumEnd}
+            scrollEventThrottle={16}
+            style={{ flex: 1 }}
+          >
+            {TRACK_TABS.map(tab => renderOrderPage(tab.id))}
+          </ScrollView>
+        </View>
       )}
+      <OffersModal visible={offersOpen} onClose={() => setOffersOpen(false)} />
     </SafeAreaView>
   );
 }

@@ -4,6 +4,28 @@ import {
   OC_MERCHANT_LANGUAGE,
 } from '@features/api/sessionApi';
 import { sessionStore } from '@features/auth/sessionStore';
+import { countryIsoCode2, type CountryCode } from '@shared/config/env';
+
+const COUNTRY_DISPLAY_NAME: Record<CountryCode, string> = {
+  UAE: 'United Arab Emirates',
+  OMN: 'Oman',
+  KSA: 'Saudi Arabia',
+};
+
+/**
+ * Matches browser storefront `X-Country*` headers so OC `/api/rest/*` JSON returns
+ * prices/currency for the active region (not a silent UAE default).
+ */
+function buildStorefrontCountryContextHeaders(): Record<string, string> {
+  const country = store.getState().app.country as CountryCode;
+  const iso = countryIsoCode2(country);
+  const pathSeg = country === 'UAE' ? 'ae' : country === 'OMN' ? 'om' : 'sa';
+  return {
+    'X-Country': pathSeg,
+    'X-Country-Iso': iso,
+    'X-Country-Name': COUNTRY_DISPLAY_NAME[country],
+  };
+}
 
 /**
  * Auth headers for storefront `/api/rest/store/...` JSON APIs (same JWT as
@@ -17,6 +39,7 @@ export const buildStorefrontAuthHeaders = async (): Promise<
     'Content-Type': 'application/json',
     'x-oc-merchant-id': OC_MERCHANT_ID,
     'x-oc-merchant-language': OC_MERCHANT_LANGUAGE,
+    ...buildStorefrontCountryContextHeaders(),
   };
   const apiSessionToken = store.getState().app.apiSession?.token;
   if (apiSessionToken && apiSessionToken.length > 0) {
@@ -39,6 +62,7 @@ export const buildStorefrontAuthHeadersMultipart = async (): Promise<
     Accept: 'application/json',
     'x-oc-merchant-id': OC_MERCHANT_ID,
     'x-oc-merchant-language': OC_MERCHANT_LANGUAGE,
+    ...buildStorefrontCountryContextHeaders(),
   };
   const apiSessionToken = store.getState().app.apiSession?.token;
   if (apiSessionToken && apiSessionToken.length > 0) {

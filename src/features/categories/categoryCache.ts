@@ -43,3 +43,10 @@ export async function saveCachedCategories(rows: CategoryRow[], country?: Countr
   const key = categoryStorageKey(country);
   await AsyncStorage.setItem(key, JSON.stringify(rows));
 }
+
+const ALL_COUNTRY_CODES: CountryCode[] = ['UAE', 'OMN', 'KSA'];
+
+/** After a region switch, drop cached trees so the hub refetches for the active storefront. */
+export async function clearMobileCategoriesCacheAllRegions(): Promise<void> {
+  await Promise.all(ALL_COUNTRY_CODES.map(c => AsyncStorage.removeItem(categoryStorageKey(c))));
+}

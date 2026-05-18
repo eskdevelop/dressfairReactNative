@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, ScrollView } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -29,7 +29,6 @@ import { YouCreditCouponsStripe } from './components/YouCreditCouponsStripe';
 import { YouFlutterListTiles } from './components/YouFlutterListTiles';
 import { YouGuestAuthBlock } from './components/YouGuestAuthBlock';
 import { YouLoggedProfileRow } from './components/YouLoggedProfileRow';
-import { YouNewArrivalsGrid } from './components/YouNewArrivalsGrid';
 import { YouOffersPromoBar } from './components/YouOffersPromoBar';
 
 type AccountNavigation = CompositeNavigationProp<
@@ -54,12 +53,6 @@ export function AccountScreen() {
     () => (profile ? customerAvatarUri(profile, cfg.customerAvatarCdnBaseUrl) : undefined),
     [cfg.customerAvatarCdnBaseUrl, profile],
   );
-
-  const newInAbsoluteUri = useMemo(() => {
-    const base = cfg.webBaseUrl.replace(/\/+$/, '');
-    const path = cfg.webNewInPath.startsWith('/') ? cfg.webNewInPath : `/${cfg.webNewInPath}`;
-    return `${base}${path}`;
-  }, [cfg.webBaseUrl, cfg.webNewInPath]);
 
   const loadProfileOnly = useCallback(async (): Promise<void> => {
     if (!isAuthenticated) {
@@ -165,10 +158,6 @@ export function AccountScreen() {
         />
 
         <YouOffersPromoBar onPress={() => setOffersOpen(true)} />
-
-        <View style={{ height: 8 }} />
-
-        <YouNewArrivalsGrid newInAbsoluteUri={newInAbsoluteUri} />
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,11 +1,16 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import * as Network from 'expo-network';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useAppSelector } from '@app/hooks';
 import { sessionStore } from '@features/auth/sessionStore';
 import { colors, radii, spacing } from '@app/theme/tokens';
+import { openWebPath } from '@navigation/navigationRef';
+
+/** Temporary WebView smoke URL — remove or relocate once layout is validated. */
+const WEBVIEW_TEST_COUNTRY_REGION_LANGUAGE_URL =
+  'https://dressfair.com/ae/user/country-region-language';
 
 export function HealthDebugPanel() {
   const app = useAppSelector(state => state.app);
@@ -63,6 +68,34 @@ export function HealthDebugPanel() {
         hasCustomerJwt ? 'Present — native APIs use Authorization: Bearer …' : 'Missing',
       )}
       {item('Push token', hasPushToken ? 'Present' : 'Missing')}
+
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel="Open country region language page in Home WebView"
+        onPress={() => openWebPath(WEBVIEW_TEST_COUNTRY_REGION_LANGUAGE_URL)}
+        style={{
+          marginTop: spacing.md,
+          paddingVertical: 12,
+          paddingHorizontal: spacing.sm,
+          borderRadius: radii.md,
+          backgroundColor: colors.brand,
+        }}
+      >
+        <Text style={{ color: '#FFFFFF', fontWeight: '700', textAlign: 'center', fontSize: 13 }}>
+          WebView test: country / region / language
+        </Text>
+        <Text
+          style={{
+            color: 'rgba(255,255,255,0.92)',
+            textAlign: 'center',
+            fontSize: 10,
+            marginTop: 4,
+          }}
+          numberOfLines={2}
+        >
+          {WEBVIEW_TEST_COUNTRY_REGION_LANGUAGE_URL}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
