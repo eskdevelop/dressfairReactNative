@@ -29,6 +29,11 @@ type AppState = {
   storeCurrencyCode: string;
   storeCurrencyTitle: string;
   storeSettingsHydrated: boolean;
+  /**
+   * OpenCart `country_id` from store/setting (`CountryConfigModel.countryId`) for
+   * `GET /api/rest/store/cities/{id}`. Null until settings hydrate or on region switch.
+   */
+  storeOpenCartCountryId: string | null;
 };
 
 const initialState: AppState = {
@@ -46,6 +51,7 @@ const initialState: AppState = {
   storeCurrencyCode: '',
   storeCurrencyTitle: '',
   storeSettingsHydrated: false,
+  storeOpenCartCountryId: null,
 };
 
 const slice = createSlice({
@@ -83,6 +89,10 @@ const slice = createSlice({
       const t = action.payload?.trim() ?? '';
       state.storefrontCheckoutApiOriginOverride = t.length > 0 ? t : null;
     },
+    setStoreOpenCartCountryId(state, action: PayloadAction<string | null>) {
+      const t = action.payload?.trim() ?? '';
+      state.storeOpenCartCountryId = t.length > 0 ? t : null;
+    },
     bumpStorefrontSurfaceGeneration(state) {
       state.storefrontSurfaceGeneration += 1;
     },
@@ -98,6 +108,7 @@ export const {
   setStoreCurrencySettings,
   setCountry,
   setStorefrontCheckoutApiOriginOverride,
+  setStoreOpenCartCountryId,
   bumpStorefrontSurfaceGeneration,
 } = slice.actions;
 export const appReducer = slice.reducer;

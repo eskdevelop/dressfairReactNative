@@ -3,34 +3,43 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
+  RefreshControl,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { useNavigation } from '@react-navigation/native';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
 import {
   deleteCustomerAddress,
   setDefaultCustomerAddress,
 } from '@features/account/addressApi';
 import { fetchCustomerProfile } from '@features/account/customerApi';
+import { openStorefrontLogin } from '@features/account/requireStorefrontLogin';
 import type { CustomerAddressRecord, CustomerProfile } from '@features/account/types';
 import type { RootStackParamList } from '@navigation/types';
-import { openWebPath } from '@navigation/navigationRef';
 import { AppButton } from '@shared/ui/AppButton';
 import { crashReporter } from '@shared/observability/crash';
+
+const MUTED_ACTION = 'rgba(0,0,0,0.5)';
 
 export function AddressListScreen() {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const country = useAppSelector(s => s.app.country);
+  const isAuthenticated = useAppSelector(s => s.app.isAuthenticated);
+
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -46,20 +55,48 @@ export function AddressListScreen() {
     }
   }, []);
 
+  const loadSilent = useCallback(async () => {
+    try {
+      const result = await fetchCustomerProfile();
+      if (result.ok) setProfile(result.profile);
+      else setProfile(null);
+    } catch (e) {
+      crashReporter.capture(e, { source: 'AddressListScreen.refresh' });
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       void load();
     }, [load]),
   );
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadSilent();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadSilent]);
+
   const onAdd = (): void => {
     if (!profile) {
-      openWebPath('/');
+      if (!isAuthenticated) {
+        openStorefrontLogin(country);
+        return;
+      }
+      Alert.alert(
+        'Could not load profile',
+        'Pull down to refresh or sign in again to add an address.',
+      );
       return;
     }
     navigation.navigate('AddressForm', {
       mode: 'add',
       profileMobile: profile.mobile,
+      profileFirstname: profile.firstname,
+      profileLastname: profile.lastname,
     });
   };
 
@@ -72,103 +109,132 @@ export function AddressListScreen() {
     });
   };
 
-  const onSetDefault = (id: number): void => {
-    Alert.alert('Default address', 'Use this as your default delivery address?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Set default',
-        onPress: () => {
-          setBusyId(id);
-          void (async () => {
-            try {
-              const r = await setDefaultCustomerAddress(id);
-              if (!r.success) {
-                Alert.alert('Could not update', r.message ?? 'Try again.');
-                return;
-              }
-              await load();
-            } finally {
-              setBusyId(null);
-            }
-          })();
-        },
-      },
-    ]);
+  /** Flutter `makeDefaultAddress`: no confirm dialog. */
+  const applyDefault = (id: number): void => {
+    if (busyId !== null) return;
+    setBusyId(id);
+    void (async () => {
+      try {
+        const r = await setDefaultCustomerAddress(id);
+        if (!r.success) {
+          Alert.alert('Could not update', r.message ?? 'Try again.');
+          return;
+        }
+        await loadSilent();
+      } finally {
+        setBusyId(null);
+      }
+    })();
   };
 
-  const onDelete = (id: number): void => {
-    Alert.alert('Delete address', 'Remove this address?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => {
-          setBusyId(id);
-          void (async () => {
-            try {
-              const r = await deleteCustomerAddress(id);
-              if (!r.success) {
-                Alert.alert('Could not delete', r.message ?? 'Try again.');
-                return;
-              }
-              await load();
-            } finally {
-              setBusyId(null);
-            }
-          })();
-        },
-      },
-    ]);
+  const onDefaultRowPress = (item: CustomerAddressRecord): void => {
+    if (item.isDefault === 1) return;
+    applyDefault(item.id);
+  };
+
+  const onDelete = (item: CustomerAddressRecord): void => {
+    if (item.isDefault === 1) return;
+    setDeleteTargetId(item.id);
+  };
+
+  const confirmDeleteAddress = (): void => {
+    const id = deleteTargetId;
+    if (id === null) return;
+    setBusyId(id);
+    void (async () => {
+      try {
+        const r = await deleteCustomerAddress(id);
+        if (!r.success) {
+          Alert.alert('Could not delete', r.message ?? 'Try again.');
+          return;
+        }
+        setDeleteTargetId(null);
+        await loadSilent();
+      } finally {
+        setBusyId(null);
+      }
+    })();
   };
 
   const renderAddr = ({ item }: { item: CustomerAddressRecord }) => (
-    <View
-      style={{
-        padding: spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
-        gap: spacing.sm,
-      }}
-    >
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <Text style={{ flex: 1, color: colors.textPrimary, fontWeight: '600' }}>
-          {[item.cityName, item.areaName].filter(Boolean).join(' · ') || 'Address'}
-        </Text>
-        {item.isDefault === 1 ? (
-          <View
+    <View style={{ paddingHorizontal: 10, paddingVertical: 4 }}>
+      <View
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: 4,
+          paddingHorizontal: 8,
+          paddingVertical: 8,
+          borderWidth: 1,
+          borderColor: `${colors.border}99`,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.06,
+          shadowRadius: 3,
+          elevation: 2,
+        }}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Text
             style={{
-              paddingHorizontal: spacing.sm,
-              paddingVertical: 2,
-              borderRadius: radii.pill,
-              backgroundColor: `${colors.brand}22`,
+              flex: 1,
+              color: colors.textPrimary,
+              fontWeight: '600',
+              fontSize: 13,
+              marginRight: 8,
             }}
+            numberOfLines={3}
           >
-            <Text style={{ color: colors.brand, fontSize: 11, fontWeight: '700' }}>Default</Text>
-          </View>
-        ) : null}
-      </View>
-      <Text style={{ color: colors.textMuted }}>{item.address}</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-        {item.isDefault !== 1 ? (
-          <TouchableOpacity onPress={() => onSetDefault(item.id)} disabled={busyId === item.id}>
-            <Text style={{ color: colors.brand, fontWeight: '600' }}>Set default</Text>
+            {item.address || '—'}
+          </Text>
+          {item.isDefault === 1 ? (
+            <Ionicons name="checkmark" size={20} color={colors.brand} />
+          ) : null}
+        </View>
+        <Text style={{ marginTop: 6, fontSize: 13, color: colors.textPrimary, fontWeight: '400' }}>
+          {item.cityName ?? ''}
+        </Text>
+        <Text style={{ marginTop: 4, fontSize: 12, color: colors.textPrimary, fontWeight: '400' }}>
+          {item.areaName ?? ''}
+        </Text>
+        <View style={{ height: 1, backgroundColor: colors.border, marginTop: 10 }} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            onPress={() => onDefaultRowPress(item)}
+            disabled={busyId !== null}
+            style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 0 }}
+          >
+            <MaterialIcons
+              name={item.isDefault === 1 ? 'radio-button-checked' : 'radio-button-unchecked'}
+              size={18}
+              color={item.isDefault === 1 ? colors.brand : colors.textMuted}
+            />
+            <Text style={{ marginLeft: 6, fontSize: 12, color: MUTED_ACTION }}>
+              {item.isDefault === 1 ? 'Default' : 'Set As Default'}
+            </Text>
           </TouchableOpacity>
-        ) : null}
-        <TouchableOpacity onPress={() => onEdit(item)} disabled={busyId === item.id}>
-          <Text style={{ color: colors.textPrimary, fontWeight: '600' }}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => onDelete(item.id)} disabled={busyId === item.id}>
-          <Text style={{ color: colors.danger, fontWeight: '600' }}>Delete</Text>
-        </TouchableOpacity>
+          <View style={{ flex: 1 }} />
+          <TouchableOpacity
+            onPress={() => onDelete(item)}
+            disabled={busyId === item.id || item.isDefault === 1}
+            style={{ opacity: item.isDefault === 1 ? 0.35 : 1 }}
+          >
+            <Text style={{ fontSize: 12, color: MUTED_ACTION }}>Delete</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onEdit(item)}
+            disabled={busyId === item.id}
+            style={{ marginLeft: 12 }}
+          >
+            <Text style={{ fontSize: 12, color: MUTED_ACTION }}>Edit</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
 
   return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: colors.background }}
-      edges={['top']}
-    >
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       <View
         style={{
           flexDirection: 'row',
@@ -177,6 +243,7 @@ export function AddressListScreen() {
           paddingVertical: spacing.sm,
           borderBottomWidth: 1,
           borderBottomColor: colors.border,
+          backgroundColor: '#FFFFFF',
         }}
       >
         <TouchableOpacity
@@ -192,38 +259,119 @@ export function AddressListScreen() {
             flex: 1,
             textAlign: 'center',
             marginRight: 24,
-            fontSize: 17,
-            fontWeight: '600',
+            fontSize: 15,
+            fontWeight: '500',
             color: colors.textPrimary,
           }}
         >
-          Addresses
+          All Address
         </Text>
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center' }}>
+        <View style={{ flex: 1, justifyContent: 'center', backgroundColor: colors.pageMuted }}>
           <ActivityIndicator color={colors.brand} />
         </View>
       ) : (
-        <FlatList
-          data={profile?.addresses ?? []}
-          keyExtractor={a => String(a.id)}
-          renderItem={renderAddr}
-          ListEmptyComponent={
-            <View style={{ padding: spacing.lg }}>
-              <Text style={{ color: colors.textMuted, textAlign: 'center', marginBottom: spacing.md }}>
-                No addresses yet.
-              </Text>
-            </View>
-          }
-          ListFooterComponent={
-            <View style={{ padding: spacing.lg }}>
-              <AppButton label="Add address" onPress={onAdd} />
-            </View>
-          }
-        />
+        <View style={{ flex: 1, backgroundColor: colors.pageMuted }}>
+          <FlatList
+            data={profile?.addresses ?? []}
+            keyExtractor={a => String(a.id)}
+            renderItem={renderAddr}
+            contentContainerStyle={{ paddingTop: 12, paddingBottom: spacing.md }}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />
+            }
+            ListEmptyComponent={
+              <View style={{ padding: spacing.lg }}>
+                <Text
+                  style={{ color: colors.textMuted, textAlign: 'center', marginBottom: spacing.md }}
+                >
+                  No addresses yet.
+                </Text>
+              </View>
+            }
+            ListFooterComponent={
+              <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: spacing.xl }}>
+                <AppButton label="Add New Address" onPress={onAdd} />
+              </View>
+            }
+          />
+        </View>
       )}
+
+      <Modal
+        visible={deleteTargetId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => (busyId === null ? setDeleteTargetId(null) : undefined)}
+      >
+        <View
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            justifyContent: 'center',
+            paddingHorizontal: spacing.lg,
+          }}
+        >
+          <View
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: radii.lg,
+              padding: spacing.lg,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: '600',
+                color: colors.textPrimary,
+                textAlign: 'center',
+                marginBottom: spacing.lg,
+              }}
+            >
+              Are you sure you want to delete this address?
+            </Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={busyId !== null}
+              onPress={confirmDeleteAddress}
+              style={{
+                backgroundColor: colors.brand,
+                borderRadius: radii.pill,
+                paddingVertical: spacing.md,
+                marginBottom: spacing.sm,
+                opacity: busyId !== null ? 0.7 : 1,
+              }}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '600', textAlign: 'center' }}>
+                Delete address
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              accessibilityRole="button"
+              disabled={busyId !== null}
+              onPress={() => setDeleteTargetId(null)}
+              style={{
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: radii.pill,
+                paddingVertical: spacing.md,
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.textPrimary,
+                  fontWeight: '600',
+                  textAlign: 'center',
+                }}
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

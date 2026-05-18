@@ -52,6 +52,8 @@ export type RootStackParamList = {
   AddressForm: {
     mode: 'add' | 'edit';
     profileMobile: string;
+    profileFirstname?: string;
+    profileLastname?: string;
     address?: CustomerAddressRecord;
   };
 };

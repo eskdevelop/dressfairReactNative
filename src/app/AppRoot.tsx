@@ -18,7 +18,7 @@ import { crashReporter } from '@shared/observability/crash';
 import { perf } from '@shared/observability/performance';
 import { loadPersistedCountry } from '@features/region/persistedCountry';
 import { store } from './store';
-import { setAuthenticated, setBootstrapped, setCountry, setOffline, setStoreCurrencySettings } from './storeSlices/appSlice';
+import { setAuthenticated, setBootstrapped, setCountry, setOffline, setStoreCurrencySettings, setStorefrontCheckoutApiOriginOverride, setStoreOpenCartCountryId } from './storeSlices/appSlice';
 
 const CATEGORY_PREFETCH_MAX_MS = 2500;
 
@@ -79,6 +79,8 @@ export function AppRoot() {
         void fetchStoreSettingsFromNetwork(country).then(res => {
           if (!mounted || !res.ok || !res.settings) return;
           dispatch(setStoreCurrencySettings(res.settings));
+          dispatch(setStorefrontCheckoutApiOriginOverride(res.checkoutApiOriginOverride ?? null));
+          dispatch(setStoreOpenCartCountryId(res.openCartCountryId ?? null));
         });
 
         const prefetchPromise = prefetchCategoryCacheIfStale(country).then(r => ({

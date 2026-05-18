@@ -16,7 +16,7 @@ const COUNTRY_DISPLAY_NAME: Record<CountryCode, string> = {
  * Matches browser storefront `X-Country*` headers so OC `/api/rest/*` JSON returns
  * prices/currency for the active region (not a silent UAE default).
  */
-function buildStorefrontCountryContextHeaders(): Record<string, string> {
+export function buildStorefrontCountryContextHeaders(): Record<string, string> {
   const country = store.getState().app.country as CountryCode;
   const iso = countryIsoCode2(country);
   const pathSeg = country === 'UAE' ? 'ae' : country === 'OMN' ? 'om' : 'sa';
@@ -26,6 +26,18 @@ function buildStorefrontCountryContextHeaders(): Record<string, string> {
     'X-Country-Name': COUNTRY_DISPLAY_NAME[country],
   };
 }
+
+/**
+ * Store list GETs for provinces (`/cities/{countryId}`) — Flutter `getCities` uses an empty
+ * session token; match by omitting customer JWT (still send merchant + regional context).
+ */
+export const buildStorefrontStorePublicHeaders = (): Record<string, string> => ({
+  Accept: 'application/json',
+  'Content-Type': 'application/json',
+  'x-oc-merchant-id': OC_MERCHANT_ID,
+  'x-oc-merchant-language': OC_MERCHANT_LANGUAGE,
+  ...buildStorefrontCountryContextHeaders(),
+});
 
 /**
  * Auth headers for storefront `/api/rest/store/...` JSON APIs (same JWT as

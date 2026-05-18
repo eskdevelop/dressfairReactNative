@@ -68,9 +68,40 @@ export function parseStoreSettingCurrency(data: Record<string, unknown>): StoreC
   return { currencyCode, currencyTitle };
 }
 
+/**
+ * OpenCart `country_id` for `GET /api/rest/store/cities/{id}` (`CountryConfigModel.country_id`).
+ * Prefer `allowed_countries[]` row matching active ISO2; else root `country_id`.
+ */
+export function parseStoreSettingOpenCartCountryId(
+  data: Record<string, unknown>,
+  country: CountryCode,
+): string | null {
+  const targetIso = countryIsoCode2(country);
+  const raw = data.allowed_countries;
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue;
+      const o = item as Record<string, unknown>;
+      const iso = String(o.iso_code_2 ?? o.isoCode2 ?? '').trim().toUpperCase();
+      if (iso !== targetIso) continue;
+      const id = o.country_id ?? o.countryId;
+      if (id !== undefined && id !== null && String(id).trim().length > 0) {
+        return String(id);
+      }
+    }
+  }
+  const root = data.country_id ?? data.countryId;
+  if (root !== undefined && root !== null && String(root).trim().length > 0) {
+    return String(root);
+  }
+  return null;
+}
+
 export type StoreSettingsFetchResult = {
   ok: boolean;
   settings?: StoreCurrencySettings;
+  /** Flutter `countryConfig.countryId` for provinces list. */
+  openCartCountryId?: string | null;
   /** When store/setting lists this region in `allowed_countries`, prefer this OC origin. */
   checkoutApiOriginOverride?: string | null;
   error?: string;
@@ -132,7 +163,8 @@ export async function fetchStoreSettingsFromNetwork(country: CountryCode): Promi
       continue;
     }
     const checkoutApiOriginOverride = parseCheckoutOriginOverride(row, country);
-    return { ok: true, settings, checkoutApiOriginOverride };
+    const openCartCountryId = parseStoreSettingOpenCartCountryId(row, country);
+    return { ok: true, settings, checkoutApiOriginOverride, openCartCountryId };
   }
 
   return { ok: false, error: lastError };

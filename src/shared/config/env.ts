@@ -98,7 +98,8 @@ export type EnvConfig = {
   // Storefront cart URL for the Cart tab WebView (`https://…`). UAE uses apex
   // `dressfair.com` so `/ae/cart` matches the live storefront.
   webCartUrl: string;
-  // Path param for `GET /api/rest/store/cities/{id}` (OpenCart country id).
+  // Path param for `GET /api/rest/store/cities/{id}` (OpenCart **country** id for province/zone list).
+  // Should match Flutter `sessionController.countryConfig.countryId` from store config for this region.
   storefrontCitiesCountryId: string;
   // Customer profile `image` field is relative to this CDN (Flutter `SimpleMethode.imageUrl`).
   customerAvatarCdnBaseUrl: string;

@@ -7,6 +7,7 @@ import {
   setCountry,
   setStoreCurrencySettings,
   setStorefrontCheckoutApiOriginOverride,
+  setStoreOpenCartCountryId,
 } from '@app/storeSlices/appSlice';
 import { clearWebNav } from '@app/storeSlices/webNavSlice';
 import { setCartBadgeQuantity } from '@app/storeSlices/cartBadgeSlice';
@@ -65,6 +66,7 @@ export function applyCountryChange(params: {
     dispatch(setCartBadgeQuantity(0));
     dispatch(clearWebNav());
     dispatch(setStorefrontCheckoutApiOriginOverride(null));
+    dispatch(setStoreOpenCartCountryId(null));
     dispatch(setCountry(nextCountry));
     await savePersistedCountry(nextCountry);
 
@@ -73,6 +75,7 @@ export function applyCountryChange(params: {
       dispatch(setStoreCurrencySettings(res.settings));
     }
     dispatch(setStorefrontCheckoutApiOriginOverride(res.checkoutApiOriginOverride ?? null));
+    dispatch(setStoreOpenCartCountryId(res.openCartCountryId ?? null));
 
     dispatch(bumpStorefrontSurfaceGeneration());
 
