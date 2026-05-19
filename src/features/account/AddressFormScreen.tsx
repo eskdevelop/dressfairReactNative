@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -22,10 +22,8 @@ import {
   fetchStoreAreas,
   fetchStoreCities,
   saveCustomerAddress,
-  setDefaultCustomerAddress,
   updateCustomerAddress,
 } from '@features/account/addressApi';
-import { fetchCustomerProfile } from '@features/account/customerApi';
 import type {
   CustomerAddressRecord,
   StoreAreaRecord,
@@ -41,22 +39,35 @@ const SAFEGUARD_SUBTITLE = 'All Data is Safeguarded';
 const SAFEGUARD_BANNER = 'All Data Is Safeguard';
 const FREE_SHIPPING_PROMO = 'Free shipping applied on eligible orders';
 
-async function resolveNewAddressIdAfterSave(
-  savedId: number | undefined,
-  addressLine: string,
-  cityId: number,
-  areaId: number,
-): Promise<number | undefined> {
-  if (savedId !== undefined && savedId > 0) return savedId;
-  const prof = await fetchCustomerProfile();
-  if (!prof.ok) return undefined;
-  const t = addressLine.trim();
-  const matches = prof.profile.addresses.filter(
-    a =>
-      a.address.trim() === t && a.cityId === cityId && a.cityAreaId === areaId,
-  );
-  if (matches.length === 0) return undefined;
-  return matches.reduce((max, a) => (a.id > max ? a.id : max), matches[0].id);
+/**
+ * Android Spinner (RN Picker) crashes if `selectedValue` is not among `Picker.Item` values.
+ * Compute province/area lists first, then apply `setCities` + `setCity` + `setAreas` + `setArea` together.
+ */
+async function loadEditAddressFormState(
+  addr: CustomerAddressRecord,
+  loadedCities: StoreCityRecord[],
+): Promise<{
+  line1: string;
+  city: StoreCityRecord | null;
+  areas: StoreAreaRecord[];
+  area: StoreAreaRecord | null;
+}> {
+  const matchCity = loadedCities.find(x => x.id === addr.cityId) ?? null;
+  if (!matchCity) {
+    return { line1: addr.address, city: null, areas: [], area: null };
+  }
+  try {
+    const list = await fetchStoreAreas(matchCity.id);
+    return {
+      line1: addr.address,
+      city: matchCity,
+      areas: list,
+      area: list.find(x => x.id === addr.cityAreaId) ?? null,
+    };
+  } catch (e) {
+    crashReporter.capture(e, { source: 'AddressFormScreen.loadEditAddressFormState' });
+    return { line1: addr.address, city: matchCity, areas: [], area: null };
+  }
 }
 
 export function AddressFormScreen() {
@@ -79,37 +90,23 @@ export function AddressFormScreen() {
   const [loadingAreas, setLoadingAreas] = useState(false);
   const [citiesLoading, setCitiesLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [makeDefaultAfterSave, setMakeDefaultAfterSave] = useState(false);
   const [provincesFetchFailed, setProvincesFetchFailed] = useState(false);
-
-  const hydrateEdit = useCallback(
-    async (addr: CustomerAddressRecord, loadedCities: StoreCityRecord[]) => {
-      setLine1(addr.address);
-      try {
-        const matchCity =
-          loadedCities.find(x => x.id === addr.cityId) ?? null;
-        setCity(matchCity);
-        if (matchCity) {
-          const a = await fetchStoreAreas(matchCity.id);
-          setAreas(a);
-          setArea(a.find(x => x.id === addr.cityAreaId) ?? null);
-        }
-      } catch (e) {
-        crashReporter.capture(e, { source: 'AddressFormScreen.hydrateEdit' });
-      }
-    },
-    [],
-  );
 
   const retryLoadProvinces = useCallback(async () => {
     setCitiesLoading(true);
     setProvincesFetchFailed(false);
     try {
       const c = await fetchStoreCities();
-      setCities(c);
       if (isEdit && address) {
-        await hydrateEdit(address, c);
+        const next = await loadEditAddressFormState(address, c);
+        // Apply cities + edit fields in one React pass so the Picker never sees a stale city id.
+        setCities(c);
+        setLine1(next.line1);
+        setCity(next.city);
+        setAreas(next.areas);
+        setArea(next.area);
       } else {
+        setCities(c);
         // Flutter `getCities`: reset province/city when list refreshes; add form starts empty.
         setCity(null);
         setArea(null);
@@ -122,7 +119,7 @@ export function AddressFormScreen() {
     } finally {
       setCitiesLoading(false);
     }
-  }, [address, hydrateEdit, isEdit]);
+  }, [address, isEdit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,11 +128,17 @@ export function AddressFormScreen() {
       try {
         const c = await fetchStoreCities();
         if (cancelled) return;
-        setCities(c);
         setProvincesFetchFailed(false);
         if (isEdit && address) {
-          await hydrateEdit(address, c);
+          const next = await loadEditAddressFormState(address, c);
+          if (cancelled) return;
+          setCities(c);
+          setLine1(next.line1);
+          setCity(next.city);
+          setAreas(next.areas);
+          setArea(next.area);
         } else {
+          setCities(c);
           setCity(null);
           setArea(null);
           setAreas([]);
@@ -153,7 +156,37 @@ export function AddressFormScreen() {
     return () => {
       cancelled = true;
     };
-  }, [address, hydrateEdit, isEdit, storeOpenCartCountryId]);
+  }, [address, isEdit, storeOpenCartCountryId]);
+
+  /** Clear province/area state when the loaded province list no longer contains the selection. */
+  useEffect(() => {
+    if (!city) return;
+    if (!cities.some(x => x.id === city.id)) {
+      setCity(null);
+      setAreas([]);
+      setArea(null);
+    }
+  }, [cities, city]);
+
+  /** Clear area when the area list no longer contains the selection (e.g. retry failed). */
+  useEffect(() => {
+    if (!area) return;
+    if (!areas.some(x => x.id === area.id)) {
+      setArea(null);
+    }
+  }, [area, areas]);
+
+  const provincePickerSelectedValue = useMemo((): string => {
+    if (!city) return PROVINCE_PLACEHOLDER;
+    if (!cities.some(c => c.id === city.id)) return PROVINCE_PLACEHOLDER;
+    return String(city.id);
+  }, [city, cities]);
+
+  const areaPickerSelectedValue = useMemo((): string => {
+    if (!area) return AREA_PLACEHOLDER;
+    if (!areas.some(a => a.id === area.id)) return AREA_PLACEHOLDER;
+    return String(area.id);
+  }, [area, areas]);
 
   /** Add form: always start empty (Flutter `AddNewAddress` / no `selectedCity` until user picks). */
   useEffect(() => {
@@ -162,7 +195,6 @@ export function AddressFormScreen() {
       setCity(null);
       setArea(null);
       setAreas([]);
-      setMakeDefaultAfterSave(false);
     }
   }, [isEdit, address?.id]);
 
@@ -175,6 +207,7 @@ export function AddressFormScreen() {
     } catch (e) {
       crashReporter.capture(e, { source: 'AddressFormScreen.retryAreas' });
       setAreas([]);
+      setArea(null);
     } finally {
       setLoadingAreas(false);
     }
@@ -230,13 +263,6 @@ export function AddressFormScreen() {
           Alert.alert('Update failed', result.message ?? 'Try again.');
           return;
         }
-        if (makeDefaultAfterSave && address.isDefault !== 1) {
-          const def = await setDefaultCustomerAddress(address.id);
-          if (!def.success) {
-            Alert.alert('Could not set default', def.message ?? 'Try again.');
-            return;
-          }
-        }
       } else {
         const result = await saveCustomerAddress({
           mobile,
@@ -249,27 +275,6 @@ export function AddressFormScreen() {
         if (!result.success) {
           Alert.alert('Save failed', result.message ?? 'Try again.');
           return;
-        }
-        if (makeDefaultAfterSave) {
-          const newId = await resolveNewAddressIdAfterSave(
-            result.customerAddressId,
-            line1.trim(),
-            city.id,
-            area.id,
-          );
-          if (newId === undefined) {
-            Alert.alert(
-              'Saved',
-              'Address was saved but could not be set as default automatically. You can set it from your address list.',
-              [{ text: 'OK', onPress: () => navigation.goBack() }],
-            );
-            return;
-          }
-          const def = await setDefaultCustomerAddress(newId);
-          if (!def.success) {
-            Alert.alert('Could not set default', def.message ?? 'Try again.');
-            return;
-          }
         }
       }
       navigation.goBack();
@@ -474,7 +479,7 @@ export function AddressFormScreen() {
                 >
                   <Picker
                     key={`province-${isEdit ? address?.id ?? 0 : 'add'}-${cities.length}`}
-                    selectedValue={city ? String(city.id) : PROVINCE_PLACEHOLDER}
+                    selectedValue={provincePickerSelectedValue}
                     onValueChange={val => {
                       const key = String(val);
                       if (key === PROVINCE_PLACEHOLDER) return;
@@ -556,7 +561,7 @@ export function AddressFormScreen() {
                 >
                   <Picker
                     key={`area-${city.id}-${areas.length}`}
-                    selectedValue={area ? String(area.id) : AREA_PLACEHOLDER}
+                    selectedValue={areaPickerSelectedValue}
                     onValueChange={val => {
                       const key = String(val);
                       if (key === AREA_PLACEHOLDER) return;
@@ -633,27 +638,7 @@ export function AddressFormScreen() {
                   Default address
                 </Text>
               </View>
-            ) : (
-              <TouchableOpacity
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: makeDefaultAfterSave }}
-                onPress={() => setMakeDefaultAfterSave(v => !v)}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginBottom: spacing.md,
-                }}
-              >
-                <Ionicons
-                  name={makeDefaultAfterSave ? 'checkbox' : 'square-outline'}
-                  size={22}
-                  color={makeDefaultAfterSave ? colors.brand : colors.textMuted}
-                />
-                <Text style={{ marginLeft: 8, fontSize: 14, color: colors.textPrimary }}>
-                  Set As Default
-                </Text>
-              </TouchableOpacity>
-            )}
+            ) : null}
           </ScrollView>
 
         <View

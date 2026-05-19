@@ -8,6 +8,7 @@ import {
   storefrontCheckoutUrl,
   storefrontJsonApiOriginsToTry,
 } from '@shared/config/storefrontUrls';
+import { analytics } from '@shared/observability/analytics';
 import {
   buildStorefrontAuthHeaders,
   buildStorefrontStorePublicHeaders,
@@ -167,32 +168,68 @@ export type SaveAddressPayload = {
   city_area_id: string | number;
 };
 
-const parseCustomerAddressIdFromSaveResponse = (
-  data: Record<string, unknown>,
-): number | undefined => {
-  const asNum = (v: unknown): number | undefined => {
-    if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
-    if (typeof v === 'string') {
-      const n = Number(v);
-      if (Number.isFinite(n) && n > 0) return n;
+const parsePositiveId = (v: unknown): number | undefined => {
+  if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return undefined;
+};
+
+const ADDRESS_ID_KEYS = [
+  'customer_address_id',
+  'customerAddressId',
+  'customer_address_entity_id',
+  'address_id',
+] as const;
+
+/** Read id from one object without using generic `id` (may be customer/session id). */
+const pickAddressIdFromRecord = (o: Record<string, unknown>): number | undefined => {
+  for (const k of ADDRESS_ID_KEYS) {
+    const n = parsePositiveId(o[k]);
+    if (n !== undefined) return n;
+  }
+  return undefined;
+};
+
+/**
+ * Save responses nest the new row under `data`, `address`, `customer_address`, etc.
+ * Avoid blind `id` at root to prevent picking the wrong entity.
+ */
+const parseCustomerAddressIdFromSaveResponse = (data: Record<string, unknown>): number | undefined => {
+  const direct = pickAddressIdFromRecord(data);
+  if (direct !== undefined) return direct;
+
+  const visit = (node: unknown, depth: number): number | undefined => {
+    if (depth > 6 || node === null || node === undefined) return undefined;
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        const n = visit(item, depth + 1);
+        if (n !== undefined) return n;
+      }
+      return undefined;
+    }
+    if (typeof node !== 'object') return undefined;
+    const o = node as Record<string, unknown>;
+    const here = pickAddressIdFromRecord(o);
+    if (here !== undefined) return here;
+    for (const v of Object.values(o)) {
+      const n = visit(v, depth + 1);
+      if (n !== undefined) return n;
     }
     return undefined;
   };
-  const from =
-    asNum(data.customer_address_id) ??
-    asNum(data.customerAddressId) ??
-    asNum(data.id);
-  if (from !== undefined) return from;
-  const nested = data.data;
-  if (!nested || typeof nested !== 'object') return undefined;
-  const d = nested as Record<string, unknown>;
-  return (
-    asNum(d.customer_address_id) ??
-    asNum(d.customerAddressId) ??
-    asNum(d.id) ??
-    asNum(d.customer_address_entity_id)
-  );
+
+  return visit(data, 0);
 };
+
+/** Exported for unit tests; same logic as {@link saveCustomerAddress} id extraction. */
+export function extractCustomerAddressIdFromSaveEnvelope(
+  data: Record<string, unknown>,
+): number | undefined {
+  return parseCustomerAddressIdFromSaveResponse(data);
+}
 
 export const saveCustomerAddress = async (
   payload: SaveAddressPayload,
@@ -246,6 +283,7 @@ export const updateCustomerAddress = async (
     };
   });
 
+/** Flutter parity: `address_repository.makeDefaultAddress` sends string id + `is_default: 1`. */
 export const setDefaultCustomerAddress = async (
   customerAddressId: number,
 ): Promise<{ success: boolean; message?: string }> =>
@@ -260,8 +298,16 @@ export const setDefaultCustomerAddress = async (
       response.data && typeof response.data === 'object'
         ? (response.data as Record<string, unknown>)
         : {};
+    const success = isSuccessEnvelope(data);
+    if (!success) {
+      const message = typeof data.message === 'string' ? data.message : undefined;
+      analytics.track('address_set_default_failed', {
+        message: message ?? 'unknown',
+        id: customerAddressId,
+      });
+    }
     return {
-      success: isSuccessEnvelope(data),
+      success,
       message: typeof data.message === 'string' ? data.message : undefined,
     };
   });

@@ -1,11 +1,11 @@
 import React, { useCallback, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
 import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { shouldUseExpoNotifications } from '@features/notifications/expoPushAvailability';
 import { colors, spacing } from '@app/theme/tokens';
 import type { RootStackParamList } from '@navigation/types';
 import { analytics } from '@shared/observability/analytics';
@@ -70,9 +70,18 @@ function DeniedTile({ icon, title, subtitle }: DeniedTileProps): React.ReactElem
 export function AppPermissionsScreen(): React.ReactElement {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [notifyGranted, setNotifyGranted] = useState<boolean | null>(null);
+  /** True when running in Expo Go (or otherwise must not load `expo-notifications`). */
+  const [notifyProbeSkipped, setNotifyProbeSkipped] = useState(false);
 
   const refreshNotify = useCallback(async () => {
+    if (!shouldUseExpoNotifications()) {
+      setNotifyProbeSkipped(true);
+      setNotifyGranted(null);
+      return;
+    }
+    setNotifyProbeSkipped(false);
     try {
+      const Notifications = require('expo-notifications') as typeof import('expo-notifications');
       const settings = await Notifications.getPermissionsAsync();
       const granted = settings.status === 'granted';
       setNotifyGranted(granted);
@@ -97,7 +106,13 @@ export function AppPermissionsScreen(): React.ReactElement {
     );
   };
 
-  const badgeLabel = notifyGranted === null ? '…' : notifyGranted ? 'Allowed' : 'Not allowed';
+  const badgeLabel = notifyProbeSkipped
+    ? 'N/A'
+    : notifyGranted === null
+      ? '…'
+      : notifyGranted
+        ? 'Allowed'
+        : 'Not allowed';
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top']}>
@@ -189,6 +204,12 @@ export function AppPermissionsScreen(): React.ReactElement {
             </Text>{' '}
             page.
           </Text>
+          {notifyProbeSkipped ? (
+            <Text style={{ marginTop: 10, fontSize: 12, color: BODY_GREY, lineHeight: 17 }}>
+              System notification permission is not available in the Expo Go app. Use a development or
+              preview build to test push on this device.
+            </Text>
+          ) : null}
         </View>
 
         <View style={{ height: 28 }} />

@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { store } from '@app/store';
 import type { CountryCode } from '@shared/config/env';
 
+import { normalizeAddressIsDefault } from '@features/account/parseCustomerProfile';
+
 import type { CustomerAddressRecord, CustomerProfile } from './types';
 
 const VERSION = 'v1';
@@ -34,7 +36,7 @@ const parseAddress = (raw: unknown): CustomerAddressRecord | null => {
     address: typeof r.address === 'string' ? r.address : '',
     cityId: asNum(r.cityId ?? r.city_id),
     cityAreaId: asNum(r.cityAreaId ?? r.city_area_id),
-    isDefault: asNum(r.isDefault ?? r.is_default),
+    isDefault: normalizeAddressIsDefault(r.isDefault ?? r.is_default ?? r.default),
     cityName: typeof r.cityName === 'string' ? r.cityName : undefined,
     areaName: typeof r.areaName === 'string' ? r.areaName : undefined,
     createdAt: typeof r.createdAt === 'string' ? r.createdAt : undefined,
