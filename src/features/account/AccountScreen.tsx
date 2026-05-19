@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
@@ -29,6 +29,10 @@ import { YouCreditCouponsStripe } from './components/YouCreditCouponsStripe';
 import { YouFlutterListTiles } from './components/YouFlutterListTiles';
 import { YouGuestAuthBlock } from './components/YouGuestAuthBlock';
 import { YouLoggedProfileRow } from './components/YouLoggedProfileRow';
+import {
+  YouNewArrivalsSection,
+  type YouNewArrivalsSectionHandle,
+} from './components/YouNewArrivalsSection';
 import { YouOffersPromoBar } from './components/YouOffersPromoBar';
 
 type AccountNavigation = CompositeNavigationProp<
@@ -48,6 +52,7 @@ export function AccountScreen() {
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [offersOpen, setOffersOpen] = useState(false);
+  const youNewArrivalsRef = useRef<YouNewArrivalsSectionHandle | null>(null);
 
   const avatarUri = useMemo(
     () => (profile ? customerAvatarUri(profile, cfg.customerAvatarCdnBaseUrl) : undefined),
@@ -126,6 +131,8 @@ export function AccountScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{ paddingBottom: spacing.xl * 2 }}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={e => youNewArrivalsRef.current?.onParentScroll(e.nativeEvent)}
       >
         {isAuthenticated ? (
           <YouLoggedProfileRow
@@ -158,6 +165,13 @@ export function AccountScreen() {
         />
 
         <YouOffersPromoBar onPress={() => setOffersOpen(true)} />
+
+        <YouNewArrivalsSection
+          ref={youNewArrivalsRef}
+          navigation={navigation}
+          country={country as CountryCode}
+          storeCurrencyCode={storeCurrencyCode ?? ''}
+        />
       </ScrollView>
     </SafeAreaView>
   );
