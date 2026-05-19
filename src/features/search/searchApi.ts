@@ -33,6 +33,8 @@ export type SearchProductHit = {
   price: string;
   specialPrice: string | null;
   imageUrl: string | null;
+  /** When the API returns a relative image path (not absolute), safe to persist for recent-search chips. */
+  thumbRelativePath: string | null;
   currencyCode: string;
   href: string;
 };
@@ -89,6 +91,15 @@ const asString = (value: unknown): string =>
 
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0;
+
+/** Persistable relative path for recent chips; absolute URLs are not stored (use null). */
+const thumbRelativeFromRawImage = (raw: unknown): string | null => {
+  if (!isNonEmptyString(raw)) return null;
+  const t = raw.trim();
+  if (t.length === 0) return null;
+  if (/^https?:\/\//i.test(t)) return null;
+  return t;
+};
 
 const extractDataArray = (data: unknown): unknown[] => {
   if (data && typeof data === 'object') {
@@ -155,6 +166,7 @@ const mapProduct = (
       : null;
   const image = row.image ?? row.m_image ?? row.original_image;
   const imageUrl = isNonEmptyString(image) ? image : null;
+  const thumbRelativePath = thumbRelativeFromRawImage(image);
   const currencyCode = asString(row.currency_code).trim();
 
   // When the API omits the SKU we still surface the product but route the
@@ -171,6 +183,7 @@ const mapProduct = (
     price,
     specialPrice,
     imageUrl,
+    thumbRelativePath,
     currencyCode,
     href,
   };

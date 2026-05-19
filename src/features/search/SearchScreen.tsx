@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  BackHandler,
   Dimensions,
   FlatList,
   Image,
@@ -13,15 +14,31 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
+import type { CompositeNavigationProp } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
 import { openWebPath } from '@navigation/navigationRef';
-import { productHrefForSku } from '@shared/config/env';
+import type {
+  CategoryStackParamList,
+  MainTabParamList,
+  RootStackParamList,
+} from '@navigation/types';
+import { productHrefForSku, getEnvConfig } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
+import {
+  cateKeyForCategoryListing,
+  listingSlugForViewAll,
+} from '@features/categories/categoryBrowseRoutes';
+import { loadCachedCategories } from '@features/categories/categoryCache';
+import { fetchNormalizeAndPersist } from '@features/categories/categoryHydration';
+import type { CategoryRow } from '@features/categories/categoryModel';
 import { wishlist } from '@features/wishlist/wishlist';
+import { WebViewScreen } from '@features/webview/WebViewScreen';
 
 import {
   APP_SEARCH_BORDER,
@@ -39,26 +56,34 @@ import {
   APP_SEARCH_SIDE_MARGIN,
 } from '@features/categories/components/appSearchBarTokens';
 
-import { recentSearches } from './recentSearches';
+import { PopularCategoryChips, RecentSearchChipRow } from './SearchHomeSections';
+import { recentSearches, type RecentSearchEntry } from './recentSearches';
 import type { SearchProductHit, SearchSuggestion } from './searchApi';
 import { fetchSuggestions, searchProductsLp } from './searchApi';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
+export type SearchScreenNavigation = CompositeNavigationProp<
+  BottomTabNavigationProp<MainTabParamList, 'Search'>,
+  NativeStackNavigationProp<RootStackParamList>
+>;
+
+function categoryStackNavigation(
+  nav: SearchScreenNavigation,
+): NativeStackNavigationProp<CategoryStackParamList> {
+  return nav as unknown as NativeStackNavigationProp<CategoryStackParamList>;
+}
+
 const SUGGESTIONS_DEBOUNCE_MS = 200;
 const RESULTS_DEBOUNCE_MS = 350;
-// 32px outer padding on either side, plus a 12px gap between the two columns,
-// so the card width drops out of the screen width minus those constants.
 const GRID_HORIZONTAL_PADDING = spacing.lg;
 const GRID_GAP = spacing.md;
 
 export function SearchScreen() {
+  const navigation = useNavigation<SearchScreenNavigation>();
+  const route = useRoute();
+  const isCategoryHostedSearch = route.name === 'CategorySearch';
   const country = useAppSelector(state => state.app.country);
-  // Select the stable `items` reference directly; the slice replaces it
-  // wholesale on every mutation so referential equality is enough to drive
-  // re-renders without tripping Redux's "selector returned new value" warning
-  // that a `.map(...)` selector would. Then derive a productId Set inside
-  // useMemo so the per-card heart lookup remains O(1).
   const wishlistItems = useAppSelector(state => state.wishlist.items);
   const wishlistIdSet = useMemo(
     () => new Set(wishlistItems.map(item => item.productId)),
@@ -68,18 +93,37 @@ export function SearchScreen() {
   const [query, setQuery] = useState('');
   const [committedQuery, setCommittedQuery] = useState('');
   const [results, setResults] = useState<SearchProductHit[]>([]);
+  const [resultsPage, setResultsPage] = useState(1);
+  const [resultsLastPage, setResultsLastPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [resultsStatus, setResultsStatus] = useState<Status>('idle');
   const [resultsError, setResultsError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [suggestionsStatus, setSuggestionsStatus] = useState<Status>('idle');
-  const [recents, setRecents] = useState<string[]>([]);
+  const [recents, setRecents] = useState<RecentSearchEntry[]>([]);
+  const [popularCategories, setPopularCategories] = useState<CategoryRow[]>([]);
+  const [popularLoading, setPopularLoading] = useState(true);
+  /** Set from embedded browsing-history WebView bridge when the page lists product hits. */
+  const [browsingHistoryHasItems, setBrowsingHistoryHasItems] = useState(false);
 
   const cardWidth = useMemo(() => {
     const screenWidth = Dimensions.get('window').width;
     return Math.floor((screenWidth - GRID_HORIZONTAL_PADDING * 2 - GRID_GAP) / 2);
   }, []);
 
-  // Hydrate recents on every focus so a clear-from-Menu propagates.
+  const browsingHistoryPath = useMemo(() => {
+    const base = getEnvConfig(country).webCategoriesPath.replace(/\/+$/, '');
+    return `${base}/user/browsing-history`;
+  }, [country]);
+
+  useEffect(() => {
+    setBrowsingHistoryHasItems(false);
+  }, [browsingHistoryPath]);
+
+  const onBrowsingHistoryLayout = useCallback((hasItems: boolean) => {
+    setBrowsingHistoryHasItems(hasItems);
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -92,7 +136,47 @@ export function SearchScreen() {
     }, []),
   );
 
-  // Suggestions: cheap and frequent. Fires from the very first character.
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        setPopularLoading(true);
+        const cached = await loadCachedCategories(country);
+        if (cancelled) return;
+        if (cached.length > 0) {
+          setPopularCategories(cached);
+          setPopularLoading(false);
+          return;
+        }
+        const res = await fetchNormalizeAndPersist(country);
+        if (cancelled) return;
+        setPopularCategories(res.categories);
+        setPopularLoading(false);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [country]),
+  );
+
+  /** Android: first back clears the query (Flutter WillPopScope parity). */
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (query.trim().length === 0) return false;
+        setQuery('');
+        setSuggestions([]);
+        setCommittedQuery('');
+        setResults([]);
+        setResultsPage(1);
+        setResultsLastPage(1);
+        setResultsStatus('idle');
+        return true;
+      });
+      return () => sub.remove();
+    }, [query]),
+  );
+
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 1 || trimmed === committedQuery) {
@@ -127,8 +211,6 @@ export function SearchScreen() {
     };
   }, [query, committedQuery]);
 
-  // Results: heavier, only fire once the user has typed something meaningful
-  // and we still don't have a committed query for the same text.
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
@@ -136,9 +218,10 @@ export function SearchScreen() {
       setResultsStatus('idle');
       setResultsError(null);
       setCommittedQuery('');
+      setResultsPage(1);
+      setResultsLastPage(1);
       return;
     }
-    // Avoid re-firing the same query on every keystroke once committed.
     if (trimmed === committedQuery && resultsStatus === 'success') {
       return;
     }
@@ -148,11 +231,14 @@ export function SearchScreen() {
       setResultsStatus('loading');
       setResultsError(null);
       try {
-        const { items } = await searchProductsLp(trimmed, {
+        const { items, lastPage } = await searchProductsLp(trimmed, {
           signal: controller.signal,
+          page: 1,
         });
         if (controller.signal.aborted) return;
         setResults(items);
+        setResultsPage(1);
+        setResultsLastPage(lastPage);
         setResultsStatus('success');
         setCommittedQuery(trimmed);
         analytics.track('search_query_committed', {
@@ -175,9 +261,40 @@ export function SearchScreen() {
     };
   }, [query, committedQuery, resultsStatus]);
 
-  const persistRecent = useCallback(async (term: string) => {
+  const loadMoreResults = useCallback(async () => {
+    const trimmed = committedQuery.trim();
+    if (trimmed.length < 2) return;
+    if (loadingMore) return;
+    if (resultsStatus !== 'success') return;
+    if (resultsPage >= resultsLastPage) return;
+
+    setLoadingMore(true);
     try {
-      const next = await recentSearches.add(term);
+      const nextPage = resultsPage + 1;
+      const { items, lastPage } = await searchProductsLp(trimmed, { page: nextPage });
+      setResults(prev => {
+        const seen = new Set(prev.map(p => p.productId));
+        const merged = [...prev];
+        for (const it of items) {
+          if (!seen.has(it.productId)) {
+            seen.add(it.productId);
+            merged.push(it);
+          }
+        }
+        return merged;
+      });
+      setResultsPage(nextPage);
+      setResultsLastPage(lastPage);
+    } catch (error) {
+      crashReporter.capture(error, { source: 'SearchScreen.loadMoreResults' });
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [committedQuery, loadingMore, resultsLastPage, resultsPage, resultsStatus]);
+
+  const persistRecent = useCallback(async (term: string, options?: { thumbRelativePath?: string | null }) => {
+    try {
+      const next = await recentSearches.add(term, options);
       setRecents(next);
     } catch (error) {
       crashReporter.capture(error, { source: 'SearchScreen.persistRecent' });
@@ -202,6 +319,24 @@ export function SearchScreen() {
     }
   }, []);
 
+  const openProductPdp = useCallback(
+    (product: SearchProductHit) => {
+      const sku = product.sku.trim();
+      if (sku.length > 0) {
+        if (isCategoryHostedSearch) {
+          categoryStackNavigation(navigation).navigate('CategoryProductWeb', {
+            sku,
+          });
+        } else {
+          navigation.navigate('StorefrontProductWeb', { sku });
+        }
+        return;
+      }
+      openWebPath(product.href);
+    },
+    [isCategoryHostedSearch, navigation],
+  );
+
   const onProductPress = useCallback(
     (product: SearchProductHit) => {
       analytics.track('search_result_tapped', {
@@ -212,11 +347,11 @@ export function SearchScreen() {
       Keyboard.dismiss();
       const term = committedQuery.length > 0 ? committedQuery : query.trim();
       if (term.length > 0) {
-        void persistRecent(term);
+        void persistRecent(term, { thumbRelativePath: product.thumbRelativePath });
       }
-      openWebPath(product.href);
+      openProductPdp(product);
     },
-    [committedQuery, persistRecent, query],
+    [committedQuery, openProductPdp, persistRecent, query],
   );
 
   const onToggleWishlist = useCallback((product: SearchProductHit) => {
@@ -250,6 +385,17 @@ export function SearchScreen() {
         if (term.length > 0) {
           void persistRecent(term);
         }
+        const sku = suggestion.sku.trim();
+        if (sku.length > 0) {
+          if (isCategoryHostedSearch) {
+            categoryStackNavigation(navigation).navigate('CategoryProductWeb', {
+              sku,
+            });
+          } else {
+            navigation.navigate('StorefrontProductWeb', { sku });
+          }
+          return;
+        }
         const href = productHrefForSku(suggestion.sku, country);
         if (href !== null) {
           openWebPath(href);
@@ -259,7 +405,7 @@ export function SearchScreen() {
       analytics.track('search_suggestion_tapped', { kind: 'query' });
       setQuery(suggestion.title);
     },
-    [country, persistRecent, query],
+    [country, isCategoryHostedSearch, navigation, persistRecent, query],
   );
 
   const onRecentPress = useCallback((term: string) => {
@@ -273,7 +419,49 @@ export function SearchScreen() {
     if (trimmed.length === 0) return;
     void persistRecent(trimmed);
     Keyboard.dismiss();
+    if (trimmed.length >= 2) {
+      setCommittedQuery('');
+      setResultsStatus('idle');
+      setResultsPage(1);
+      setResultsLastPage(1);
+    }
   }, [persistRecent, query]);
+
+  const onPopularCategoryPress = useCallback(
+    (cat: CategoryRow) => {
+      Keyboard.dismiss();
+      analytics.track('search_popular_category_tapped', {
+        categoryId: cat.id,
+        slug: cat.slug ?? null,
+      });
+      const slug = listingSlugForViewAll(cat);
+      if (slug) {
+        const params = { slug, titleHint: cat.name, searchPlaceholder: cat.name };
+        if (isCategoryHostedSearch) {
+          categoryStackNavigation(navigation).navigate('CategoryWebListing', params);
+        } else {
+          navigation.navigate('Category', {
+            screen: 'CategoryWebListing',
+            params,
+          });
+        }
+        return;
+      }
+      const cateKey = cateKeyForCategoryListing(cat);
+      if (cateKey) {
+        const params = { cateKey, titleHint: cat.name };
+        if (isCategoryHostedSearch) {
+          categoryStackNavigation(navigation).navigate('CategoryListing', params);
+        } else {
+          navigation.navigate('Category', {
+            screen: 'CategoryListing',
+            params,
+          });
+        }
+      }
+    },
+    [isCategoryHostedSearch, navigation],
+  );
 
   const renderProduct = useCallback(
     ({ item, index }: { item: SearchProductHit; index: number }) => {
@@ -403,11 +591,7 @@ export function SearchScreen() {
           borderBottomColor: colors.border,
         }}
       >
-        <Ionicons
-          name={item.kind === 'product' ? 'pricetag-outline' : 'search-outline'}
-          size={16}
-          color={colors.textMuted}
-        />
+        <Ionicons name="search-outline" size={16} color={colors.textMuted} />
         <View style={{ flex: 1 }}>
           <Text
             numberOfLines={1}
@@ -432,13 +616,15 @@ export function SearchScreen() {
   );
 
   const trimmedQuery = query.trim();
-  const showRecents = trimmedQuery.length === 0 && recents.length > 0;
-  const showZeroState = trimmedQuery.length === 0 && recents.length === 0;
+  const showZeroState =
+    trimmedQuery.length === 0 &&
+    recents.length === 0 &&
+    !popularLoading &&
+    popularCategories.length === 0;
+  const showPopular = trimmedQuery.length === 0 && !showZeroState;
   const showSuggestions =
     trimmedQuery.length >= 1 &&
     suggestions.length > 0 &&
-    // Hide suggestions once results have committed for the same query so the
-    // grid takes over.
     trimmedQuery !== committedQuery;
   const showResultsLoading =
     trimmedQuery.length >= 2 && resultsStatus === 'loading' && results.length === 0;
@@ -526,58 +712,63 @@ export function SearchScreen() {
         </View>
       </View>
 
-      {showRecents ? (
-        <View
-          style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.md }}
-        >
+      {showPopular ? (
+        <View style={{ flex: 1 }}>
           <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: spacing.sm,
-            }}
+            style={{ flexShrink: 0, paddingTop: spacing.sm, paddingBottom: spacing.md }}
           >
-            <Text style={{ color: colors.textMuted, fontWeight: '600' }}>
-              Recent searches
-            </Text>
-            <TouchableOpacity onPress={clearRecents} accessibilityRole="button">
-              <Text style={{ color: colors.brand }}>Clear all</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            {recents.map(term => (
+            <RecentSearchChipRow
+              country={country}
+              entries={recents}
+              onPressQuery={onRecentPress}
+              onRemove={removeRecent}
+              onClearAll={clearRecents}
+            />
+            <PopularCategoryChips
+              country={country}
+              categories={popularCategories}
+              loading={popularLoading}
+              onPressCategory={onPopularCategoryPress}
+            />
+            {browsingHistoryHasItems ? (
               <View
-                key={term}
                 style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  borderRadius: radii.pill,
-                  paddingLeft: spacing.md,
-                  paddingRight: spacing.sm,
-                  paddingVertical: spacing.xs,
+                  paddingHorizontal: spacing.lg,
+                  paddingTop: spacing.md,
+                  paddingBottom: spacing.xs,
                 }}
               >
-                <TouchableOpacity
-                  onPress={() => onRecentPress(term)}
-                  accessibilityRole="button"
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                <Text
+                  style={{
+                    color: colors.textPrimary,
+                    fontWeight: '600',
+                    fontSize: 11,
+                  }}
                 >
-                  <Text style={{ color: colors.textPrimary }}>{term}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => removeRecent(term)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${term} from recent searches`}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  style={{ marginLeft: spacing.xs }}
-                >
-                  <Ionicons name="close" size={14} color={colors.textMuted} />
-                </TouchableOpacity>
+                  Browsing history
+                </Text>
               </View>
-            ))}
+            ) : null}
+          </View>
+          <View
+            style={{
+              flex: 1,
+              minHeight: 280,
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+            }}
+          >
+            <WebViewScreen
+              key={`search-browsing-history-${country}`}
+              path={browsingHistoryPath}
+              applyWebNavFromStore={false}
+              applyTopSafeArea={false}
+              hideStorefrontMobileHeader
+              hideStorefrontMobileFooter
+              hideStorefrontMobileFooterMode="semantic"
+              forceMobileStorefrontUserAgent
+              onBrowsingHistoryLayout={onBrowsingHistoryLayout}
+            />
           </View>
         </View>
       ) : null}
@@ -629,9 +820,7 @@ export function SearchScreen() {
               }}
             >
               <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                {suggestionsStatus === 'loading'
-                  ? 'Searching…'
-                  : 'Suggestions'}
+                {suggestionsStatus === 'loading' ? 'Searching…' : 'Suggestions'}
               </Text>
             </View>
           }
@@ -703,6 +892,17 @@ export function SearchScreen() {
           renderItem={renderProduct}
           numColumns={2}
           keyboardShouldPersistTaps="handled"
+          onEndReachedThreshold={0.35}
+          onEndReached={() => {
+            void loadMoreResults();
+          }}
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={{ paddingVertical: spacing.lg }}>
+                <ActivityIndicator color={colors.brand} />
+              </View>
+            ) : null
+          }
           contentContainerStyle={{
             paddingHorizontal: GRID_HORIZONTAL_PADDING,
             paddingTop: spacing.md,
@@ -710,8 +910,6 @@ export function SearchScreen() {
           }}
         />
       ) : null}
-      {/* TODO pagination: hook FlatList.onEndReached and call
-          searchProductsLp(query, { page: nextPage }) when current_page < last_page. */}
     </SafeAreaView>
   );
 }

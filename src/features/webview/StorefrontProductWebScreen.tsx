@@ -56,6 +56,7 @@ export function StorefrontProductWebScreen({ navigation, route }: Props) {
         statusBarOverContent
         hideStorefrontMobileHeader
         hardwareBackOffloadsToNavigation
+        forceMobileStorefrontUserAgent
       />
     </View>
   );

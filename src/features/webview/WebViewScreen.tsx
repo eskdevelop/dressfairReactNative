@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, View } from 'react-native';
+import { BackHandler, Platform, View } from 'react-native';
 import * as SplashScreenModule from 'expo-splash-screen';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { WebViewMessageEvent, WebViewNavigation } from 'react-native-webview';
@@ -27,9 +27,14 @@ import { isAllowedUrl } from '@shared/webview/urlPolicy';
 import { AUTH_CAPTURE_INJECTION_BEFORE_CONTENT } from './authCaptureInjection';
 import { parseBridgeMessage } from './bridgeMessage';
 import { detectPaymentRedirect } from './paymentRedirectPolicy';
+import { BROWSING_HISTORY_LAYOUT_BRIDGE_INJECTION } from './browsingHistoryLayoutBridgeInjection';
 import { CART_COUNT_BRIDGE_INJECTION } from './cartCountBridgeInjection';
 import { STOREFRONT_HIDE_EMBEDDED_SITE_APP_BAR_INJECTION } from './storefrontHideEmbeddedSiteAppBarInjection';
 import { STOREFRONT_HIDE_MOBILE_HEADER_INJECTION } from './storefrontHideMobileHeaderInjection';
+import {
+  STOREFRONT_HIDE_MOBILE_FOOTER_INJECTION,
+  STOREFRONT_HIDE_MOBILE_FOOTER_SEMANTIC_ONLY_INJECTION,
+} from './storefrontHideMobileFooterInjection';
 import { STOREFRONT_OPEN_LOGIN_MODAL_INJECTION } from './storefrontOpenLoginModalInjection';
 
 type Props = {
@@ -67,6 +72,18 @@ type Props = {
    */
   hideStorefrontMobileHeader?: boolean;
   /**
+   * Embedded account / utility pages: hide the mobile storefront mega-footer
+   * (accordion blocks: Top Categories, Helpful links, …) so the native tab bar
+   * is the primary chrome.
+   */
+  hideStorefrontMobileFooter?: boolean;
+  /**
+   * When hiding the mobile footer, `full` also uses heuristics (e.g. "Top Categories"
+   * walk) for non-semantic footers. Use `semantic` for tight embeds (Search browsing
+   * history) so we do not `display:none` a wrapper that still contains main content.
+   */
+  hideStorefrontMobileFooterMode?: 'full' | 'semantic';
+  /**
    * Native Settings shell already shows back + title; hide duplicate in-page
    * storefront toolbar (see `storefrontHideEmbeddedSiteAppBarInjection.ts`).
    */
@@ -98,6 +115,17 @@ type Props = {
    * returning to storefront home before closing the PDP.
    */
   hardwareBackOffloadsToNavigation?: boolean;
+  /**
+   * When set, injects a probe that posts {@link BrowsingHistoryLayoutBridgeMessage}
+   * so parents (e.g. Search tab) can hide chrome when the page has no hits.
+   */
+  onBrowsingHistoryLayout?: (hasItems: boolean) => void;
+  /**
+   * Product-detail WebViews only: use a phone User-Agent so responsive (`md:` / width)
+   * rules keep a single mobile layout. Otherwise some embedded WebViews surface both
+   * the sticky mobile buy bar and desktop buy CTAs.
+   */
+  forceMobileStorefrontUserAgent?: boolean;
 };
 
 const CHECKOUT_PATH_HINT =
@@ -113,6 +141,12 @@ const looksCheckoutRelated = (url: string): boolean => {
 };
 
 const isHttpsUrl = (url: string): boolean => url.startsWith('https://');
+
+/** Phone UA for embedded PDP WebViews — avoids hybrid mobile+desktop responsive layouts. */
+const STOREFRONT_PDP_MOBILE_USER_AGENT =
+  Platform.OS === 'ios'
+    ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/131.0.6778.154 Mobile/15E148 Safari/604.1'
+    : 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36';
 
 /** Relative storefront path (leading `/`) or absolute `http(s)` URL for `source.uri`. */
 const storefrontUri = (seed: string, webBaseUrl: string): string => {
@@ -617,12 +651,16 @@ export function WebViewScreen({
   applyTopSafeArea = true,
   statusBarOverContent = false,
   hideStorefrontMobileHeader = false,
+  hideStorefrontMobileFooter = false,
+  hideStorefrontMobileFooterMode = 'full',
   hideEmbeddedSiteAppBar = false,
   reportCartCountToNative = false,
   reloadWebWhenTabFocused = false,
   openStorefrontLoginModal = false,
   syncAppCountryFromStorefrontLocale = false,
   hardwareBackOffloadsToNavigation = false,
+  forceMobileStorefrontUserAgent = false,
+  onBrowsingHistoryLayout,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
@@ -649,13 +687,24 @@ export function WebViewScreen({
   const injectedJavaScriptBundle = useMemo(() => {
     const parts = [COMBINED_INJECTION];
     if (hideStorefrontMobileHeader) parts.push(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
+    if (hideStorefrontMobileFooter) {
+      parts.push(
+        hideStorefrontMobileFooterMode === 'semantic'
+          ? STOREFRONT_HIDE_MOBILE_FOOTER_SEMANTIC_ONLY_INJECTION
+          : STOREFRONT_HIDE_MOBILE_FOOTER_INJECTION,
+      );
+    }
+    if (onBrowsingHistoryLayout) parts.push(BROWSING_HISTORY_LAYOUT_BRIDGE_INJECTION);
     if (hideEmbeddedSiteAppBar) parts.push(STOREFRONT_HIDE_EMBEDDED_SITE_APP_BAR_INJECTION);
     if (reportCartCountToNative) parts.push(CART_COUNT_BRIDGE_INJECTION);
     if (openStorefrontLoginModal) parts.push(STOREFRONT_OPEN_LOGIN_MODAL_INJECTION);
     return parts.join('\n');
   }, [
     hideEmbeddedSiteAppBar,
+    hideStorefrontMobileFooter,
+    hideStorefrontMobileFooterMode,
     hideStorefrontMobileHeader,
+    onBrowsingHistoryLayout,
     openStorefrontLoginModal,
     reportCartCountToNative,
   ]);
@@ -997,6 +1046,8 @@ export function WebViewScreen({
         openSettings();
       } else if (payload.type === 'cart_count') {
         dispatch(setCartBadgeQuantity(payload.quantity));
+      } else if (payload.type === 'browsing_history_layout') {
+        onBrowsingHistoryLayout?.(payload.has_items);
       }
     } catch (error) {
       crashReporter.capture(error, { source: 'WebViewScreen.handleWebMessage' });
@@ -1022,6 +1073,7 @@ export function WebViewScreen({
           style={{ flex: 1, backgroundColor: 'transparent' }}
           ref={webViewRef}
           source={{ uri: currentUri }}
+          {...(forceMobileStorefrontUserAgent ? { userAgent: STOREFRONT_PDP_MOBILE_USER_AGENT } : {})}
           cacheEnabled
           domStorageEnabled
           javaScriptEnabled
@@ -1070,6 +1122,16 @@ export function WebViewScreen({
             webViewRef.current?.injectJavaScript(HIDE_THIRD_PARTY_LOGIN_INJECTION);
             if (hideStorefrontMobileHeader) {
               webViewRef.current?.injectJavaScript(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
+            }
+            if (hideStorefrontMobileFooter) {
+              webViewRef.current?.injectJavaScript(
+                hideStorefrontMobileFooterMode === 'semantic'
+                  ? STOREFRONT_HIDE_MOBILE_FOOTER_SEMANTIC_ONLY_INJECTION
+                  : STOREFRONT_HIDE_MOBILE_FOOTER_INJECTION,
+              );
+            }
+            if (onBrowsingHistoryLayout) {
+              webViewRef.current?.injectJavaScript(BROWSING_HISTORY_LAYOUT_BRIDGE_INJECTION);
             }
             if (reportCartCountToNative) {
               webViewRef.current?.injectJavaScript(CART_COUNT_BRIDGE_INJECTION);

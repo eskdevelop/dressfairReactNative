@@ -15,6 +15,8 @@ export type CategoryStackParamList = {
   };
   /** Storefront PDP in a stacked WebView (e.g. related products on Category hub). */
   CategoryProductWeb: { sku: string };
+  /** Full-screen search from category/PLP chrome; stays on Category tab (avoids hidden Search tab focus quirks). */
+  CategorySearch: undefined;
 };
 
 export type MainTabParamList = {

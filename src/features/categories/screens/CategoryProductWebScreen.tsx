@@ -51,6 +51,7 @@ export function CategoryProductWebScreen({ navigation, route }: Props) {
         applyTopSafeArea={false}
         statusBarOverContent
         hideStorefrontMobileHeader
+        forceMobileStorefrontUserAgent
       />
     </View>
   );

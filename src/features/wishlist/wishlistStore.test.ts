@@ -11,6 +11,7 @@ const baseHit = (overrides: Partial<SearchProductHit> = {}): SearchProductHit =>
   price: '120.00',
   specialPrice: null,
   imageUrl: 'https://example.com/i.jpg',
+  thumbRelativePath: null,
   currencyCode: 'AED',
   href: '/ae/p/C-101',
   ...overrides,

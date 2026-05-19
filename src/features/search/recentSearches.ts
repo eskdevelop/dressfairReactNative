@@ -1,48 +1,93 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = 'dressfair_recent_searches_v1';
+const STORAGE_KEY_V1 = 'dressfair_recent_searches_v1';
+const STORAGE_KEY_V2 = 'dressfair_recent_searches_v2';
 const MAX_ENTRIES = 12;
+
+export type RecentSearchEntry = {
+  query: string;
+  /** CDN-relative path when the API returns a path (not `http`/`https`). */
+  thumbRelativePath?: string | null;
+};
+
+function isV1StringArray(parsed: unknown): parsed is string[] {
+  return Array.isArray(parsed) && parsed.every((x): x is string => typeof x === 'string');
+}
+
+function normalizeV2(parsed: unknown): RecentSearchEntry[] {
+  if (!Array.isArray(parsed)) return [];
+  const out: RecentSearchEntry[] = [];
+  for (const row of parsed) {
+    if (!row || typeof row !== 'object') continue;
+    const r = row as Record<string, unknown>;
+    const q = typeof r.query === 'string' ? r.query.trim() : '';
+    if (q.length === 0) continue;
+    const tr = r.thumbRelativePath;
+    const thumbRelativePath =
+      tr === null || tr === undefined
+        ? null
+        : typeof tr === 'string' && tr.trim().length > 0
+          ? tr.trim()
+          : null;
+    out.push({ query: q, thumbRelativePath });
+  }
+  return out;
+}
 
 // Device-resident search history. Persisting recent searches across launches
 // is one of the small "this is not just a browser" signals we lean on for
 // the App Store 4.2 review — it shows real native data ownership rather
 // than a passthrough WebView.
 export const recentSearches = {
-  async list(): Promise<string[]> {
+  async list(): Promise<RecentSearchEntry[]> {
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter((entry): entry is string => typeof entry === 'string');
+      const v2raw = await AsyncStorage.getItem(STORAGE_KEY_V2);
+      if (v2raw) {
+        return normalizeV2(JSON.parse(v2raw));
+      }
+      const v1raw = await AsyncStorage.getItem(STORAGE_KEY_V1);
+      if (!v1raw) return [];
+      const parsed: unknown = JSON.parse(v1raw);
+      if (isV1StringArray(parsed)) {
+        const migrated: RecentSearchEntry[] = parsed.map(query => ({
+          query,
+          thumbRelativePath: null,
+        }));
+        await AsyncStorage.setItem(STORAGE_KEY_V2, JSON.stringify(migrated));
+        await AsyncStorage.removeItem(STORAGE_KEY_V1);
+        return migrated;
+      }
+      return [];
     } catch {
       return [];
     }
   },
 
-  async add(term: string): Promise<string[]> {
+  async add(
+    term: string,
+    options?: { thumbRelativePath?: string | null },
+  ): Promise<RecentSearchEntry[]> {
     const trimmed = term.trim();
     if (trimmed.length === 0) return recentSearches.list();
     const current = await recentSearches.list();
-    // Case-insensitive de-dupe so "Dress" and "dress" don't both pile up,
-    // but preserve the user's original casing for display.
     const lower = trimmed.toLowerCase();
-    const next = [
-      trimmed,
-      ...current.filter(entry => entry.toLowerCase() !== lower),
+    const thumb = options?.thumbRelativePath ?? null;
+    const next: RecentSearchEntry[] = [
+      { query: trimmed, thumbRelativePath: thumb },
+      ...current.filter(e => e.query.toLowerCase() !== lower),
     ].slice(0, MAX_ENTRIES);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    await AsyncStorage.setItem(STORAGE_KEY_V2, JSON.stringify(next));
     return next;
   },
 
-  async remove(term: string): Promise<string[]> {
+  async remove(term: string): Promise<RecentSearchEntry[]> {
     const current = await recentSearches.list();
-    const next = current.filter(entry => entry !== term);
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    const next = current.filter(e => e.query !== term);
+    await AsyncStorage.setItem(STORAGE_KEY_V2, JSON.stringify(next));
     return next;
   },
 
   async clear(): Promise<void> {
-    await AsyncStorage.removeItem(STORAGE_KEY);
+    await AsyncStorage.multiRemove([STORAGE_KEY_V1, STORAGE_KEY_V2]);
   },
 };

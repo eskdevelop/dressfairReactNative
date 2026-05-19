@@ -52,6 +52,7 @@ export function CategoryWebListingScreen({ navigation, route }: Props) {
             placeholder={searchPlaceholder}
             showCameraIcon={!!searchPlaceholder}
             style={{ marginHorizontal: 0, marginRight: 10 }}
+            onOpenSearch={() => navigation.navigate('CategorySearch')}
           />
         </View>
       </View>

@@ -23,6 +23,11 @@ import { useAppSelector } from '@app/hooks';
 import type { CategoryStackParamList, MainTabParamList } from '@navigation/types';
 import type { CountryCode } from '@shared/config/env';
 
+import {
+  cateKeyForCategoryListing,
+  isFeatureHubCategory,
+  listingSlugForViewAll,
+} from '../categoryBrowseRoutes';
 import { loadCachedCategories } from '../categoryCache';
 import { fetchNormalizeAndPersist } from '../categoryHydration';
 import type { CategoryRow } from '../categoryModel';
@@ -56,26 +61,6 @@ function chunkPairs<T>(items: T[]): T[][] {
 function sidebarLabel(row: CategoryRow): string {
   if (row.id === 0 && row.name === 'All') return 'Feature';
   return row.name;
-}
-
-function isFeatureHubCategory(cat: CategoryRow): boolean {
-  return cat.id === 0 && cat.name === 'All';
-}
-
-/**
- * "View All" storefront `/c/{slug}`:
- * - Normal categories: parent **category** slug (e.g. m-cloth, w-cloth).
- * - Feature hub row: **first subcategory** slug until category-level URLs exist.
- */
-function listingSlugForViewAll(cat: CategoryRow): string | null {
-  if (!cat.subCategories.length) return null;
-  if (isFeatureHubCategory(cat)) {
-    return cat.subCategories[0]?.slug?.trim() || null;
-  }
-  const c = cat.slug?.trim();
-  if (c) return c;
-  const withSlug = cat.subCategories.find(ss => (ss.slug ?? '').trim().length > 0);
-  return withSlug?.slug?.trim() ?? null;
 }
 
 function ViewAllGlyph({ size }: { size: number }) {
@@ -255,13 +240,6 @@ export function CategoryHubScreen({ navigation }: Props) {
     [categories, selectedId],
   );
 
-  const viewAllCateKey = useCallback((cat: CategoryRow | null): string | null => {
-    if (!cat?.subCategories.length) return null;
-    const subs = cat.subCategories;
-    if (subs.length === 1) return subs[0].name;
-    return subs[1].name;
-  }, []);
-
   const openCategoryWeb = useCallback(
     (listingSlug: string, titleHint: string | undefined, hubCategory: CategoryRow | null) => {
       const s = listingSlug.trim();
@@ -290,9 +268,9 @@ export function CategoryHubScreen({ navigation }: Props) {
       openCategoryWeb(slug, 'View All', selected);
       return;
     }
-    const key = viewAllCateKey(selected);
+    const key = cateKeyForCategoryListing(selected);
     if (key) openListing(key, 'View All');
-  }, [openCategoryWeb, selected, openListing, viewAllCateKey]);
+  }, [openCategoryWeb, selected, openListing]);
 
   const onSubcategoryPress = useCallback(
     (sub: SubCategoryRow) => {
@@ -329,7 +307,7 @@ export function CategoryHubScreen({ navigation }: Props) {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top']}>
       <OffersModal visible={offersOpen} onClose={() => setOffersOpen(false)} />
       <View style={{ paddingTop: 6 }}>
-        <CategorySearchBar />
+        <CategorySearchBar onOpenSearch={() => navigation.navigate('CategorySearch')} />
       </View>
       <View style={{ height: 10 }} />
 
@@ -402,7 +380,7 @@ export function CategoryHubScreen({ navigation }: Props) {
                   accessibilityRole="button"
                   accessibilityLabel="View All"
                   onPress={onViewAllPress}
-                  disabled={!selected || (listingSlugForViewAll(selected) == null && viewAllCateKey(selected) == null)}
+                  disabled={!selected || (listingSlugForViewAll(selected) == null && cateKeyForCategoryListing(selected) == null)}
                 >
                   <View
                     style={{

@@ -27,16 +27,22 @@ type Props = {
   placeholder?: string;
   /** Matches storefront PLP: small camera inside the field before the search control. */
   showCameraIcon?: boolean;
+  /**
+   * When set (e.g. Category stack: open search without switching to the hidden Search tab),
+   * avoids tab-bar / focus mismatches. Home still uses the default `openSearchTab`.
+   */
+  onOpenSearch?: () => void;
 };
 
 /** Same pill search field used on the Category hub, PLP chrome, and styled like Search tab. */
-export function CategorySearchBar({ style, placeholder, showCameraIcon }: Props) {
+export function CategorySearchBar({ style, placeholder, showCameraIcon, onOpenSearch }: Props) {
   const label = (placeholder ?? '').trim() || APP_SEARCH_PLACEHOLDER;
+  const open = onOpenSearch ?? openSearchTab;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      onPress={() => openSearchTab()}
+      onPress={open}
       style={[
         {
           marginHorizontal: APP_SEARCH_SIDE_MARGIN,

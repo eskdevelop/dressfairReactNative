@@ -55,4 +55,23 @@ describe('parseBridgeMessage', () => {
     const huge = JSON.stringify({ type: 'auth', token: 'x'.repeat(20 * 1024) });
     expect(parseBridgeMessage(huge)).toBeNull();
   });
+
+  it('accepts a well-formed browsing_history_layout payload', () => {
+    expect(
+      parseBridgeMessage(JSON.stringify({ type: 'browsing_history_layout', has_items: true })),
+    ).toEqual({ type: 'browsing_history_layout', has_items: true });
+    expect(
+      parseBridgeMessage(JSON.stringify({ type: 'browsing_history_layout', has_items: false })),
+    ).toEqual({ type: 'browsing_history_layout', has_items: false });
+  });
+
+  it('rejects browsing_history_layout payload without a boolean has_items', () => {
+    expect(parseBridgeMessage(JSON.stringify({ type: 'browsing_history_layout' }))).toBeNull();
+    expect(
+      parseBridgeMessage(JSON.stringify({ type: 'browsing_history_layout', has_items: 'yes' })),
+    ).toBeNull();
+    expect(
+      parseBridgeMessage(JSON.stringify({ type: 'browsing_history_layout', has_items: 1 })),
+    ).toBeNull();
+  });
 });

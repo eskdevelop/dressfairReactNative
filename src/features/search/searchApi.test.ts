@@ -132,10 +132,34 @@ describe('searchApi', () => {
           price: '74.00',
           specialPrice: '69.00',
           imageUrl: 'https://eskdxb.com/shared-images/C-889/C-889BL/1.webp',
+          thumbRelativePath: null,
           currencyCode: 'AED',
           href: '/ae/p/C-889BL',
         },
       ]);
+    });
+
+    it('stores thumbRelativePath when the API image is not an absolute URL', async () => {
+      axiosGet.mockReturnValueOnce(
+        ok({
+          success: true,
+          data: [
+            {
+              product_id: 1,
+              name: 'Rel Image',
+              model: 'R-1',
+              image: 'catalog/demo/image.webp',
+              price: '10.00',
+              currency_code: 'AED',
+            },
+          ],
+          total_pages: 1,
+        }),
+      );
+
+      const { items } = await searchProductsLp('x');
+      expect(items[0].imageUrl).toBe('catalog/demo/image.webp');
+      expect(items[0].thumbRelativePath).toBe('catalog/demo/image.webp');
     });
 
     it('treats absent, zero, or non-discounted special prices as null', async () => {

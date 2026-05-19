@@ -30,12 +30,19 @@ export type CartCountBridgeMessage = {
   quantity: number;
 };
 
+/** Search tab: report whether the browsing-history page shows product hits (native section title). */
+export type BrowsingHistoryLayoutBridgeMessage = {
+  type: 'browsing_history_layout';
+  has_items: boolean;
+};
+
 export type BridgeMessage =
   | AuthBridgeMessage
   | LogoutBridgeMessage
   | OpenExternalBridgeMessage
   | OpenSettingsBridgeMessage
-  | CartCountBridgeMessage;
+  | CartCountBridgeMessage
+  | BrowsingHistoryLayoutBridgeMessage;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
@@ -76,6 +83,11 @@ export const parseBridgeMessage = (raw: unknown): BridgeMessage | null => {
     if (typeof q !== 'number' || !Number.isFinite(q)) return null;
     const quantity = Math.min(Math.max(Math.floor(q), 0), 9999);
     return { type, quantity };
+  }
+  if (type === 'browsing_history_layout') {
+    const hi = parsed.has_items;
+    if (hi !== true && hi !== false) return null;
+    return { type, has_items: hi };
   }
   return null;
 };

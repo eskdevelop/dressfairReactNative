@@ -108,7 +108,7 @@ export function CategoryProductListingScreen({
         </Text>
       </View>
 
-      <CategorySearchBar />
+      <CategorySearchBar onOpenSearch={() => navigation.navigate('CategorySearch')} />
       <View style={{ height: 10 }} />
       <DeliveryBanner onPressDetails={() => setOffersOpen(true)} />
       <View style={{ height: 10 }} />
