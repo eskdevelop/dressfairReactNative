@@ -20,6 +20,7 @@ import { SafetyCenterScreen } from '@features/settings/SafetyCenterScreen';
 import { MenuSettingsScreen } from '@features/menu/screens/MenuSettingsScreen';
 import { OrderHistoryScreen } from '@features/orders/OrderHistoryScreen';
 import { StorefrontLoginScreen } from '@features/account/StorefrontLoginScreen';
+import { StorefrontProductWebScreen } from '@features/webview/StorefrontProductWebScreen';
 import { MainTabs } from '@navigation/MainTabs';
 import { NotificationRouterScreen } from '@navigation/NotificationRouterScreen';
 import type { RootStackParamList } from '@navigation/types';
@@ -122,6 +123,15 @@ export function RootNavigator() {
         name="AddressForm"
         component={AddressFormScreen}
         options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="StorefrontProductWeb"
+        component={StorefrontProductWebScreen}
+        options={{
+          presentation: 'card',
+          headerShown: false,
+          gestureEnabled: true,
+        }}
       />
     </Stack.Navigator>
   );

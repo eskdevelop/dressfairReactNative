@@ -1,8 +1,8 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -93,11 +93,10 @@ export function AccountScreen() {
     }
   }, [country, isAuthenticated]);
 
-  useFocusEffect(
-    useCallback(() => {
-      void loadProfileOnly();
-    }, [loadProfileOnly]),
-  );
+  /** Profile/orders: refresh when region or auth changes — not on every You refocus (back from PDP). */
+  useEffect(() => {
+    void loadProfileOnly();
+  }, [loadProfileOnly]);
 
   const couponsDisplay = profile?.couponsOffersLabel?.trim()?.length ? profile.couponsOffersLabel : '0';
 

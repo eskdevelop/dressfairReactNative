@@ -6,7 +6,6 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Pressable,
@@ -90,11 +89,10 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
       setLoading(false);
     }, []);
 
-    useFocusEffect(
-      useCallback(() => {
-        void loadInitial();
-      }, [loadInitial]),
-    );
+    /** Load once per mount / when region changes — not on every tab refocus (e.g. back from PDP). */
+    useEffect(() => {
+      void loadInitial();
+    }, [country, loadInitial]);
 
     const loadMore = useCallback(async () => {
       if (!hasMore || loading || nextPage < 2) return;
@@ -152,10 +150,7 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
         const s = sku.trim();
         if (!s) return;
         analytics.track('account_you_new_arrivals_open_pdp');
-        navigation.navigate('Category', {
-          screen: 'CategoryProductWeb',
-          params: { sku: s },
-        });
+        navigation.navigate('StorefrontProductWeb', { sku: s });
       },
       [navigation],
     );

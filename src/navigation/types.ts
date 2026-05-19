@@ -42,6 +42,8 @@ export type RootStackParamList = {
   Faq: undefined;
   Contact: undefined;
   OrderHistory: { shortcut?: OrderHistoryShortcut } | undefined;
+  /** Storefront PDP opened above tabs (e.g. You → new arrivals) so back returns to the same tab. */
+  StorefrontProductWeb: { sku: string };
   MenuSettings: undefined;
   AccountSetting: undefined;
   SafetyCenter: undefined;

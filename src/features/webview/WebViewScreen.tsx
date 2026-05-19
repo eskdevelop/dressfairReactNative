@@ -92,6 +92,12 @@ type Props = {
    * and APIs would keep the old region. Watch navigations and align native state.
    */
   syncAppCountryFromStorefrontLocale?: boolean;
+  /**
+   * When true, do not register Android hardware back to call `webView.goBack()`;
+   * the hosting native screen (e.g. root stack) pops instead. Avoids SPA history
+   * returning to storefront home before closing the PDP.
+   */
+  hardwareBackOffloadsToNavigation?: boolean;
 };
 
 const CHECKOUT_PATH_HINT =
@@ -616,6 +622,7 @@ export function WebViewScreen({
   reloadWebWhenTabFocused = false,
   openStorefrontLoginModal = false,
   syncAppCountryFromStorefrontLocale = false,
+  hardwareBackOffloadsToNavigation = false,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
@@ -840,6 +847,9 @@ export function WebViewScreen({
   );
 
   React.useEffect(() => {
+    if (hardwareBackOffloadsToNavigation) {
+      return undefined;
+    }
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (canGoBack) {
         webViewRef.current?.goBack();
@@ -848,7 +858,7 @@ export function WebViewScreen({
       return false;
     });
     return () => sub.remove();
-  }, [canGoBack]);
+  }, [canGoBack, hardwareBackOffloadsToNavigation]);
 
   const maybeSyncCountryFromUrl = useCallback(
     (url: string) => {
