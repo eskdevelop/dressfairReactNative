@@ -4,6 +4,9 @@ const prettier = require('eslint-config-prettier');
 
 module.exports = [
   {
+    ignores: ['src/flutter-code/**'],
+  },
+  {
     files: ['**/*.ts', '**/*.tsx'],
     languageOptions: {
       parser: tsParser,

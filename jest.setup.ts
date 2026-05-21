@@ -1,5 +1,23 @@
 // Jest setup — global mocks shared across the suite.
 
+// Suppress noisy dev analytics/crash console spam during tests (tests still pass/fail normally).
+const originalLog = console.log;
+const originalError = console.error;
+beforeAll(() => {
+  console.log = (...args: unknown[]) => {
+    if (typeof args[0] === 'string' && String(args[0]).startsWith('[analytics]')) return;
+    originalLog(...args);
+  };
+  console.error = (...args: unknown[]) => {
+    if (typeof args[0] === 'string' && String(args[0]).startsWith('[crash]')) return;
+    originalError(...args);
+  };
+});
+afterAll(() => {
+  console.log = originalLog;
+  console.error = originalError;
+});
+
 // AsyncStorage uses native code that is unavailable in the Jest environment.
 // The package ships an in-memory mock that mirrors the real API closely
 // enough for our store-layer tests.

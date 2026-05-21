@@ -24,6 +24,10 @@ import { AppAsyncState } from '@shared/ui/AppAsyncState';
 import { safeOpenExternalUrl } from '@shared/webview/externalLinks';
 import { isPaymentGatewayHost } from '@shared/webview/paymentGateways';
 import { isAllowedUrl } from '@shared/webview/urlPolicy';
+import {
+  buildStorefrontAuthHeaders,
+  buildStorefrontStorePublicHeaders,
+} from '@shared/network/storefrontAuthHeaders';
 import { AUTH_CAPTURE_INJECTION_BEFORE_CONTENT } from './authCaptureInjection';
 import { parseBridgeMessage } from './bridgeMessage';
 import { detectPaymentRedirect } from './paymentRedirectPolicy';
@@ -36,6 +40,7 @@ import {
   STOREFRONT_HIDE_MOBILE_FOOTER_SEMANTIC_ONLY_INJECTION,
 } from './storefrontHideMobileFooterInjection';
 import { STOREFRONT_OPEN_LOGIN_MODAL_INJECTION } from './storefrontOpenLoginModalInjection';
+import { buildStorefrontFetchAuthInjection } from './storefrontFetchAuthInjection';
 
 type Props = {
   /** Relative path (e.g. `/ae/cart`) or full storefront URL (`https://…`). */
@@ -667,6 +672,34 @@ export function WebViewScreen({
   const dispatch = useAppDispatch();
   const country = useAppSelector(s => s.app.country);
   const cfg = useMemo(() => getEnvConfig(country), [country]);
+  const storefrontAuthInjectKey = useAppSelector(
+    s => `${String(s.app.isAuthenticated)}-${s.app.country}-${s.app.apiSession?.token ?? ''}`,
+  );
+  const beforeContentScripts = useMemo(() => {
+    const publicH = buildStorefrontStorePublicHeaders();
+    const checkoutHosts = new Set(cfg.allowedDomains);
+    try {
+      checkoutHosts.add(new URL(cfg.storefrontCheckoutApiBaseUrl).hostname);
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (cfg.mobileCategoriesApiBaseUrl) {
+        checkoutHosts.add(new URL(cfg.mobileCategoriesApiBaseUrl).hostname);
+      }
+    } catch {
+      /* ignore */
+    }
+    return `${BEFORE_PAGE_SCRIPTS_INJECTION}\n${buildStorefrontFetchAuthInjection(
+      JSON.stringify(publicH),
+      JSON.stringify([...checkoutHosts]),
+    )}`;
+  }, [
+    cfg.allowedDomains,
+    cfg.mobileCategoriesApiBaseUrl,
+    cfg.storefrontCheckoutApiBaseUrl,
+    country,
+  ]);
   const webViewRef = useRef<WebView>(null);
   const isFirstCartFocusRef = useRef(true);
   const [canGoBack, setCanGoBack] = useState(false);
@@ -683,6 +716,28 @@ export function WebViewScreen({
   const shellBackgroundColor = statusBarOverContent ? 'transparent' : '#FFFFFF';
   /** Manual top inset replaces SafeAreaView so immersive PDP never paints a white safe-area tray. */
   const paddingTop = statusBarOverContent ? 0 : applyTopSafeArea ? insets.top : 0;
+
+  const injectStorefrontBridgeHeaders = useCallback(() => {
+    void buildStorefrontAuthHeaders()
+      .then(h => {
+        let json: string;
+        try {
+          json = JSON.stringify(h);
+        } catch {
+          return;
+        }
+        webViewRef.current?.injectJavaScript(
+          `try{window.__dressfairBridgeHeaders=${json};if(window.__dressfairRefreshNetworkAuth)window.__dressfairRefreshNetworkAuth();}catch(e){};true;`,
+        );
+      })
+      .catch(() => {
+        // SecureStore unreadable — WebView keeps merchant/country-only merge
+      });
+  }, []);
+
+  useEffect(() => {
+    injectStorefrontBridgeHeaders();
+  }, [injectStorefrontBridgeHeaders, storefrontAuthInjectKey]);
 
   const injectedJavaScriptBundle = useMemo(() => {
     const parts = [COMBINED_INJECTION];
@@ -933,6 +988,12 @@ export function WebViewScreen({
     lastKnownUrlRef.current = nav.url;
     maybeSyncCountryFromUrl(nav.url);
     setCanGoBack(nav.canGoBack);
+    if (looksCheckoutRelated(nav.url)) {
+      injectStorefrontBridgeHeaders();
+      void setTimeout(() => injectStorefrontBridgeHeaders(), 400);
+      void setTimeout(() => injectStorefrontBridgeHeaders(), 1200);
+      void setTimeout(() => injectStorefrontBridgeHeaders(), 3200);
+    }
     if (!looksCheckoutRelated(nav.url)) return;
     const payment = detectPaymentRedirect(nav.url);
     if (payment.isPaymentCallback) {
@@ -1076,9 +1137,15 @@ export function WebViewScreen({
           {...(forceMobileStorefrontUserAgent ? { userAgent: STOREFRONT_PDP_MOBILE_USER_AGENT } : {})}
           cacheEnabled
           domStorageEnabled
+          // Session parity with MenuNewInWebView: iOS shares HTTPCookieStorage across
+          // WebViews (login modal vs Cart/checkout); Android accepts third-party cookies
+          // for cross-origin storefront/checkout APIs. Without this, checkout often
+          // stays on the guest address form while native JWT exists in SecureStore.
+          sharedCookiesEnabled={Platform.OS === 'ios'}
+          thirdPartyCookiesEnabled
           javaScriptEnabled
           injectedJavaScript={injectedJavaScriptBundle}
-          injectedJavaScriptBeforeContentLoaded={BEFORE_PAGE_SCRIPTS_INJECTION}
+          injectedJavaScriptBeforeContentLoaded={beforeContentScripts}
           setSupportMultipleWindows={false}
           originWhitelist={['https://*', 'about:blank', 'data:*', 'blob:*']}
           onLoadStart={() => {
@@ -1097,6 +1164,7 @@ export function WebViewScreen({
           }}
           onLoadEnd={() => {
             setLoading(false);
+            injectStorefrontBridgeHeaders();
             // NOTE: Do NOT hide the native splash here. `onLoadEnd` fires when
             // the network load finishes but BEFORE the WebView has flushed its
             // first paint, which causes a white-flash between logo and content.

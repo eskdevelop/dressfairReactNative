@@ -31,7 +31,9 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   Splash: undefined;
-  /** Embedded storefront login (same web UI as dressfair.com). */
+  /** Native login stack (Flutter-parity screens). */
+  NativeLogin: undefined;
+  /** Legacy WebView storefront login — kept for rollback. */
   StorefrontLoginWeb: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   Offline: undefined;

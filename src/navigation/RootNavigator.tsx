@@ -19,6 +19,7 @@ import { AppPermissionsScreen } from '@features/settings/AppPermissionsScreen';
 import { SafetyCenterScreen } from '@features/settings/SafetyCenterScreen';
 import { MenuSettingsScreen } from '@features/menu/screens/MenuSettingsScreen';
 import { OrderHistoryScreen } from '@features/orders/OrderHistoryScreen';
+import { AuthNavigator } from '@features/auth/AuthNavigator';
 import { StorefrontLoginScreen } from '@features/account/StorefrontLoginScreen';
 import { StorefrontProductWebScreen } from '@features/webview/StorefrontProductWebScreen';
 import { MainTabs } from '@navigation/MainTabs';
@@ -35,6 +36,16 @@ export function RootNavigator() {
         name="MainTabs"
         component={MainTabs}
         options={{ contentStyle: { backgroundColor: 'transparent' } }}
+      />
+      <Stack.Screen
+        name="NativeLogin"
+        component={AuthNavigator}
+        options={{
+          presentation: 'modal',
+          animation: 'slide_from_bottom',
+          headerShown: false,
+          gestureEnabled: true,
+        }}
       />
       <Stack.Screen
         name="StorefrontLoginWeb"

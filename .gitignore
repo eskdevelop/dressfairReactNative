@@ -85,6 +85,10 @@ ios/Podfile.lock.tmp
 # Cursor / AI tooling caches (keep settings tracked)
 .cursor/
 
+# Legacy Flutter reference app — keep locally for porting; never push to GitHub.
+# RN runtime does not import this folder (see docs/flutter-code-local-reference.md).
+src/flutter-code/
+
 # Note: google-services.json and GoogleService-Info.plist ARE committed to
 # this repo. Per Firebase docs, those files don't contain private secrets —
 # they identify the Firebase project + bundle ID and end up bundled into

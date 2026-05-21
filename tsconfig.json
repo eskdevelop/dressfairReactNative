@@ -35,5 +35,8 @@
     "index.js",
     "jest.setup.ts"
   ],
+  "exclude": [
+    "src/flutter-code"
+  ],
   "extends": "expo/tsconfig.base"
 }

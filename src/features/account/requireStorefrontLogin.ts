@@ -4,16 +4,14 @@ import type { CountryCode } from '@shared/config/env';
 
 import { navigationRef, openWebPath } from '@navigation/navigationRef';
 
-import { storefrontSignInEmbedPath } from './storefrontLoginPath';
-
-export function openStorefrontLogin(country: CountryCode): void {
+export function openStorefrontLogin(_country: CountryCode): void {
   if (navigationRef.isReady()) {
-    navigationRef.dispatch(CommonActions.navigate({ name: 'StorefrontLoginWeb' }));
+    navigationRef.dispatch(CommonActions.navigate({ name: 'NativeLogin' }));
     return;
   }
 
-  /** Splash/hand-off: stack unavailable yet — reuse Home-tab WebView redirect */
-  openWebPath(storefrontSignInEmbedPath(country));
+  /** Splash/hand-off: stack unavailable yet — fall back to Home WebView path */
+  openWebPath('/');
 }
 
 /** If guest, sends user to storefront login and returns true. Otherwise false. */

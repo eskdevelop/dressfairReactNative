@@ -2,8 +2,8 @@
   "expo": {
     "name": "Dress Fair Shopping",
     "slug": "dressfair-rn-hybrid",
-    "version": "1.0.11",
-    "runtimeVersion": "1.0.11",
+    "version": "1.0.12",
+    "runtimeVersion": "1.0.12",
     "scheme": "dressfair",
     "orientation": "portrait",
     "platforms": [
@@ -30,8 +30,9 @@
     ],
     "ios": {
       "bundleIdentifier": "com.dressfair.dressfairrnhybrid",
-      "buildNumber": "15",
+      "buildNumber": "16",
       "supportsTablet": false,
+      "usesAppleSignIn": true,
       "icon": "./assets/icon.png",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
@@ -41,7 +42,7 @@
     },
     "android": {
       "package": "com.dressfair.dressfairrnhybrid",
-      "versionCode": 15,
+      "versionCode": 16,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -60,6 +61,7 @@
     },
     "owner": "amjad_khan",
     "plugins": [
+      "expo-apple-authentication",
       "expo-secure-store",
       [
         "expo-notifications",
