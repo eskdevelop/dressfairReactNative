@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAppSelector } from '@app/hooks';
+import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { colors } from '@app/theme/tokens';
 import { CategorySearchBar } from '@features/categories/components/CategorySearchBar';
 import { CategoryNavigator } from '@features/categories/CategoryNavigator';
@@ -13,6 +13,9 @@ import { AccountScreen } from '@features/account/AccountScreen';
 import { NotificationsInboxScreen } from '@features/notifications/NotificationsInboxScreen';
 import { notificationInbox } from '@features/notifications/notificationInbox';
 import { SearchScreen } from '@features/search/SearchScreen';
+import { CartScreen } from '@features/cart/screens/CartScreen';
+import { CartWebWriteBridge } from '@features/cart/CartWebWriteBridge';
+import { hydrateNativeCart } from '@features/cart/cartActions';
 import { WebViewScreen } from '@features/webview/WebViewScreen';
 import { WishlistScreen } from '@features/wishlist/WishlistScreen';
 import { wishlist } from '@features/wishlist/wishlist';
@@ -52,7 +55,8 @@ function HomeTab({ route }: { route: RouteProp<MainTabParamList, 'Home'> }) {
           path={initialPath}
           applyWebNavFromStore
           tabReselectMode="home"
-          reportCartCountToNative
+          reportCartCountToNative={false}
+          syncWebCartToNative
           hideStorefrontMobileHeader
           applyTopSafeArea={false}
         />
@@ -62,17 +66,7 @@ function HomeTab({ route }: { route: RouteProp<MainTabParamList, 'Home'> }) {
 }
 
 function CartTab() {
-  const country = useAppSelector(state => state.app.country);
-  const uri = getEnvConfig(country).webCartUrl;
-  return (
-    <WebViewScreen
-      path={uri}
-      tabReselectMode="cart"
-      reportCartCountToNative
-      hideStorefrontMobileHeader
-      reloadWebWhenTabFocused
-    />
-  );
+  return <CartScreen />;
 }
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -213,6 +207,7 @@ function CartTabBarIcon({
 }
 
 export function MainTabs() {
+  const dispatch = useAppDispatch();
   const cartQuantity = useAppSelector(state => state.cartBadge.quantity);
 
   // Hydrate the inbox and wishlist once at the tab shell mount so counts on
@@ -227,11 +222,17 @@ export function MainTabs() {
     });
   }, []);
 
+  const country = useAppSelector(s => s.app.country);
+  useEffect(() => {
+    void hydrateNativeCart(dispatch, country);
+  }, [country, dispatch]);
+
   const tabBarBottomInset = useTabBarBottomInset();
   const tabBarHeight = MAIN_TAB_BAR_CONTENT_HEIGHT + tabBarBottomInset;
 
   return (
     <View style={{ flex: 1 }}>
+      <CartWebWriteBridge />
       <Tab.Navigator
         screenOptions={{
           lazy: true,

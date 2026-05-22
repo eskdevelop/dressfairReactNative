@@ -14,32 +14,24 @@ import {
   useWindowDimensions,
   type NativeScrollEvent,
 } from 'react-native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { colors, spacing } from '@app/theme/tokens';
 import { fetchNewArrivalsPage } from '@features/account/newArrivalsApi';
 import { CartNewArrivalProductTile } from '@features/cart/components/CartNewArrivalProductTile';
 import type { ListingProductRow } from '@features/categories/categoryModel';
-import type { MainTabParamList, RootStackParamList } from '@navigation/types';
+import type { RootStackParamList } from '@navigation/types';
 import type { CountryCode } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 
-/** When scroll depth reaches this fraction of max scroll (0–1), fetch next page. */
 const SCROLL_PROGRESS_LOAD_MORE = 0.6;
 
-export type YouTabNavigation = CompositeNavigationProp<
-  BottomTabNavigationProp<MainTabParamList, 'Menu'>,
-  NativeStackNavigationProp<RootStackParamList>
->;
-
-export type YouNewArrivalsSectionHandle = {
+export type CartNewArrivalsSectionHandle = {
   onParentScroll: (ev: NativeScrollEvent) => void;
 };
 
 type Props = {
-  navigation: YouTabNavigation;
+  navigation: NativeStackNavigationProp<RootStackParamList>;
   country: CountryCode;
   storeCurrencyCode: string;
 };
@@ -51,8 +43,8 @@ function scrollThroughProgress(ev: NativeScrollEvent): number {
   return contentOffset.y / maxScroll;
 }
 
-export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Props>(
-  function YouNewArrivalsSection({ navigation, country, storeCurrencyCode }, ref) {
+export const CartNewArrivalsSection = forwardRef<CartNewArrivalsSectionHandle, Props>(
+  function CartNewArrivalsSection({ navigation, country, storeCurrencyCode }, ref) {
     const { width: ww } = useWindowDimensions();
     const cardGap = 4;
     const hPad = spacing.sm * 2;
@@ -90,7 +82,6 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
       setLoading(false);
     }, []);
 
-    /** Load once per mount / when region changes — not on every tab refocus (e.g. back from PDP). */
     useEffect(() => {
       void loadInitial();
     }, [country, loadInitial]);
@@ -105,9 +96,7 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
         if (res.ok) {
           setItems(prev => [...prev, ...res.products]);
           setHasMore(res.hasMore);
-          if (res.hasMore) {
-            setNextPage(p => p + 1);
-          }
+          if (res.hasMore) setNextPage(p => p + 1);
         }
       } finally {
         loadMoreInFlightRef.current = false;
@@ -136,7 +125,6 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
       [tryLoadMoreFromScroll],
     );
 
-    /** After new rows mount, content grows; same scroll offset may still be past 60% — load again if needed. */
     useEffect(() => {
       const ev = lastScrollMetricsRef.current;
       if (!ev || !hasMore || loading || items.length === 0) return;
@@ -150,7 +138,7 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
       (sku: string) => {
         const s = sku.trim();
         if (!s) return;
-        analytics.track('account_you_new_arrivals_open_pdp');
+        analytics.track('cart_new_arrivals_open_pdp');
         navigation.navigate('StorefrontProductWeb', { sku: s });
       },
       [navigation],
@@ -162,7 +150,7 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
     }
 
     return (
-      <View style={{ marginTop: spacing.md, paddingHorizontal: spacing.sm }}>
+      <View style={{ marginTop: spacing.sm, paddingHorizontal: spacing.sm }}>
         {loading && items.length === 0 ? (
           <View style={{ paddingVertical: 40, alignItems: 'center' }}>
             <ActivityIndicator color={colors.brand} />
@@ -184,21 +172,14 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
             </Pressable>
           </View>
         ) : items.length === 0 ? (
-          <Text
-            style={{
-              textAlign: 'center',
-              marginTop: 24,
-              color: colors.textMuted,
-              fontSize: 14,
-            }}
-          >
+          <Text style={{ textAlign: 'center', marginTop: 24, color: colors.textMuted, fontSize: 14 }}>
             No data found
           </Text>
         ) : (
           <View>
             {pairs.map((pair, rowIdx) => (
               <View
-                key={`row-${String(pair[0].productId)}-${String(rowIdx)}`}
+                key={`cart-na-row-${String(pair[0].productId)}-${String(rowIdx)}`}
                 style={{ flexDirection: 'row', marginBottom: cardGap, gap: cardGap }}
               >
                 <CartNewArrivalProductTile

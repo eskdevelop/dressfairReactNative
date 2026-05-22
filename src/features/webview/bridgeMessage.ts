@@ -30,6 +30,13 @@ export type CartCountBridgeMessage = {
   quantity: number;
 };
 
+/** Full cart from web `localStorage` key `cart`. */
+export type CartSnapshotBridgeMessage = {
+  type: 'cart_snapshot';
+  items: unknown[];
+  source?: string;
+};
+
 /** Search tab: report whether the browsing-history page shows product hits (native section title). */
 export type BrowsingHistoryLayoutBridgeMessage = {
   type: 'browsing_history_layout';
@@ -42,6 +49,7 @@ export type BridgeMessage =
   | OpenExternalBridgeMessage
   | OpenSettingsBridgeMessage
   | CartCountBridgeMessage
+  | CartSnapshotBridgeMessage
   | BrowsingHistoryLayoutBridgeMessage;
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -54,19 +62,30 @@ const isNonEmptyString = (value: unknown): value is string =>
 // wrong (or the page is trying to wedge native parsing). 16 KiB easily covers
 // any legitimate session token or URL.
 const MAX_PAYLOAD_BYTES = 16 * 1024;
+const MAX_CART_PAYLOAD_BYTES = 512 * 1024;
 
-export const parseBridgeMessage = (raw: unknown): BridgeMessage | null => {
-  if (typeof raw !== 'string' || raw.length === 0) return null;
-  if (raw.length > MAX_PAYLOAD_BYTES) return null;
-
-  let parsed: unknown;
+const parseJsonPayload = (raw: string): Record<string, unknown> | null => {
   try {
-    parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
   } catch {
     return null;
   }
+};
 
-  if (!isObject(parsed)) return null;
+export const parseBridgeMessage = (raw: unknown): BridgeMessage | null => {
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+
+  const maxBytes =
+    raw.includes('"cart_snapshot"') || raw.includes("'cart_snapshot'")
+      ? MAX_CART_PAYLOAD_BYTES
+      : MAX_PAYLOAD_BYTES;
+  if (raw.length > maxBytes) return null;
+
+  const parsed = parseJsonPayload(raw);
+  if (!parsed) return null;
   const { type } = parsed;
 
   if (type === 'auth') {
@@ -83,6 +102,12 @@ export const parseBridgeMessage = (raw: unknown): BridgeMessage | null => {
     if (typeof q !== 'number' || !Number.isFinite(q)) return null;
     const quantity = Math.min(Math.max(Math.floor(q), 0), 9999);
     return { type, quantity };
+  }
+  if (type === 'cart_snapshot') {
+    const items = parsed.items;
+    if (!Array.isArray(items)) return null;
+    const source = typeof parsed.source === 'string' ? parsed.source : undefined;
+    return { type, items, source };
   }
   if (type === 'browsing_history_layout') {
     const hi = parsed.has_items;

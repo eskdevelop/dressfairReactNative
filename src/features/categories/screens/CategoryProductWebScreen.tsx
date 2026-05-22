@@ -52,6 +52,7 @@ export function CategoryProductWebScreen({ navigation, route }: Props) {
         statusBarOverContent
         hideStorefrontMobileHeader
         forceMobileStorefrontUserAgent
+        syncWebCartToNative
       />
     </View>
   );

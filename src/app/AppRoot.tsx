@@ -18,7 +18,7 @@ import { crashReporter } from '@shared/observability/crash';
 import { perf } from '@shared/observability/performance';
 import { loadPersistedCountry } from '@features/region/persistedCountry';
 import { store } from './store';
-import { setAuthenticated, setBootstrapped, setCountry, setOffline, setStoreCurrencySettings, setStorefrontCheckoutApiOriginOverride, setStoreOpenCartCountryId } from './storeSlices/appSlice';
+import { setBootstrapped, setCountry, setCustomerSessionToken, setOffline, setStoreCurrencySettings, setStorefrontCheckoutApiOriginOverride, setStoreOpenCartCountryId } from './storeSlices/appSlice';
 
 const CATEGORY_PREFETCH_MAX_MS = 2500;
 
@@ -64,7 +64,7 @@ export function AppRoot() {
       if (!mounted) return;
       const isOffline = networkResult?.isInternetReachable === false;
       dispatch(setOffline(isOffline));
-      dispatch(setAuthenticated(Boolean(tokenResult)));
+      dispatch(setCustomerSessionToken(tokenResult));
 
       if (apiSessionResult === null && !isOffline) {
         await bootstrapSession();

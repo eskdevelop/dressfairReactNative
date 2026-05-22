@@ -3,14 +3,14 @@ import { store } from '@app/store';
 import {
   bumpStorefrontSurfaceGeneration,
   setApiSession,
-  setAuthenticated,
+  setCustomerSessionToken,
   setCountry,
   setStoreCurrencySettings,
   setStorefrontCheckoutApiOriginOverride,
   setStoreOpenCartCountryId,
 } from '@app/storeSlices/appSlice';
 import { clearWebNav } from '@app/storeSlices/webNavSlice';
-import { setCartBadgeQuantity } from '@app/storeSlices/cartBadgeSlice';
+import { clearNativeCart } from '@features/cart/cartActions';
 import { apiSessionStore } from '@features/api/apiSessionStore';
 import { bootstrapSession } from '@features/api/sessionApi';
 import { clearCachedProfile } from '@features/account/customerProfileCache';
@@ -61,9 +61,9 @@ export function applyCountryChange(params: {
     await sessionStore.clear();
     await apiSessionStore.clear();
 
-    dispatch(setAuthenticated(false));
+    dispatch(setCustomerSessionToken(null));
     dispatch(setApiSession(null));
-    dispatch(setCartBadgeQuantity(0));
+    await clearNativeCart(dispatch, nextCountry);
     dispatch(clearWebNav());
     dispatch(setStorefrontCheckoutApiOriginOverride(null));
     dispatch(setStoreOpenCartCountryId(null));

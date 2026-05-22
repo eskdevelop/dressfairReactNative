@@ -57,6 +57,7 @@ export function StorefrontProductWebScreen({ navigation, route }: Props) {
         hideStorefrontMobileHeader
         hardwareBackOffloadsToNavigation
         forceMobileStorefrontUserAgent
+        syncWebCartToNative
       />
     </View>
   );

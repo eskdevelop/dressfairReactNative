@@ -1,4 +1,4 @@
-import { setAuthenticated } from '@app/storeSlices/appSlice';
+import { setCustomerSessionToken } from '@app/storeSlices/appSlice';
 import { store } from '@app/store';
 import { openWebPath } from '@navigation/navigationRef';
 import { getEnvConfig } from '@shared/config/env';
@@ -11,7 +11,7 @@ import { sessionStore } from './sessionStore';
 export const clearStoredUserSession = async (): Promise<void> => {
   await sessionStore.clear();
   await clearCachedProfile();
-  store.dispatch(setAuthenticated(false));
+  store.dispatch(setCustomerSessionToken(null));
 };
 
 export const logoutEverywhere = async (): Promise<void> => {

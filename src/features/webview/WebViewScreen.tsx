@@ -9,7 +9,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { store } from '@app/store';
-import { setAuthenticated } from '@app/storeSlices/appSlice';
+import { bumpStorefrontSurfaceGeneration, setCustomerSessionToken } from '@app/storeSlices/appSlice';
 import { setCartBadgeQuantity } from '@app/storeSlices/cartBadgeSlice';
 import { clearWebNav } from '@app/storeSlices/webNavSlice';
 import { clearCachedProfile } from '@features/account/customerProfileCache';
@@ -17,7 +17,7 @@ import { applyCountryChange } from '@features/region/applyCountryChange';
 import { sessionStore } from '@features/auth/sessionStore';
 import { openSettings } from '@navigation/navigationRef';
 import type { MainTabParamList } from '@navigation/types';
-import { countryFromStorefrontBrowsingUrl, getEnvConfig } from '@shared/config/env';
+import { countryFromStorefrontBrowsingUrl, getEnvConfig, type CountryCode } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { AppAsyncState } from '@shared/ui/AppAsyncState';
@@ -26,7 +26,7 @@ import { isPaymentGatewayHost } from '@shared/webview/paymentGateways';
 import { isAllowedUrl } from '@shared/webview/urlPolicy';
 import {
   buildStorefrontAuthHeaders,
-  buildStorefrontStorePublicHeaders,
+  buildStorefrontAuthHeadersFromSession,
 } from '@shared/network/storefrontAuthHeaders';
 import { AUTH_CAPTURE_INJECTION_BEFORE_CONTENT } from './authCaptureInjection';
 import { parseBridgeMessage } from './bridgeMessage';
@@ -41,6 +41,14 @@ import {
 } from './storefrontHideMobileFooterInjection';
 import { STOREFRONT_OPEN_LOGIN_MODAL_INJECTION } from './storefrontOpenLoginModalInjection';
 import { buildStorefrontFetchAuthInjection } from './storefrontFetchAuthInjection';
+import { buildStorefrontWebSessionHydration } from './storefrontWebSessionHydration';
+import { storefrontCheckoutUrl } from '@shared/config/storefrontUrls';
+import {
+  CART_STORAGE_BRIDGE_INJECTION,
+} from '@features/cart/cartStorageBridgeInjection';
+import { applyWebCartSnapshot } from '@features/cart/cartActions';
+import { pushNativeCartToWebView } from '@features/cart/pushNativeCartToWeb';
+import { selectWebWriteGeneration } from '@features/cart/cartSlice';
 
 type Props = {
   /** Relative path (e.g. `/ae/cart`) or full storefront URL (`https://…`). */
@@ -99,6 +107,10 @@ type Props = {
    */
   reportCartCountToNative?: boolean;
   /**
+   * When true, reads `localStorage.cart` and posts `cart_snapshot` to native cart store.
+   */
+  syncWebCartToNative?: boolean;
+  /**
    * Cart tab: separate WebViews keep stale cart HTML after mutations on Home. When true,
    * reload whenever this tab gains focus after the first visit (badge DOM may be hidden on Home).
    */
@@ -119,6 +131,8 @@ type Props = {
    * the hosting native screen (e.g. root stack) pops instead. Avoids SPA history
    * returning to storefront home before closing the PDP.
    */
+  /** Extra JS injected before page scripts (e.g. write web cart before checkout). */
+  extraBeforeContentScripts?: string;
   hardwareBackOffloadsToNavigation?: boolean;
   /**
    * When set, injects a probe that posts {@link BrowsingHistoryLayoutBridgeMessage}
@@ -660,23 +674,35 @@ export function WebViewScreen({
   hideStorefrontMobileFooterMode = 'full',
   hideEmbeddedSiteAppBar = false,
   reportCartCountToNative = false,
+  syncWebCartToNative = false,
   reloadWebWhenTabFocused = false,
   openStorefrontLoginModal = false,
   syncAppCountryFromStorefrontLocale = false,
   hardwareBackOffloadsToNavigation = false,
   forceMobileStorefrontUserAgent = false,
+  extraBeforeContentScripts,
   onBrowsingHistoryLayout,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
   const dispatch = useAppDispatch();
   const country = useAppSelector(s => s.app.country);
+  const customerSessionToken = useAppSelector(s => s.app.customerSessionToken);
+  const apiSessionToken = useAppSelector(s => s.app.apiSession?.token ?? null);
   const cfg = useMemo(() => getEnvConfig(country), [country]);
   const storefrontAuthInjectKey = useAppSelector(
-    s => `${String(s.app.isAuthenticated)}-${s.app.country}-${s.app.apiSession?.token ?? ''}`,
+    s =>
+      `${s.app.customerSessionToken ?? ''}-${s.app.country}-${s.app.apiSession?.token ?? ''}-${s.app.storefrontSurfaceGeneration}`,
+  );
+  const storefrontApiKey = useAppSelector(
+    s => `${s.app.storefrontCheckoutApiOriginOverride ?? ''}-${s.app.country}`,
   );
   const beforeContentScripts = useMemo(() => {
-    const publicH = buildStorefrontStorePublicHeaders();
+    const initialHeaders = buildStorefrontAuthHeadersFromSession(
+      customerSessionToken,
+      apiSessionToken,
+    );
+    const customerInfoApiUrl = storefrontCheckoutUrl('customer/info');
     const checkoutHosts = new Set(cfg.allowedDomains);
     try {
       checkoutHosts.add(new URL(cfg.storefrontCheckoutApiBaseUrl).hostname);
@@ -691,16 +717,23 @@ export function WebViewScreen({
       /* ignore */
     }
     return `${BEFORE_PAGE_SCRIPTS_INJECTION}\n${buildStorefrontFetchAuthInjection(
-      JSON.stringify(publicH),
+      JSON.stringify(initialHeaders),
       JSON.stringify([...checkoutHosts]),
-    )}`;
+    )}\n${buildStorefrontWebSessionHydration(JSON.stringify(customerInfoApiUrl))}${
+      extraBeforeContentScripts ? `\n${extraBeforeContentScripts}` : ''
+    }`;
   }, [
+    apiSessionToken,
     cfg.allowedDomains,
     cfg.mobileCategoriesApiBaseUrl,
     cfg.storefrontCheckoutApiBaseUrl,
     country,
+    customerSessionToken,
+    extraBeforeContentScripts,
+    storefrontApiKey,
   ]);
   const webViewRef = useRef<WebView>(null);
+  const webWriteGeneration = useAppSelector(selectWebWriteGeneration);
   const isFirstCartFocusRef = useRef(true);
   const [canGoBack, setCanGoBack] = useState(false);
   // Initial load is masked by the native splash; subsequent loads keep the
@@ -727,7 +760,7 @@ export function WebViewScreen({
           return;
         }
         webViewRef.current?.injectJavaScript(
-          `try{window.__dressfairBridgeHeaders=${json};if(window.__dressfairRefreshNetworkAuth)window.__dressfairRefreshNetworkAuth();}catch(e){};true;`,
+          `try{window.__dressfairBridgeHeaders=${json};if(window.__dressfairHydrateWebSession)window.__dressfairHydrateWebSession();if(window.__dressfairRefreshNetworkAuth)window.__dressfairRefreshNetworkAuth();}catch(e){};true;`,
         );
       })
       .catch(() => {
@@ -736,8 +769,19 @@ export function WebViewScreen({
   }, []);
 
   useEffect(() => {
-    injectStorefrontBridgeHeaders();
-  }, [injectStorefrontBridgeHeaders, storefrontAuthInjectKey]);
+    if (!syncWebCartToNative || webWriteGeneration === 0) return;
+    pushNativeCartToWebView(webViewRef);
+  }, [syncWebCartToNative, webWriteGeneration]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!syncWebCartToNative) return undefined;
+      // Home tab is lazy-unmounted; push native cart before the user adds items so
+      // stale web localStorage cannot resurrect deleted lines.
+      const t = setTimeout(() => pushNativeCartToWebView(webViewRef), 120);
+      return () => clearTimeout(t);
+    }, [syncWebCartToNative]),
+  );
 
   const injectedJavaScriptBundle = useMemo(() => {
     const parts = [COMBINED_INJECTION];
@@ -752,6 +796,7 @@ export function WebViewScreen({
     if (onBrowsingHistoryLayout) parts.push(BROWSING_HISTORY_LAYOUT_BRIDGE_INJECTION);
     if (hideEmbeddedSiteAppBar) parts.push(STOREFRONT_HIDE_EMBEDDED_SITE_APP_BAR_INJECTION);
     if (reportCartCountToNative) parts.push(CART_COUNT_BRIDGE_INJECTION);
+    if (syncWebCartToNative) parts.push(CART_STORAGE_BRIDGE_INJECTION);
     if (openStorefrontLoginModal) parts.push(STOREFRONT_OPEN_LOGIN_MODAL_INJECTION);
     return parts.join('\n');
   }, [
@@ -762,6 +807,7 @@ export function WebViewScreen({
     onBrowsingHistoryLayout,
     openStorefrontLoginModal,
     reportCartCountToNative,
+    syncWebCartToNative,
   ]);
 
   // Cross-tab navigation channel: when native Search or the Inbox screen asks
@@ -790,6 +836,10 @@ export function WebViewScreen({
     storefrontUri(initialPath, cfg.webBaseUrl),
   );
   const lastKnownUrlRef = useRef(storefrontUri(initialPath, cfg.webBaseUrl));
+
+  React.useEffect(() => {
+    injectStorefrontBridgeHeaders();
+  }, [injectStorefrontBridgeHeaders, storefrontAuthInjectKey]);
 
   const lastAppliedSeqRef = useRef(0);
 
@@ -1079,14 +1129,16 @@ export function WebViewScreen({
       if (payload.type === 'auth') {
         await clearCachedProfile();
         await sessionStore.saveToken(payload.token);
-        dispatch(setAuthenticated(true));
+        dispatch(setCustomerSessionToken(payload.token));
+        dispatch(bumpStorefrontSurfaceGeneration());
         analytics.track('webview_customer_jwt_saved', {
           token_length: payload.token.length,
         });
       } else if (payload.type === 'logout') {
         await sessionStore.clear();
         await clearCachedProfile();
-        dispatch(setAuthenticated(false));
+        dispatch(setCustomerSessionToken(null));
+        dispatch(bumpStorefrontSurfaceGeneration());
       } else if (payload.type === 'open_external') {
         if (isHttpsUrl(payload.url) && isAllowedUrl(payload.url)) {
           webViewRef.current?.injectJavaScript(
@@ -1107,6 +1159,12 @@ export function WebViewScreen({
         openSettings();
       } else if (payload.type === 'cart_count') {
         dispatch(setCartBadgeQuantity(payload.quantity));
+      } else if (payload.type === 'cart_snapshot') {
+        await applyWebCartSnapshot(dispatch, country as CountryCode, payload.items);
+        analytics.track('cart_web_snapshot_applied', {
+          count: payload.items.length,
+          source: payload.source ?? 'web',
+        });
       } else if (payload.type === 'browsing_history_layout') {
         onBrowsingHistoryLayout?.(payload.has_items);
       }
@@ -1203,6 +1261,12 @@ export function WebViewScreen({
             }
             if (reportCartCountToNative) {
               webViewRef.current?.injectJavaScript(CART_COUNT_BRIDGE_INJECTION);
+            }
+            if (syncWebCartToNative) {
+              webViewRef.current?.injectJavaScript(CART_STORAGE_BRIDGE_INJECTION);
+              webViewRef.current?.injectJavaScript(
+                `try{if(window.__dressfairPostWebCartSnapshot)window.__dressfairPostWebCartSnapshot();}catch(e){};true;`,
+              );
             }
             if (openStorefrontLoginModal) {
               webViewRef.current?.injectJavaScript(STOREFRONT_OPEN_LOGIN_MODAL_INJECTION);

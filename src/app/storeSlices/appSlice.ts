@@ -21,6 +21,11 @@ type AppState = {
   isMaintenanceMode: boolean;
   isBootstrapped: boolean;
   isAuthenticated: boolean;
+  /**
+   * Customer JWT mirrored from SecureStore for synchronous WebView auth injection
+   * (`beforeContentLoaded`). Async SecureStore reads race checkout's first fetch.
+   */
+  customerSessionToken: string | null;
   // OpenCart REST session — distinct from `isAuthenticated` (which tracks the
   // user-auth token used by the storefront WebView). Read by `apiClient`'s
   // request interceptor to attach `x-oc-session`.
@@ -28,6 +33,8 @@ type AppState = {
   /** Flutter `SessionController.countryConfig` — `/api/rest/store/setting`. */
   storeCurrencyCode: string;
   storeCurrencyTitle: string;
+  storeShippingAmount: string;
+  storeFreeShippingLimit: string;
   storeSettingsHydrated: boolean;
   /**
    * OpenCart `country_id` from store/setting (`CountryConfigModel.countryId`) for
@@ -44,12 +51,15 @@ const initialState: AppState = {
   isMaintenanceMode: false,
   isBootstrapped: false,
   isAuthenticated: false,
+  customerSessionToken: null,
   apiSession: {
     token: null,
     hydrated: false,
   },
   storeCurrencyCode: '',
   storeCurrencyTitle: '',
+  storeShippingAmount: '',
+  storeFreeShippingLimit: '',
   storeSettingsHydrated: false,
   storeOpenCartCountryId: null,
 };
@@ -69,6 +79,14 @@ const slice = createSlice({
     },
     setAuthenticated(state, action: PayloadAction<boolean>) {
       state.isAuthenticated = action.payload;
+      if (!action.payload) {
+        state.customerSessionToken = null;
+      }
+    },
+    setCustomerSessionToken(state, action: PayloadAction<string | null>) {
+      const t = action.payload?.trim() ?? '';
+      state.customerSessionToken = t.length >= 20 ? t : null;
+      state.isAuthenticated = state.customerSessionToken !== null;
     },
     setApiSession(state, action: PayloadAction<string | null>) {
       state.apiSession.token = action.payload;
@@ -76,10 +94,17 @@ const slice = createSlice({
     },
     setStoreCurrencySettings(
       state,
-      action: PayloadAction<{ currencyCode: string; currencyTitle: string }>,
+      action: PayloadAction<{
+        currencyCode: string;
+        currencyTitle: string;
+        shippingAmount?: string;
+        freeShippingLimit?: string;
+      }>,
     ) {
       state.storeCurrencyCode = action.payload.currencyCode;
       state.storeCurrencyTitle = action.payload.currencyTitle;
+      state.storeShippingAmount = action.payload.shippingAmount ?? state.storeShippingAmount;
+      state.storeFreeShippingLimit = action.payload.freeShippingLimit ?? state.storeFreeShippingLimit;
       state.storeSettingsHydrated = true;
     },
     setCountry(state, action: PayloadAction<CountryCode>) {
@@ -104,6 +129,7 @@ export const {
   setMaintenanceMode,
   setBootstrapped,
   setAuthenticated,
+  setCustomerSessionToken,
   setApiSession,
   setStoreCurrencySettings,
   setCountry,

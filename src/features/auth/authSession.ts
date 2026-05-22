@@ -1,6 +1,8 @@
 import type { AppDispatch } from '@app/store';
-import { setAuthenticated } from '@app/storeSlices/appSlice';
-import { fetchCustomerProfile } from '@features/account/customerApi';
+import { store } from '@app/store';
+import { bumpStorefrontSurfaceGeneration, setCustomerSessionToken } from '@app/storeSlices/appSlice';
+import { fetchCustomerProfileSoft } from '@features/account/customerApi';
+import { bootstrapSession } from '@features/api/sessionApi';
 import {
   saveCachedProfile,
 } from '@features/account/customerProfileCache';
@@ -24,10 +26,15 @@ export async function completeNativeLogin(
   }
   try {
     await sessionStore.saveToken(token);
-    dispatch(setAuthenticated(true));
+    dispatch(setCustomerSessionToken(token));
+    dispatch(bumpStorefrontSurfaceGeneration());
     analytics.track('auth_native_session_saved', { token_length: token.length });
 
-    const profileResult = await fetchCustomerProfile();
+    if (!store.getState().app.apiSession?.token) {
+      await bootstrapSession();
+    }
+
+    const profileResult = await fetchCustomerProfileSoft();
     if (profileResult.ok) {
       await saveCachedProfile(country, profileResult.profile);
     }

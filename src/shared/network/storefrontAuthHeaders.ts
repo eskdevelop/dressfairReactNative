@@ -40,12 +40,13 @@ export const buildStorefrontStorePublicHeaders = (): Record<string, string> => (
 });
 
 /**
- * Auth headers for storefront `/api/rest/store/...` JSON APIs (same JWT as
- * Flutter `NetworkApiService`), plus OpenCart merchant + session context.
+ * Synchronous auth headers from Redux session mirrors — used for WebView
+ * `beforeContentLoaded` injection so checkout's first fetch is not a guest race.
  */
-export const buildStorefrontAuthHeaders = async (): Promise<
-  Record<string, string>
-> => {
+export function buildStorefrontAuthHeadersFromSession(
+  customerToken: string | null | undefined,
+  apiSessionToken: string | null | undefined,
+): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
@@ -53,38 +54,40 @@ export const buildStorefrontAuthHeaders = async (): Promise<
     'x-oc-merchant-language': OC_MERCHANT_LANGUAGE,
     ...buildStorefrontCountryContextHeaders(),
   };
-  const apiSessionToken = store.getState().app.apiSession?.token;
-  if (apiSessionToken && apiSessionToken.length > 0) {
-    headers['x-oc-session'] = apiSessionToken;
+  const oc = apiSessionToken?.trim();
+  if (oc && oc.length > 0) {
+    headers['x-oc-session'] = oc;
   }
-  const userToken = await sessionStore.getToken();
-  if (userToken && userToken.length > 0) {
-    headers.Authorization = `Bearer ${userToken}`;
-    headers['x-customer-token'] = userToken;
-    headers['x-customer-session'] = userToken;
+  const user = customerToken?.trim();
+  if (user && user.length >= 20) {
+    headers.Authorization = `Bearer ${user}`;
+    headers['x-customer-token'] = user;
+    headers['x-customer-session'] = user;
   }
   return headers;
+}
+
+/**
+ * Auth headers for storefront `/api/rest/store/...` JSON APIs (same JWT as
+ * Flutter `NetworkApiService`), plus OpenCart merchant + session context.
+ */
+export const buildStorefrontAuthHeaders = async (): Promise<
+  Record<string, string>
+> => {
+  const { customerSessionToken, apiSession } = store.getState().app;
+  const cached = customerSessionToken?.trim();
+  if (cached && cached.length >= 20) {
+    return buildStorefrontAuthHeadersFromSession(cached, apiSession?.token);
+  }
+  const userToken = await sessionStore.getToken();
+  return buildStorefrontAuthHeadersFromSession(userToken, apiSession?.token);
 };
 
 /** Same auth as JSON storefront calls but omits `Content-Type` so multipart boundary is set automatically. */
 export const buildStorefrontAuthHeadersMultipart = async (): Promise<
   Record<string, string>
 > => {
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-    'x-oc-merchant-id': OC_MERCHANT_ID,
-    'x-oc-merchant-language': OC_MERCHANT_LANGUAGE,
-    ...buildStorefrontCountryContextHeaders(),
-  };
-  const apiSessionToken = store.getState().app.apiSession?.token;
-  if (apiSessionToken && apiSessionToken.length > 0) {
-    headers['x-oc-session'] = apiSessionToken;
-  }
-  const userToken = await sessionStore.getToken();
-  if (userToken && userToken.length > 0) {
-    headers.Authorization = `Bearer ${userToken}`;
-    headers['x-customer-token'] = userToken;
-    headers['x-customer-session'] = userToken;
-  }
-  return headers;
+  const full = await buildStorefrontAuthHeaders();
+  const { 'Content-Type': _omit, ...rest } = full;
+  return rest;
 };

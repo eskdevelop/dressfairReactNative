@@ -21,6 +21,7 @@ import { MenuSettingsScreen } from '@features/menu/screens/MenuSettingsScreen';
 import { OrderHistoryScreen } from '@features/orders/OrderHistoryScreen';
 import { AuthNavigator } from '@features/auth/AuthNavigator';
 import { StorefrontLoginScreen } from '@features/account/StorefrontLoginScreen';
+import { StorefrontCheckoutWebScreen } from '@features/webview/StorefrontCheckoutWebScreen';
 import { StorefrontProductWebScreen } from '@features/webview/StorefrontProductWebScreen';
 import { MainTabs } from '@navigation/MainTabs';
 import { NotificationRouterScreen } from '@navigation/NotificationRouterScreen';
@@ -134,6 +135,15 @@ export function RootNavigator() {
         name="AddressForm"
         component={AddressFormScreen}
         options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="StorefrontCheckoutWeb"
+        component={StorefrontCheckoutWebScreen}
+        options={{
+          presentation: 'card',
+          headerShown: false,
+          gestureEnabled: true,
+        }}
       />
       <Stack.Screen
         name="StorefrontProductWeb"

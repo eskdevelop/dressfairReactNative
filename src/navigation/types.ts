@@ -48,6 +48,8 @@ export type RootStackParamList = {
   OrderHistory: { shortcut?: OrderHistoryShortcut } | undefined;
   /** Storefront PDP opened above tabs (e.g. You → new arrivals) so back returns to the same tab. */
   StorefrontProductWeb: { sku: string };
+  /** Web checkout — native cart is written to `localStorage.cart` before load. */
+  StorefrontCheckoutWeb: undefined;
   MenuSettings: undefined;
   AccountSetting: undefined;
   SafetyCenter: undefined;

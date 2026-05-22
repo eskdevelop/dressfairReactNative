@@ -21,6 +21,24 @@ const customerInfoUrl = (): string =>
 const customerUpdateUrl = (): string =>
   storefrontCheckoutUrl('update/customer/info');
 
+/** Profile fetch that never clears the native session (used right after login). */
+export const fetchCustomerProfileSoft = async (): Promise<CustomerProfileApiResult> => {
+  try {
+    const headers = await buildStorefrontAuthHeaders();
+    const response = await axios.get(customerInfoUrl(), {
+      timeout: TIMEOUT_MS,
+      headers,
+    });
+    const data =
+      response.data && typeof response.data === 'object'
+        ? (response.data as Record<string, unknown>)
+        : {};
+    return parseCustomerProfileResponse(data);
+  } catch {
+    return { ok: false };
+  }
+};
+
 export const fetchCustomerProfile = async (): Promise<CustomerProfileApiResult> =>
   withStorefrontUnauthorizedClear(
     'storefront_customer_profile_401',

@@ -26,6 +26,8 @@ function extractSettingData(raw: unknown): Record<string, unknown> | null {
 export type StoreCurrencySettings = {
   currencyCode: string;
   currencyTitle: string;
+  shippingAmount: string;
+  freeShippingLimit: string;
 };
 
 function trimSlashLocal(s: string): string {
@@ -60,12 +62,17 @@ export function parseCheckoutOriginOverride(
   return null;
 }
 
-/** Flutter `CountryConfigModel.fromJson` currency fields (`config_model.dart`). */
+/** Flutter `CountryConfigModel.fromJson` currency + shipping fields (`config_model.dart`). */
 export function parseStoreSettingCurrency(data: Record<string, unknown>): StoreCurrencySettings | null {
   const currencyCode = String(data.currency_code ?? data.currencyCode ?? '').trim();
   const currencyTitle = String(data.currency_title ?? data.currencyTitle ?? '').trim();
   if (!currencyCode && !currencyTitle) return null;
-  return { currencyCode, currencyTitle };
+  return {
+    currencyCode,
+    currencyTitle,
+    shippingAmount: String(data.shipping_amount ?? data.shippingAmount ?? '').trim(),
+    freeShippingLimit: String(data.free_shipping_limit ?? data.freeShippingLimit ?? '').trim(),
+  };
 }
 
 /**

@@ -22,6 +22,18 @@ describe('parseAuthResponse', () => {
       expect(result.message).toBe('Invalid OTP');
     }
   });
+
+  it('extracts token from nested data envelope', () => {
+    const token = 'y'.repeat(24);
+    const result = parseAuthResponse({
+      success: true,
+      data: { token },
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.token).toBe(token);
+    }
+  });
 });
 
 describe('parseRegisterResponse', () => {

@@ -38,6 +38,14 @@ export function buildStorefrontFetchAuthInjection(
   function shouldPatchUrl(url) {
     if (typeof url !== 'string') return false;
     var low = url.toLowerCase();
+    var extras = getExtras();
+    var hasAuth =
+      extras &&
+      (extras.Authorization ||
+        extras.authorization ||
+        extras['x-customer-token'] ||
+        extras['X-Customer-Token']);
+    if (hasAuth && (low.indexOf('/api') === 0 || low.indexOf('api/') !== -1)) return true;
     if (low.indexOf('/api/rest/') !== -1) return true;
     if (low.indexOf('ecomplug') !== -1) return true;
     if (low.indexOf('checkout') !== -1 || low.indexOf('customer') !== -1) return true;

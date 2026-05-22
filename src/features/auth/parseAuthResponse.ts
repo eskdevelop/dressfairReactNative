@@ -23,6 +23,29 @@ function parseCustomer(raw: unknown): AuthCustomerSummary | undefined {
   };
 }
 
+function extractTokenFromAuthPayload(root: Record<string, unknown>): string | null {
+  const direct =
+    typeof root.token === 'string' && root.token.length >= 20 ? root.token : null;
+  if (direct) return direct;
+
+  const nestedKeys = ['data', 'customer', 'result'];
+  for (const key of nestedKeys) {
+    const nested = root[key];
+    if (!nested || typeof nested !== 'object' || Array.isArray(nested)) continue;
+    const row = nested as Record<string, unknown>;
+    const fromNested =
+      (typeof row.token === 'string' && row.token.length >= 20 ? row.token : null) ??
+      (typeof row.session_token === 'string' && row.session_token.length >= 20
+        ? row.session_token
+        : null) ??
+      (typeof row.access_token === 'string' && row.access_token.length >= 20
+        ? row.access_token
+        : null);
+    if (fromNested) return fromNested;
+  }
+  return null;
+}
+
 /** Parses OpenCart auth JSON envelopes from login/register APIs. */
 export function parseAuthResponse(data: unknown): AuthApiResult {
   if (!data || typeof data !== 'object') {
@@ -45,8 +68,7 @@ export function parseAuthResponse(data: unknown): AuthApiResult {
     };
   }
 
-  const tokenFromField =
-    typeof root.token === 'string' && root.token.length >= 20 ? root.token : null;
+  const tokenFromField = extractTokenFromAuthPayload(root);
   const token =
     tokenFromField ??
     extractCustomerTokenFromLoginResponse(JSON.stringify(root));
