@@ -19,15 +19,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
 import { colors, spacing } from '@app/theme/tokens';
-import { OffersModal } from '@features/categories/components/OffersModal';
 import { openStorefrontLogin } from '@features/account/requireStorefrontLogin';
 import type { RootStackParamList } from '@navigation/types';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 
 import { fetchOrderHistory } from './ordersApi';
+import { OrdersEmptyState } from './OrdersEmptyState';
 import { OrderTrackCard } from './OrderTrackCard';
-import { OrdersTrackPromoBanner } from './OrdersTrackPromoBanner';
 import {
   partitionOrdersForTrackTabs,
   shortcutToTrackTab,
@@ -54,7 +53,6 @@ export function OrderHistoryScreen() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TrackTabId>('all');
-  const [offersOpen, setOffersOpen] = useState(false);
   const activeTabRef = useRef<TrackTabId>(activeTab);
   activeTabRef.current = activeTab;
 
@@ -198,8 +196,6 @@ export function OrderHistoryScreen() {
         alignItems: 'center',
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
         backgroundColor: '#FFFFFF',
       }}
     >
@@ -231,32 +227,24 @@ export function OrderHistoryScreen() {
 
   const renderOrderPage = (tabId: TrackTabId) => {
     const listData = partition[tabId];
+    const tabLabel = TRACK_TABS.find(t => t.id === tabId)?.label ?? 'orders';
     return (
       <View style={{ width: windowWidth, flex: 1 }} key={tabId}>
         <FlatList
           data={listData}
           keyExtractor={item => String(item.orderId)}
           renderItem={({ item }) => <OrderTrackCard order={item} customer={customer} />}
-          contentContainerStyle={{
-            paddingHorizontal: 12,
-            paddingTop: 12,
-            paddingBottom: spacing.xl,
-            flexGrow: 1,
-          }}
-          nestedScrollEnabled
-          ListEmptyComponent={
-            <Text
-              style={{
-                textAlign: 'center',
-                marginTop: 40,
-                color: colors.textMuted,
-                fontSize: 14,
-                ...androidText,
-              }}
-            >
-              No data found
-            </Text>
+          contentContainerStyle={
+            listData.length === 0
+              ? { flexGrow: 1 }
+              : {
+                  paddingHorizontal: 12,
+                  paddingTop: 12,
+                  paddingBottom: spacing.xl,
+                }
           }
+          nestedScrollEnabled
+          ListEmptyComponent={<OrdersEmptyState tabId={tabId} tabLabel={tabLabel} />}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />
           }
@@ -361,10 +349,7 @@ export function OrderHistoryScreen() {
         </View>
       ) : (
         <View style={{ flex: 1 }}>
-          <View style={{ backgroundColor: '#FFFFFF' }}>
-            {renderTrackTabs()}
-            <OrdersTrackPromoBanner onPress={() => setOffersOpen(true)} />
-          </View>
+          <View style={{ backgroundColor: '#FFFFFF' }}>{renderTrackTabs()}</View>
           <ScrollView
             ref={pagerRef}
             horizontal
@@ -380,7 +365,6 @@ export function OrderHistoryScreen() {
           </ScrollView>
         </View>
       )}
-      <OffersModal visible={offersOpen} onClose={() => setOffersOpen(false)} />
     </SafeAreaView>
   );
 }

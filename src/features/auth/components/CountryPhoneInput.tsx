@@ -3,6 +3,8 @@ import { Text, TextInput, View } from 'react-native';
 
 import { colors, radii, spacing } from '@app/theme/tokens';
 
+import { authFilledInputBoxStyle } from './AuthTextField';
+
 type Props = {
   countryCode: string;
   value: string;
@@ -61,61 +63,71 @@ export function RegisterMobileInput({
   value,
   onChangeText,
   compact,
+  hideLabel = false,
+  filled = false,
 }: {
   countryCode: string;
   value: string;
   onChangeText: (text: string) => void;
   compact?: boolean;
+  hideLabel?: boolean;
+  filled?: boolean;
 }): React.ReactElement {
-  const fieldHeight = compact ? 44 : 48;
+  const fieldHeight = compact || hideLabel ? 50 : 48;
+  const boxStyle = filled
+    ? authFilledInputBoxStyle
+    : {
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: radii.md,
+        backgroundColor: '#F9FAFB',
+      };
+
   return (
     <View
       style={{
         marginHorizontal: spacing.lg,
-        marginBottom: compact ? spacing.sm : spacing.md,
+        marginBottom: hideLabel && filled ? spacing.md : compact ? spacing.sm : spacing.md,
       }}
     >
-      <Text
-        style={{
-          fontSize: compact ? 13 : 14,
-          fontWeight: '700',
-          color: colors.textPrimary,
-          marginBottom: compact ? 6 : 8,
-        }}
-      >
-        Mobile No
-      </Text>
+      {!hideLabel ? (
+        <Text
+          style={{
+            fontSize: compact ? 13 : 14,
+            fontWeight: '700',
+            color: colors.textPrimary,
+            marginBottom: compact ? 6 : 8,
+          }}
+        >
+          Mobile No
+        </Text>
+      ) : null}
       <View style={{ flexDirection: 'row', gap: 10 }}>
         <View
           style={{
             minWidth: 72,
             height: fieldHeight,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: radii.md,
-            backgroundColor: '#F9FAFB',
             alignItems: 'center',
             justifyContent: 'center',
+            ...boxStyle,
           }}
         >
-          <Text style={{ fontSize: 15, fontWeight: '600' }}>{countryCode}</Text>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: colors.textPrimary }}>{countryCode}</Text>
         </View>
         <TextInput
           value={value}
           onChangeText={text => onChangeText(text.replace(/\D/g, ''))}
-          placeholder="Mobile No"
+          placeholder="Mobile number"
           placeholderTextColor={colors.textMuted}
           keyboardType="phone-pad"
           maxLength={15}
           style={{
             flex: 1,
             height: fieldHeight,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: radii.md,
-            backgroundColor: '#F9FAFB',
             paddingHorizontal: spacing.md,
             fontSize: 15,
+            color: colors.textPrimary,
+            ...boxStyle,
           }}
         />
       </View>

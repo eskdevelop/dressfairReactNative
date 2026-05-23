@@ -1,20 +1,25 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
-import { spacing } from '@app/theme/tokens';
+import { colors, spacing } from '@app/theme/tokens';
 import { analytics } from '@shared/observability/analytics';
+import { AppActionDialog } from '@shared/ui/AppActionDialog';
 import type { CountryCode } from '@shared/config/env';
 
 import { registerAccount } from '../authApi';
 import { fullMobileNumber, mobileCodeForCountry } from '../authTypes';
 import {
+  AuthFormCard,
+  AuthFormCenterWrap,
   AuthFormHeader,
   AuthInlineLinkRow,
   AuthLegalFooter,
+  AuthScreenIntro,
   AuthToolbar,
 } from '../components/AuthShell';
 import { AuthPrimaryButton } from '../components/AuthPrimaryButton';
@@ -23,6 +28,15 @@ import { RegisterMobileInput } from '../components/CountryPhoneInput';
 import type { AuthStackParamList } from '../AuthNavigator';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
+
+type RegisterDialog = {
+  title: string;
+  message: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  confirmLabel: string;
+  hideCancel?: boolean;
+  onConfirm: () => void;
+};
 
 export function RegisterScreen(): React.ReactElement {
   const navigation = useNavigation<Nav>();
@@ -33,10 +47,20 @@ export function RegisterScreen(): React.ReactElement {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [dialog, setDialog] = useState<RegisterDialog | null>(null);
+
+  const closeDialog = useCallback(() => setDialog(null), []);
 
   const onContinue = useCallback(async () => {
     if (!firstName.trim() || !lastName.trim() || !mobile.trim() || !email.trim() || !password.trim()) {
-      Alert.alert('', 'Please fill in all fields.');
+      setDialog({
+        title: 'Complete all fields',
+        message: 'Please fill in all fields to continue.',
+        icon: 'create-outline',
+        confirmLabel: 'Got it',
+        hideCancel: true,
+        onConfirm: closeDialog,
+      });
       return;
     }
     setLoading(true);
@@ -50,18 +74,34 @@ export function RegisterScreen(): React.ReactElement {
         password,
       });
       if (!result.success) {
-        Alert.alert('', result.message ?? 'Registration failed.');
+        setDialog({
+          title: 'Registration failed',
+          message: result.message ?? 'Registration failed.',
+          icon: 'alert-circle-outline',
+          confirmLabel: 'Try again',
+          hideCancel: true,
+          onConfirm: closeDialog,
+        });
         return;
       }
-      Alert.alert('', 'Registration successful. Please sign in with your email.');
-      navigation.replace('EmailLogin');
+      setDialog({
+        title: 'Registration successful',
+        message: 'Please sign in with your email.',
+        icon: 'checkmark-circle-outline',
+        confirmLabel: 'Sign in',
+        hideCancel: true,
+        onConfirm: () => {
+          closeDialog();
+          navigation.replace('EmailLogin');
+        },
+      });
     } finally {
       setLoading(false);
     }
-  }, [country, email, firstName, lastName, mobile, navigation, password]);
+  }, [closeDialog, country, email, firstName, lastName, mobile, navigation, password]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.pageMuted }} edges={['top', 'bottom']}>
       <AuthToolbar mode="back" onBack={() => navigation.goBack()} />
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -69,61 +109,96 @@ export function RegisterScreen(): React.ReactElement {
       >
         <ScrollView
           keyboardShouldPersistTaps="handled"
-          contentContainerStyle={{ flexGrow: 1, paddingBottom: spacing.md }}
+          contentContainerStyle={{ flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
         >
-          <AuthFormHeader showLogo={false} />
-          <AuthTextField
-            label="First Name"
-            icon="person-outline"
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholder="First Name"
-            compact
-          />
-          <AuthTextField
-            label="Last Name"
-            icon="person-outline"
-            value={lastName}
-            onChangeText={setLastName}
-            placeholder="Last Name"
-            compact
-          />
-          <RegisterMobileInput
-            countryCode={mobileCodeForCountry(country)}
-            value={mobile}
-            onChangeText={setMobile}
-            compact
-          />
-          <AuthTextField
-            label="Email"
-            icon="mail-outline"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Email"
-            keyboardType="email-address"
-            compact
-          />
-          <AuthTextField
-            label="Password"
-            icon="lock-closed-outline"
-            secure
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Password"
-            compact
-          />
-          <View style={{ marginTop: spacing.xs }}>
-            <AuthPrimaryButton label="Continue" onPress={() => void onContinue()} loading={loading} />
-          </View>
-          <AuthInlineLinkRow
-            prefix="Already Have An Account?"
-            linkLabel="Login"
-            onPress={() => navigation.replace('EmailLogin')}
-          />
+          <AuthFormCenterWrap>
+            <AuthFormCard>
+            <AuthFormHeader />
+            <View
+              style={{
+                height: 1,
+                backgroundColor: colors.dividerLight,
+                marginHorizontal: spacing.lg,
+                marginBottom: spacing.xs,
+              }}
+            />
+            <AuthScreenIntro
+              title="Create Account"
+              subtitle="Create a new account to get started and enjoy seamless access to our features."
+            />
+            <AuthTextField
+              icon="person-outline"
+              value={firstName}
+              onChangeText={setFirstName}
+              placeholder="First name"
+              autoCapitalize="words"
+              hideLabel
+              filled
+              compact
+            />
+            <AuthTextField
+              icon="person-outline"
+              value={lastName}
+              onChangeText={setLastName}
+              placeholder="Last name"
+              autoCapitalize="words"
+              hideLabel
+              filled
+              compact
+            />
+            <RegisterMobileInput
+              countryCode={mobileCodeForCountry(country)}
+              value={mobile}
+              onChangeText={setMobile}
+              compact
+              hideLabel
+              filled
+            />
+            <AuthTextField
+              icon="mail-outline"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email address"
+              keyboardType="email-address"
+              hideLabel
+              filled
+              compact
+            />
+            <AuthTextField
+              icon="lock-closed-outline"
+              secure
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Password"
+              hideLabel
+              filled
+              compact
+            />
+            <View style={{ marginTop: spacing.md }}>
+              <AuthPrimaryButton label="Create Account" onPress={() => void onContinue()} loading={loading} />
+            </View>
+            <AuthInlineLinkRow
+              prefix="Already have an account?"
+              linkLabel="Sign in here"
+              onPress={() => navigation.replace('EmailLogin')}
+            />
+            </AuthFormCard>
+          </AuthFormCenterWrap>
           <AuthLegalFooter />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <AppActionDialog
+        visible={dialog != null}
+        title={dialog?.title}
+        message={dialog?.message ?? ''}
+        icon={dialog?.icon}
+        confirmLabel={dialog?.confirmLabel}
+        hideCancel={dialog?.hideCancel}
+        onConfirm={() => dialog?.onConfirm()}
+        onCancel={closeDialog}
+      />
     </SafeAreaView>
   );
 }

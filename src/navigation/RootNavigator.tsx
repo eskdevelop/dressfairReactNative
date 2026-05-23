@@ -20,6 +20,10 @@ import { SafetyCenterScreen } from '@features/settings/SafetyCenterScreen';
 import { MenuSettingsScreen } from '@features/menu/screens/MenuSettingsScreen';
 import { OrderHistoryScreen } from '@features/orders/OrderHistoryScreen';
 import { AuthNavigator } from '@features/auth/AuthNavigator';
+import { CheckoutScreen } from '@features/checkout/screens/CheckoutScreen';
+import { DeliveryGuaranteeScreen } from '@features/checkout/screens/DeliveryGuaranteeScreen';
+import { PurchaseProtectionScreen } from '@features/checkout/screens/PurchaseProtectionScreen';
+import { OrderSuccessScreen } from '@features/checkout/screens/OrderSuccessScreen';
 import { StorefrontLoginScreen } from '@features/account/StorefrontLoginScreen';
 import { StorefrontCheckoutWebScreen } from '@features/webview/StorefrontCheckoutWebScreen';
 import { StorefrontProductWebScreen } from '@features/webview/StorefrontProductWebScreen';
@@ -134,6 +138,34 @@ export function RootNavigator() {
       <Stack.Screen
         name="AddressForm"
         component={AddressFormScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="Checkout"
+        component={CheckoutScreen}
+        options={{
+          presentation: 'card',
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="OrderSuccess"
+        component={OrderSuccessScreen}
+        options={{
+          presentation: 'card',
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="DeliveryGuarantee"
+        component={DeliveryGuaranteeScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="PurchaseProtection"
+        component={PurchaseProtectionScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen

@@ -1,7 +1,5 @@
-
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
   Dimensions,
   FlatList,
   Image,
@@ -16,6 +14,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
 import { openWebPath } from '@navigation/navigationRef';
+import { AppDeleteDialog } from '@shared/ui/AppDeleteDialog';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import { wishlist } from './wishlist';
@@ -26,6 +25,8 @@ const GRID_GAP = spacing.md;
 
 export function WishlistScreen() {
   const items = useAppSelector(state => state.wishlist.items);
+  const [removeTarget, setRemoveTarget] = useState<WishlistItem | null>(null);
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
 /// Wishlist
   const cardWidth = useMemo(() => {
     const screenWidth = Dimensions.get('window').width;
@@ -55,46 +56,30 @@ export function WishlistScreen() {
   }, []);
 
   const onRemoveItem = useCallback((item: WishlistItem) => {
-    Alert.alert('Remove from wishlist', `Remove "${item.name}" from your wishlist?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => {
-          analytics.track('wishlist_item_removed', {
-            productId: item.productId,
-          });
-          void wishlist.remove(item.productId).catch(error => {
-            crashReporter.capture(error, {
-              source: 'WishlistScreen.remove',
-            });
-          });
-        },
-      },
-    ]);
+    setRemoveTarget(item);
   }, []);
+
+  const confirmRemoveItem = useCallback(() => {
+    const item = removeTarget;
+    if (!item) return;
+    setRemoveTarget(null);
+    analytics.track('wishlist_item_removed', { productId: item.productId });
+    void wishlist.remove(item.productId).catch(error => {
+      crashReporter.capture(error, { source: 'WishlistScreen.remove' });
+    });
+  }, [removeTarget]);
 
   const onClearAll = useCallback(() => {
     if (items.length === 0) return;
-    Alert.alert(
-      'Clear wishlist',
-      'All saved items will be removed from your wishlist.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear all',
-          style: 'destructive',
-          onPress: () => {
-            analytics.track('wishlist_clear_all', { count: items.length });
-            void wishlist.clearAll().catch(error => {
-              crashReporter.capture(error, {
-                source: 'WishlistScreen.clearAll',
-              });
-            });
-          },
-        },
-      ],
-    );
+    setClearAllConfirm(true);
+  }, [items.length]);
+
+  const confirmClearAll = useCallback(() => {
+    setClearAllConfirm(false);
+    analytics.track('wishlist_clear_all', { count: items.length });
+    void wishlist.clearAll().catch(error => {
+      crashReporter.capture(error, { source: 'WishlistScreen.clearAll' });
+    });
   }, [items.length]);
 
   const renderItem = useCallback(
@@ -287,6 +272,26 @@ export function WishlistScreen() {
           }}
         />
       )}
+
+      <AppDeleteDialog
+        visible={removeTarget !== null}
+        message={
+          removeTarget
+            ? `Remove "${removeTarget.name}" from your wishlist?`
+            : ''
+        }
+        confirmLabel="Remove"
+        onConfirm={confirmRemoveItem}
+        onCancel={() => setRemoveTarget(null)}
+      />
+
+      <AppDeleteDialog
+        visible={clearAllConfirm}
+        message="All saved items will be removed from your wishlist."
+        confirmLabel="Clear all"
+        onConfirm={confirmClearAll}
+        onCancel={() => setClearAllConfirm(false)}
+      />
     </SafeAreaView>
   );
 }

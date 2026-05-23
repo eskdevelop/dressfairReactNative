@@ -1,6 +1,5 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
   FlatList,
   RefreshControl,
   Text,
@@ -14,6 +13,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
 import { openWebPath } from '@navigation/navigationRef';
+import { AppDeleteDialog } from '@shared/ui/AppDeleteDialog';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 
@@ -36,6 +36,8 @@ const formatRelativeTime = (timestamp: number): string => {
 export function NotificationsInboxScreen() {
   const items = useAppSelector(state => state.notifications.items);
   const hydrated = useAppSelector(state => state.notifications.hydrated);
+  const [deleteTarget, setDeleteTarget] = useState<StoredNotification | null>(null);
+  const [clearAllConfirm, setClearAllConfirm] = useState(false);
 
   // Re-hydrate every time the tab gains focus so a push that arrived while
   // the user was on a different tab is reflected immediately when they come
@@ -79,26 +81,18 @@ export function NotificationsInboxScreen() {
   }, []);
 
   const onDeleteItem = useCallback((item: StoredNotification) => {
-    Alert.alert(
-      'Delete notification',
-      'This notification will be removed from your inbox.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            analytics.track('notification_inbox_item_deleted', { id: item.id });
-            void notificationInbox.remove(item.id).catch(error => {
-              crashReporter.capture(error, {
-                source: 'NotificationsInboxScreen.remove',
-              });
-            });
-          },
-        },
-      ],
-    );
+    setDeleteTarget(item);
   }, []);
+
+  const confirmDeleteItem = useCallback(() => {
+    const item = deleteTarget;
+    if (!item) return;
+    setDeleteTarget(null);
+    analytics.track('notification_inbox_item_deleted', { id: item.id });
+    void notificationInbox.remove(item.id).catch(error => {
+      crashReporter.capture(error, { source: 'NotificationsInboxScreen.remove' });
+    });
+  }, [deleteTarget]);
 
   const onMarkAllRead = useCallback(() => {
     analytics.track('notification_inbox_mark_all_read', { count: items.length });
@@ -111,27 +105,15 @@ export function NotificationsInboxScreen() {
 
   const onClearAll = useCallback(() => {
     if (items.length === 0) return;
-    Alert.alert(
-      'Clear all notifications',
-      'All notifications will be permanently removed from your inbox.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear all',
-          style: 'destructive',
-          onPress: () => {
-            analytics.track('notification_inbox_clear_all', {
-              count: items.length,
-            });
-            void notificationInbox.clearAll().catch(error => {
-              crashReporter.capture(error, {
-                source: 'NotificationsInboxScreen.clearAll',
-              });
-            });
-          },
-        },
-      ],
-    );
+    setClearAllConfirm(true);
+  }, [items.length]);
+
+  const confirmClearAll = useCallback(() => {
+    setClearAllConfirm(false);
+    analytics.track('notification_inbox_clear_all', { count: items.length });
+    void notificationInbox.clearAll().catch(error => {
+      crashReporter.capture(error, { source: 'NotificationsInboxScreen.clearAll' });
+    });
   }, [items.length]);
 
   const unreadCount = useMemo(
@@ -337,6 +319,22 @@ export function NotificationsInboxScreen() {
           }
         />
       )}
+
+      <AppDeleteDialog
+        visible={deleteTarget !== null}
+        message="This notification will be removed from your inbox."
+        confirmLabel="Delete"
+        onConfirm={confirmDeleteItem}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
+      <AppDeleteDialog
+        visible={clearAllConfirm}
+        message="All notifications will be permanently removed from your inbox."
+        confirmLabel="Clear all"
+        onConfirm={confirmClearAll}
+        onCancel={() => setClearAllConfirm(false)}
+      />
     </SafeAreaView>
   );
 }

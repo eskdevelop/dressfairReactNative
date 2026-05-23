@@ -25,6 +25,7 @@ import type { ListingProductRow } from '@features/categories/categoryModel';
 import type { MainTabParamList, RootStackParamList } from '@navigation/types';
 import type { CountryCode } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
+import { ProductGridSkeleton } from '@shared/ui/ProductGridSkeleton';
 
 /** When scroll depth reaches this fraction of max scroll (0–1), fetch next page. */
 const SCROLL_PROGRESS_LOAD_MORE = 0.6;
@@ -164,9 +165,7 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
     return (
       <View style={{ marginTop: spacing.md, paddingHorizontal: spacing.sm }}>
         {loading && items.length === 0 ? (
-          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
-            <ActivityIndicator color={colors.brand} />
-          </View>
+          <ProductGridSkeleton cardW={cardW} cardH={cardH} />
         ) : error && items.length === 0 ? (
           <View style={{ paddingVertical: 24, alignItems: 'center', gap: 12 }}>
             <Text style={{ textAlign: 'center', color: colors.textMuted, fontSize: 14 }}>{error}</Text>

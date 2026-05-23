@@ -156,6 +156,15 @@ export async function removeSelectedCartLinesAndPersist(
   await persistCartItems(dispatch, country, next);
 }
 
+/** Flutter `removeCheckoutSelectedItems` — after successful native checkout. */
+export async function removeSelectedCartLinesAfterOrder(
+  dispatch: AppDispatch,
+  country: CountryCode,
+  currentItems: CartLineItem[],
+): Promise<void> {
+  await removeSelectedCartLinesAndPersist(dispatch, country, currentItems);
+}
+
 /** True when web snapshot still contains lines native recently deleted. */
 export function webSnapshotHasStaleDeletedLines(
   rawItems: unknown[],

@@ -86,8 +86,8 @@ function ManageCartRow({
           {row.name}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.brand }}>
-            {row.price} {currency}
+          <Text style={{ fontSize: 13, fontWeight: '500', color: colors.brand }}>
+            {currency} {row.price.toFixed(2)}
           </Text>
           <View style={{ flex: 1 }} />
           <View

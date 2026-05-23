@@ -39,22 +39,28 @@ export const fetchCustomerProfileSoft = async (): Promise<CustomerProfileApiResu
   }
 };
 
-export const fetchCustomerProfile = async (): Promise<CustomerProfileApiResult> =>
-  withStorefrontUnauthorizedClear(
-    'storefront_customer_profile_401',
-    async () => {
-      const headers = await buildStorefrontAuthHeaders();
-      const response = await axios.get(customerInfoUrl(), {
-        timeout: TIMEOUT_MS,
-        headers,
-      });
-      const data =
-        response.data && typeof response.data === 'object'
-          ? (response.data as Record<string, unknown>)
-          : {};
-      return parseCustomerProfileResponse(data);
-    },
-  );
+export const fetchCustomerProfile = async (): Promise<CustomerProfileApiResult> => {
+  try {
+    return await withStorefrontUnauthorizedClear(
+      'storefront_customer_profile_401',
+      async () => {
+        const headers = await buildStorefrontAuthHeaders();
+        const response = await axios.get(customerInfoUrl(), {
+          timeout: TIMEOUT_MS,
+          headers,
+        });
+        const data =
+          response.data && typeof response.data === 'object'
+            ? (response.data as Record<string, unknown>)
+            : {};
+        return parseCustomerProfileResponse(data);
+      },
+    );
+  } catch {
+    // 401 is cleared inside withStorefrontUnauthorizedClear; callers expect { ok: false }.
+    return { ok: false };
+  }
+};
 
 export type UpdateCustomerProfileFields = {
   first_name: string;

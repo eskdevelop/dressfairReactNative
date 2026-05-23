@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Modal,
   RefreshControl,
   Text,
   TouchableOpacity,
@@ -25,6 +24,7 @@ import { openStorefrontLogin } from '@features/account/requireStorefrontLogin';
 import type { CustomerAddressRecord, CustomerProfile } from '@features/account/types';
 import type { RootStackParamList } from '@navigation/types';
 import { AppButton } from '@shared/ui/AppButton';
+import { AppDeleteDialog } from '@shared/ui/AppDeleteDialog';
 import { crashReporter } from '@shared/observability/crash';
 
 const MUTED_ACTION = 'rgba(0,0,0,0.5)';
@@ -300,78 +300,14 @@ export function AddressListScreen() {
         </View>
       )}
 
-      <Modal
+      <AppDeleteDialog
         visible={deleteTargetId !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => (busyId === null ? setDeleteTargetId(null) : undefined)}
-      >
-        <View
-          style={{
-            flex: 1,
-            backgroundColor: 'rgba(0,0,0,0.45)',
-            justifyContent: 'center',
-            paddingHorizontal: spacing.lg,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: radii.lg,
-              padding: spacing.lg,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: '600',
-                color: colors.textPrimary,
-                textAlign: 'center',
-                marginBottom: spacing.lg,
-              }}
-            >
-              Are you sure you want to delete this address?
-            </Text>
-            <TouchableOpacity
-              accessibilityRole="button"
-              disabled={busyId !== null}
-              onPress={confirmDeleteAddress}
-              style={{
-                backgroundColor: colors.brand,
-                borderRadius: radii.pill,
-                paddingVertical: spacing.md,
-                marginBottom: spacing.sm,
-                opacity: busyId !== null ? 0.7 : 1,
-              }}
-            >
-              <Text style={{ color: '#FFFFFF', fontWeight: '600', textAlign: 'center' }}>
-                Delete address
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              accessibilityRole="button"
-              disabled={busyId !== null}
-              onPress={() => setDeleteTargetId(null)}
-              style={{
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: radii.pill,
-                paddingVertical: spacing.md,
-              }}
-            >
-              <Text
-                style={{
-                  color: colors.textPrimary,
-                  fontWeight: '600',
-                  textAlign: 'center',
-                }}
-              >
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        message="Are you sure you want to delete this address?"
+        confirmLabel="Delete address"
+        loading={busyId !== null}
+        onConfirm={confirmDeleteAddress}
+        onCancel={() => (busyId === null ? setDeleteTargetId(null) : undefined)}
+      />
     </SafeAreaView>
   );
 }

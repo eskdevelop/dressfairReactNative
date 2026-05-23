@@ -5,13 +5,21 @@ import {
   TextInput,
   View,
   type TextInputProps,
+  type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, radii, spacing } from '@app/theme/tokens';
 
+const filledBoxStyle: ViewStyle = {
+  backgroundColor: '#FFFFFF',
+  borderRadius: radii.md,
+  borderWidth: 1,
+  borderColor: colors.border,
+};
+
 type Props = {
-  label: string;
+  label?: string;
   icon?: React.ComponentProps<typeof Ionicons>['name'];
   secure?: boolean;
   value: string;
@@ -20,8 +28,12 @@ type Props = {
   keyboardType?: TextInputProps['keyboardType'];
   autoCapitalize?: TextInputProps['autoCapitalize'];
   maxLength?: number;
-  /** Tighter vertical spacing for long forms (register). */
   compact?: boolean;
+  embedded?: boolean;
+  /** Placeholder-only field (reference auth UI). */
+  hideLabel?: boolean;
+  /** White elevated input box. */
+  filled?: boolean;
 };
 
 export function AuthTextField({
@@ -35,51 +47,63 @@ export function AuthTextField({
   autoCapitalize,
   maxLength,
   compact,
+  embedded,
+  hideLabel = false,
+  filled = false,
 }: Props): React.ReactElement {
   const [hidden, setHidden] = useState(Boolean(secure));
+  const fieldHeight = compact || hideLabel ? 50 : 48;
 
   return (
     <View
       style={{
-        marginHorizontal: spacing.lg,
-        marginBottom: compact ? spacing.sm : spacing.md,
+        marginHorizontal: embedded ? 0 : spacing.lg,
+        marginBottom:
+          hideLabel && filled ? spacing.md : compact ? spacing.sm : spacing.md,
+        flex: embedded ? 1 : undefined,
       }}
     >
-      <Text
-        style={{
-          fontSize: compact ? 13 : 14,
-          fontWeight: '700',
-          color: colors.textPrimary,
-          marginBottom: compact ? 6 : 8,
-        }}
-      >
-        {label}
-      </Text>
+      {!hideLabel && label ? (
+        <Text
+          style={{
+            fontSize: compact ? 13 : 14,
+            fontWeight: '700',
+            color: colors.textPrimary,
+            marginBottom: compact ? 6 : 8,
+          }}
+        >
+          {label}
+        </Text>
+      ) : null}
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          borderWidth: 1,
-          borderColor: colors.border,
-          borderRadius: radii.md,
-          backgroundColor: '#F9FAFB',
           paddingHorizontal: spacing.md,
-          minHeight: compact ? 44 : 48,
+          minHeight: fieldHeight,
+          ...(filled
+            ? filledBoxStyle
+            : {
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: radii.md,
+                backgroundColor: '#F9FAFB',
+              }),
         }}
       >
         {icon ? (
-          <Ionicons name={icon} size={20} color={colors.textMuted} style={{ marginRight: 8 }} />
+          <Ionicons name={icon} size={20} color={colors.textMuted} style={{ marginRight: 10 }} />
         ) : null}
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          placeholder={placeholder}
+          placeholder={placeholder ?? label}
           placeholderTextColor={colors.textMuted}
           secureTextEntry={hidden}
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize ?? 'none'}
           maxLength={maxLength}
-          style={{ flex: 1, fontSize: 15, color: colors.textPrimary, paddingVertical: 10 }}
+          style={{ flex: 1, fontSize: 15, color: colors.textPrimary, paddingVertical: 12 }}
         />
         {secure ? (
           <Pressable
@@ -95,3 +119,5 @@ export function AuthTextField({
     </View>
   );
 }
+
+export { filledBoxStyle as authFilledInputBoxStyle };

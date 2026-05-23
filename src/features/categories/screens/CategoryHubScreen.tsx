@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -36,6 +35,7 @@ import type { HubProductRow, SubCategoryRow } from '../categoryModel';
 import { cdnAssetUrl, isSupportedRemoteImage } from '../categoryImage';
 import { categoryTheme } from '../categoryTheme';
 import { CategorySearchBar } from '../components/CategorySearchBar';
+import { CategoryHubSkeleton } from '../components/CategoryHubSkeleton';
 import { DeliveryBanner } from '../components/DeliveryBanner';
 import { OffersModal } from '../components/OffersModal';
 
@@ -314,10 +314,16 @@ export function CategoryHubScreen({ navigation }: Props) {
       <DeliveryBanner onPressDetails={() => setOffersOpen(true)} />
       <View style={{ height: 6 }} />
 
-      {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 60 }}>
-          <ActivityIndicator color={categoryTheme.primary} size="large" />
-        </View>
+      {loading && categories.length === 0 ? (
+        <CategoryHubSkeleton
+          sidebarWidth={sidebarWidth}
+          cellWidth={cellWidth}
+          subColGap={subColGap}
+          relatedCardW={relatedCardW}
+          relatedImgH={relatedImgH}
+          relGap={relGap}
+          relPad={relPad}
+        />
       ) : bannerError !== null && categories.length === 0 ? (
         <View style={{ padding: 28, gap: 12, alignItems: 'center' }}>
           <Text style={{ color: '#111', textAlign: 'center' }}>{bannerError}</Text>

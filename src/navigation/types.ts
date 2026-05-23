@@ -48,7 +48,12 @@ export type RootStackParamList = {
   OrderHistory: { shortcut?: OrderHistoryShortcut } | undefined;
   /** Storefront PDP opened above tabs (e.g. You → new arrivals) so back returns to the same tab. */
   StorefrontProductWeb: { sku: string };
-  /** Web checkout — native cart is written to `localStorage.cart` before load. */
+  /** Native checkout — selected cart lines from Redux. */
+  Checkout: undefined;
+  OrderSuccess: { orderId: string };
+  DeliveryGuarantee: undefined;
+  PurchaseProtection: undefined;
+  /** @deprecated Web checkout — use native Checkout. */
   StorefrontCheckoutWeb: undefined;
   MenuSettings: undefined;
   AccountSetting: undefined;

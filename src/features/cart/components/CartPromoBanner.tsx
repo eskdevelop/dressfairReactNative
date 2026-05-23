@@ -2,7 +2,10 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { spacing } from '@app/theme/tokens';
+import { radii, spacing } from '@app/theme/tokens';
+
+const GREEN = '#15803D';
+const GREEN_SOFT = '#F0FDF4';
 
 export function CartPromoBanner(): React.ReactElement {
   return (
@@ -10,37 +13,42 @@ export function CartPromoBanner(): React.ReactElement {
       accessibilityRole="button"
       style={{
         marginHorizontal: spacing.md,
-        height: 30,
-        borderRadius: 5,
-        borderWidth: 0.5,
-        borderColor: 'rgba(0,0,0,0.35)',
+        marginTop: 0,
+        backgroundColor: GREEN_SOFT,
+        borderRadius: radii.sm,
+        paddingVertical: 9,
+        paddingHorizontal: spacing.md,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingLeft: 10 }}>
-        <Ionicons name="checkmark" size={18} color="#16A34A" />
+      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, minWidth: 0 }}>
+        <Ionicons name="checkmark" size={16} color={GREEN} />
         <Text
+          numberOfLines={1}
           style={{
-            marginLeft: 8,
-            fontSize: 11,
-            fontWeight: '500',
-            color: '#16A34A',
+            marginLeft: 7,
+            fontSize: 12,
+            fontWeight: '600',
+            color: GREEN,
+            flexShrink: 1,
           }}
         >
           Free shipping and free returns
         </Text>
       </View>
-      <Text
+      <View
         style={{
-          paddingRight: 10,
-          fontSize: 11,
-          color: 'rgba(0,0,0,0.5)',
+          marginLeft: spacing.sm,
+          backgroundColor: 'rgba(21, 128, 61, 0.12)',
+          borderRadius: radii.pill,
+          paddingHorizontal: 8,
+          paddingVertical: 3,
         }}
       >
-        Limited time
-      </Text>
+        <Text style={{ fontSize: 10, fontWeight: '600', color: GREEN }}>Limited time</Text>
+      </View>
     </Pressable>
   );
 }

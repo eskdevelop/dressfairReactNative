@@ -25,6 +25,7 @@ import { CartPromoBanner } from '@features/cart/components/CartPromoBanner';
 import { CartTrustBadgesRow } from '@features/cart/components/CartTrustBadgesRow';
 import { ManageCartSheet } from '@features/cart/components/ManageCartSheet';
 import { PriceDetailsCartSheet } from '@features/cart/components/PriceDetailsCartSheet';
+import { AppDeleteDialog } from '@shared/ui/AppDeleteDialog';
 import {
   parseShippingConfigFromStore,
   selectedTotalNormalPrice,
@@ -65,6 +66,7 @@ export function CartScreen(): React.ReactElement {
 
   const [manageVisible, setManageVisible] = useState(false);
   const [priceSheetVisible, setPriceSheetVisible] = useState(false);
+  const [bulkRemoveConfirm, setBulkRemoveConfirm] = useState(false);
 
   const onToggleSelect = useCallback(
     (lineKey: string) => {
@@ -90,6 +92,11 @@ export function CartScreen(): React.ReactElement {
       Alert.alert('', 'Please select items to remove.');
       return;
     }
+    setBulkRemoveConfirm(true);
+  }, [items]);
+
+  const confirmBulkRemove = useCallback(() => {
+    setBulkRemoveConfirm(false);
     void removeSelectedCartLinesAndPersist(dispatch, country, items).then(() => {
       setManageVisible(false);
     });
@@ -106,7 +113,7 @@ export function CartScreen(): React.ReactElement {
     }
     setPriceSheetVisible(false);
     analytics.track('cart_native_checkout_tap');
-    navigation.navigate('StorefrontCheckoutWeb');
+    navigation.navigate('Checkout');
   }, [items, navigation]);
 
   const selectedSubtotal = selectedTotalPrice(items);
@@ -119,38 +126,53 @@ export function CartScreen(): React.ReactElement {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top']}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          minHeight: 48,
-          paddingHorizontal: spacing.sm,
-          borderBottomWidth: 1,
-          borderBottomColor: '#EEEEEE',
-        }}
-      >
-        {items.length > 0 ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', width: 90 }}>
-            <CartCheckbox checked={allSelected} onPress={onToggleAll} />
-            <Text style={{ marginLeft: 2, fontSize: 14, color: '#111' }}>All</Text>
-          </View>
-        ) : (
-          <View style={{ width: 90 }} />
-        )}
-
-        <Text
+      {items.length === 0 ? (
+        <View
           style={{
-            flex: 1,
-            textAlign: 'center',
-            fontSize: 16,
-            fontWeight: '500',
-            color: colors.textPrimary,
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: spacing.md,
+            paddingVertical: spacing.xs,
+            backgroundColor: '#FFFFFF',
           }}
         >
-          Cart{items.length > 0 ? ` (${items.length})` : ''}
-        </Text>
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: '600',
+              color: colors.textPrimary,
+            }}
+          >
+            Cart
+          </Text>
+        </View>
+      ) : (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: spacing.sm,
+            paddingVertical: spacing.xs,
+            backgroundColor: '#FFFFFF',
+          }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: 90 }}>
+            <CartCheckbox checked={allSelected} onPress={onToggleAll} />
+            <Text style={{ marginLeft: 6, fontSize: 13, color: '#555', fontWeight: '500' }}>All</Text>
+          </View>
 
-        {items.length > 0 ? (
+          <Text
+            style={{
+              flex: 1,
+              textAlign: 'center',
+              fontSize: 16,
+              fontWeight: '600',
+              color: colors.textPrimary,
+            }}
+          >
+            Cart ({items.length})
+          </Text>
+
           <Pressable
             accessibilityRole="button"
             onPress={() => setManageVisible(true)}
@@ -159,20 +181,17 @@ export function CartScreen(): React.ReactElement {
           >
             <Ionicons name="menu" size={22} color="rgba(0,0,0,0.8)" />
           </Pressable>
-        ) : (
-          <View style={{ width: 90 }} />
-        )}
-      </View>
+        </View>
+      )}
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: items.length > 0 ? 100 : spacing.xl }}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={e => newArrivalsRef.current?.onParentScroll(e.nativeEvent)}
       >
-        <View style={{ height: spacing.md }} />
         <CartPromoBanner />
-        <View style={{ height: spacing.lg }} />
+        <View style={{ height: spacing.md }} />
 
         {items.length === 0 ? (
           <CartEmptyState />
@@ -188,7 +207,7 @@ export function CartScreen(): React.ReactElement {
               />
               {index < items.length - 1 ? (
                 <View
-                  style={{ height: 1, backgroundColor: '#D1D5DB', marginHorizontal: spacing.md }}
+                  style={{ height: 1, backgroundColor: '#F0F0F0', marginHorizontal: spacing.md }}
                 />
               ) : null}
             </View>
@@ -207,20 +226,19 @@ export function CartScreen(): React.ReactElement {
         />
       </ScrollView>
 
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
-        <CartCheckoutBar
-          currency={currency}
-          total={checkoutTotal}
-          strikeTotal={showStrike ? selectedNormalSubtotal : null}
-          selectedCount={selectedCount}
-          isSheetOpen={priceSheetVisible}
-          onTogglePriceSheet={() => {
-            if (items.length === 0) return;
-            setPriceSheetVisible(v => !v);
-          }}
-          onCheckout={onCheckout}
-        />
-      </View>
+      {items.length > 0 ? (
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0 }}>
+          <CartCheckoutBar
+            currency={currency}
+            total={checkoutTotal}
+            strikeTotal={showStrike ? selectedNormalSubtotal : null}
+            selectedCount={selectedCount}
+            isSheetOpen={priceSheetVisible}
+            onTogglePriceSheet={() => setPriceSheetVisible(v => !v)}
+            onCheckout={onCheckout}
+          />
+        </View>
+      ) : null}
 
       <ManageCartSheet
         visible={manageVisible}
@@ -241,6 +259,14 @@ export function CartScreen(): React.ReactElement {
         shippingConfig={shippingConfig}
         onClose={() => setPriceSheetVisible(false)}
         onCheckout={onCheckout}
+      />
+
+      <AppDeleteDialog
+        visible={bulkRemoveConfirm}
+        message={`Remove ${selectedCount} selected item${selectedCount === 1 ? '' : 's'} from your cart?`}
+        confirmLabel="Remove items"
+        onConfirm={confirmBulkRemove}
+        onCancel={() => setBulkRemoveConfirm(false)}
       />
     </SafeAreaView>
   );
