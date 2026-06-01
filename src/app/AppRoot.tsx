@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import * as Network from 'expo-network';
 
-import { startNotificationRuntime } from '@features/notifications/notificationRuntime';
+// PUSH DISABLED: import { startNotificationRuntime } from '@features/notifications/notificationRuntime';
 import { flushPendingNavigation, navigationRef } from '@navigation/navigationRef';
 import { RootNavigator } from '@navigation/RootNavigator';
 import { useAppDispatch } from './hooks';
@@ -121,9 +121,10 @@ export function AppRoot() {
     };
   }, [dispatch]);
 
-  useEffect(() => {
-    return startNotificationRuntime();
-  }, []);
+  // PUSH DISABLED
+  // useEffect(() => {
+  //   return startNotificationRuntime();
+  // }, []);
 
   // Push permission is intentionally NOT auto-requested at launch. It is
   // user-initiated from the Menu screen ("Enable order updates"). Apple's

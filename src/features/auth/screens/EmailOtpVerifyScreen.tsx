@@ -1,3 +1,7 @@
+/**
+ * Email OTP verification screen — reserved for a future app release (post store approval).
+ * Route is disabled in AuthNavigator; paired with verifyEmailOtp() in authApi.ts.
+ */
 import React, { useCallback, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';

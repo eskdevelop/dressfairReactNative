@@ -2,7 +2,8 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { EmailLoginScreen } from './screens/EmailLoginScreen';
-import { EmailOtpVerifyScreen } from './screens/EmailOtpVerifyScreen';
+// Reserved for future email OTP release — screen kept at ./screens/EmailOtpVerifyScreen.tsx
+// import { EmailOtpVerifyScreen } from './screens/EmailOtpVerifyScreen';
 import { LoginChooserScreen } from './screens/LoginChooserScreen';
 import { OtpVerifyScreen } from './screens/OtpVerifyScreen';
 import { RegisterScreen } from './screens/RegisterScreen';
@@ -26,7 +27,8 @@ export function AuthNavigator(): React.ReactElement {
       <Stack.Screen name="WhatsAppPhone" component={WhatsAppPhoneScreen} />
       <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
       <Stack.Screen name="EmailLogin" component={EmailLoginScreen} />
-      <Stack.Screen name="EmailOtpVerify" component={EmailOtpVerifyScreen} />
+      {/* Email OTP — disabled until post–store-approval release; see EmailOtpVerifyScreen.tsx */}
+      {/* <Stack.Screen name="EmailOtpVerify" component={EmailOtpVerifyScreen} /> */}
       <Stack.Screen name="Register" component={RegisterScreen} />
     </Stack.Navigator>
   );

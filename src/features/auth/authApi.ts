@@ -93,17 +93,23 @@ export async function verifyWhatsAppOtp(
   );
 }
 
+/** Web-parity login — same endpoint as dressfair.com (`POST .../checkout/customer/login`). */
 export async function loginEmailPassword(
   email: string,
   password: string,
 ): Promise<AuthApiResult> {
   return postCheckoutAuth(
-    'customer/mobile-login',
+    'customer/login',
     { email, password },
     'auth_email_password',
   );
 }
 
+/**
+ * Reserved for a future app release with email OTP (post store approval).
+ * Previously paired with `customer/mobile-login` → `EmailOtpVerifyScreen`.
+ * Route is disabled in AuthNavigator; re-enable when backend supports mobile OTP again.
+ */
 export async function verifyEmailOtp(email: string, otp: string): Promise<AuthApiResult> {
   return postCheckoutAuth(
     'customer/mobile-email-otp',
@@ -111,6 +117,9 @@ export async function verifyEmailOtp(email: string, otp: string): Promise<AuthAp
     'auth_email_verify_otp',
   );
 }
+
+// Archived mobile-only login path (OTP flow):
+// postCheckoutAuth('customer/mobile-login', { email, password }, 'auth_email_password');
 
 export async function registerAccount(fields: RegisterFields): Promise<AuthApiResult> {
   try {
