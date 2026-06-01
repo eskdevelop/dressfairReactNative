@@ -88,3 +88,17 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
     return { ok: false, message: err.message ?? 'Sign in with Google failed.' };
   }
 }
+
+/**
+ * Best-effort revoke of the native Google session so the next sign-in shows the
+ * account chooser instead of silently reusing the previous account. Safe to call
+ * even when the user never signed in with Google.
+ */
+export async function signOutGoogle(): Promise<void> {
+  try {
+    ensureConfigured();
+    await GoogleSignin.signOut();
+  } catch (error) {
+    crashReporter.capture(error, { source: 'googleAuth.signOutGoogle' });
+  }
+}

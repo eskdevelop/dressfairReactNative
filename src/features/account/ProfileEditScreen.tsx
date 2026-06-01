@@ -69,10 +69,12 @@ export function ProfileEditScreen() {
         );
         return;
       }
+      // NOTE: `allowsEditing` triggers the native crop UI which fails to
+      // present on the iOS Simulator (picker just closes, returns canceled).
+      // The avatar already clips to a circle with resizeMode "cover", so we
+      // skip the crop step for reliable behaviour on Simulator + real devices.
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
         quality: 0.85,
       });
       if (!res.canceled && res.assets[0]) {

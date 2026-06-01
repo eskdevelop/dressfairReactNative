@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { spacing } from '@app/theme/tokens';
 import { analytics } from '@shared/observability/analytics';
+import { AppLoadingOverlay } from '@shared/ui/AppLoadingOverlay';
 
 import {
   AuthBrandHeader,
@@ -84,6 +85,10 @@ export function LoginChooserScreen(): React.ReactElement {
         />
         <AuthLegalFooter />
       </ScrollView>
+      <AppLoadingOverlay
+        visible={googleLoading || appleLoading}
+        message="Signing you in…"
+      />
     </SafeAreaView>
   );
 }

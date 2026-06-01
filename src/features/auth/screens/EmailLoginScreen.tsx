@@ -10,6 +10,7 @@ import { colors, spacing } from '@app/theme/tokens';
 import type { CountryCode } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 import { AppActionDialog } from '@shared/ui/AppActionDialog';
+import { AppLoadingOverlay } from '@shared/ui/AppLoadingOverlay';
 
 import { loginEmailPassword } from '../authApi';
 import { completeNativeLogin } from '../authSession';
@@ -189,6 +190,8 @@ export function EmailLoginScreen(): React.ReactElement {
         onConfirm={() => dialog?.onConfirm()}
         onCancel={closeDialog}
       />
+
+      <AppLoadingOverlay visible={loading} message="Signing you in…" />
     </SafeAreaView>
   );
 }
