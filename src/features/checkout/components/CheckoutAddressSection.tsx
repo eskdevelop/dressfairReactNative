@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors, spacing } from '@app/theme/tokens';
+import { colors, radii, spacing } from '@app/theme/tokens';
 import type { CustomerAddressRecord, CustomerProfile } from '@features/account/types';
 import type { CountryCode } from '@shared/config/env';
 
@@ -45,36 +45,63 @@ function CheckoutDottedLine(): React.ReactElement {
 
 function AddressEmptyState({ onAddAddress }: { onAddAddress: () => void }): React.ReactElement {
   return (
-    <View style={{ alignItems: 'center', paddingVertical: spacing.sm }}>
-      <CheckoutDottedLine />
-      <Ionicons name="location-outline" size={36} color="#9CA3AF" style={{ marginTop: 6 }} />
-      <Text
+    <View
+      style={{
+        alignItems: 'center',
+        paddingVertical: spacing.sm,
+        paddingHorizontal: spacing.md,
+      }}
+    >
+      <View
         style={{
-          marginTop: 6,
-          fontSize: 12,
-          color: 'rgba(0,0,0,0.5)',
-          textAlign: 'center',
-          paddingHorizontal: spacing.lg,
-        }}
-      >
-        You don&apos;t have any default addresses added
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        onPress={onAddAddress}
-        style={{
-          marginTop: 8,
-          width: 200,
-          height: 36,
-          borderRadius: 18,
-          backgroundColor: colors.brand,
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: 'rgba(249, 115, 22, 0.1)',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
+        <Ionicons name="location-outline" size={22} color={colors.brand} />
+      </View>
+      <Text
+        style={{
+          marginTop: spacing.sm,
+          fontSize: 13,
+          fontWeight: '600',
+          color: colors.textPrimaryDark,
+          textAlign: 'center',
+        }}
+      >
+        No delivery address yet
+      </Text>
+      <Text
+        style={{
+          marginTop: 2,
+          fontSize: 11,
+          color: colors.textMuted,
+          textAlign: 'center',
+          lineHeight: 15,
+        }}
+      >
+        Add an address to continue with checkout
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={onAddAddress}
+        style={({ pressed }) => ({
+          marginTop: spacing.sm,
+          alignSelf: 'stretch',
+          height: 36,
+          borderRadius: radii.pill,
+          backgroundColor: colors.brand,
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: pressed ? 0.85 : 1,
+        })}
+      >
         <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '600' }}>Add default address</Text>
       </Pressable>
-      <CheckoutDottedLine />
     </View>
   );
 }
