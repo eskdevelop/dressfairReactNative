@@ -87,9 +87,15 @@
       ],
       "./plugins/with-no-nav-bar-contrast",
       "./plugins/with-android-status-bar-edge",
-      "expo-font"
+      "expo-font",
+      "@react-native-google-signin/google-signin",
+      "expo-web-browser"
     ],
     "extra": {
+      "googleWebClientId": "83170068558-5fa6j9g0ejgeqf7071eb6bbddklmd7f4.apps.googleusercontent.com",
+      "googleIosClientId": "83170068558-7ptse3hphfcm5j12t2cihobvbb2d1vd6.apps.googleusercontent.com",
+      "appleServicesId": "",
+      "appleRedirectUri": "",
       "eas": {
         "projectId": "308688c4-c334-413d-8924-22e21828a48c"
       }

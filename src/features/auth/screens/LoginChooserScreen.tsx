@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Platform, ScrollView, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,12 +15,14 @@ import {
 } from '../components/AuthShell';
 import { AuthOutlinedButton, AuthWhatsAppButton } from '../components/AuthOutlinedButton';
 import type { AuthStackParamList } from '../AuthNavigator';
-import { signInWithAppleNative } from '../appleAuth';
+import { signInWithApple } from '../appleAuth';
+import { signInWithGoogle } from '../googleAuth';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'LoginChooser'>;
 
 export function LoginChooserScreen(): React.ReactElement {
   const navigation = useNavigation<Nav>();
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [appleLoading, setAppleLoading] = useState(false);
 
   const onClose = useCallback(() => {
@@ -28,13 +30,27 @@ export function LoginChooserScreen(): React.ReactElement {
     navigation.getParent()?.goBack();
   }, [navigation]);
 
+  const onGoogle = useCallback(async () => {
+    setGoogleLoading(true);
+    try {
+      const result = await signInWithGoogle();
+      if (result.ok) {
+        navigation.getParent()?.goBack();
+      } else if (!result.cancelled && result.message) {
+        Alert.alert('Sign in with Google', result.message);
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  }, [navigation]);
+
   const onApple = useCallback(async () => {
     setAppleLoading(true);
     try {
-      const result = await signInWithAppleNative();
+      const result = await signInWithApple();
       if (result.ok) {
         navigation.getParent()?.goBack();
-      } else if (result.message) {
+      } else if (!result.cancelled && result.message) {
         Alert.alert('Sign in with Apple', result.message);
       }
     } finally {
@@ -55,13 +71,17 @@ export function LoginChooserScreen(): React.ReactElement {
           icon="mail-outline"
           onPress={() => navigation.navigate('EmailLogin')}
         />
-        {Platform.OS === 'ios' ? (
-          <AuthOutlinedButton
-            label={appleLoading ? 'Signing in…' : 'Sign in with Apple'}
-            icon="logo-apple"
-            onPress={() => void onApple()}
-          />
-        ) : null}
+        <AuthOutlinedButton
+          label={googleLoading ? 'Signing in…' : 'Continue with Google'}
+          icon="logo-google"
+          iconColor="#4285F4"
+          onPress={() => void onGoogle()}
+        />
+        <AuthOutlinedButton
+          label={appleLoading ? 'Signing in…' : 'Sign in with Apple'}
+          icon="logo-apple"
+          onPress={() => void onApple()}
+        />
         <AuthLegalFooter />
       </ScrollView>
     </SafeAreaView>

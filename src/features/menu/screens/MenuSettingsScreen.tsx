@@ -65,6 +65,7 @@ export function MenuSettingsScreen() {
           applyWebNavFromStore={false}
           hideStorefrontMobileHeader
           hideEmbeddedSiteAppBar
+          disableStorefrontAuthBridge
           applyTopSafeArea={false}
           syncAppCountryFromStorefrontLocale
         />

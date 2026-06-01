@@ -149,10 +149,31 @@ export async function registerAccount(fields: RegisterFields): Promise<AuthApiRe
   }
 }
 
-export async function loginWithApple(identityToken: string): Promise<AuthApiResult> {
+/**
+ * Apple login — same endpoint/body as dressfair.com web flow
+ * (`POST .../store/auth/apple/login` with `{ id_token, token, user }`).
+ * `user` is Apple's name JSON, present only on first consent; empty otherwise.
+ */
+export async function loginWithApple(
+  identityToken: string,
+  user = '',
+): Promise<AuthApiResult> {
   return postStoreAuth(
     'auth/apple/login',
-    { token: identityToken },
+    { id_token: identityToken, token: identityToken, user },
     'auth_apple_login',
+  );
+}
+
+/**
+ * Google login — same endpoint/body as dressfair.com web flow
+ * (`POST .../store/auth/google/login` with `{ token: <Google access token> }`).
+ * The backend expects the Google OAuth access token (`ya29...`), not the ID token.
+ */
+export async function loginWithGoogle(accessToken: string): Promise<AuthApiResult> {
+  return postStoreAuth(
+    'auth/google/login',
+    { token: accessToken },
+    'auth_google_login',
   );
 }

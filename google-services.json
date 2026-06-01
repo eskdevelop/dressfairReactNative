@@ -12,7 +12,20 @@
           "package_name": "com.dressfair.dressfairrnhybrid"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "83170068558-t49j21mj50dsuf4bvopl1ehcdojlp4oo.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dressfair.dressfairrnhybrid",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "83170068558-5fa6j9g0ejgeqf7071eb6bbddklmd7f4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBQfOnlvzO_lxoMB1-TEJ4KW7kUxqyDhhE"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "83170068558-5fa6j9g0ejgeqf7071eb6bbddklmd7f4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "83170068558-7ptse3hphfcm5j12t2cihobvbb2d1vd6.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.dressfair.dressfairrnhybrid"
+              }
+            }
+          ]
         }
       }
     }

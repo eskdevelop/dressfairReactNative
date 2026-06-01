@@ -102,6 +102,14 @@ type Props = {
    */
   hideEmbeddedSiteAppBar?: boolean;
   /**
+   * When true, skip the native auth/session bridge injections (fetch/XHR header
+   * patching + web session hydration). Use for guest-capable storefront pages
+   * (e.g. the embedded Settings / country-region-language page) that render
+   * fine in a plain browser but break when we force native headers onto their
+   * own API calls. Makes the WebView behave like a normal mobile browser.
+   */
+  disableStorefrontAuthBridge?: boolean;
+  /**
    * When true, injects a lightweight DOM observer that posts `cart_count` bridge
    * messages so the Cart tab badge can reflect the storefront cart.
    */
@@ -673,6 +681,7 @@ export function WebViewScreen({
   hideStorefrontMobileFooter = false,
   hideStorefrontMobileFooterMode = 'full',
   hideEmbeddedSiteAppBar = false,
+  disableStorefrontAuthBridge = false,
   reportCartCountToNative = false,
   syncWebCartToNative = false,
   reloadWebWhenTabFocused = false,
@@ -698,6 +707,14 @@ export function WebViewScreen({
     s => `${s.app.storefrontCheckoutApiOriginOverride ?? ''}-${s.app.country}`,
   );
   const beforeContentScripts = useMemo(() => {
+    // Guest-capable pages (Settings) must behave like a plain browser: forcing
+    // native auth headers onto their own API calls makes the storefront return
+    // empty data and render "undefined". Skip the auth/session bridge here.
+    if (disableStorefrontAuthBridge) {
+      return `${BEFORE_PAGE_SCRIPTS_INJECTION}${
+        extraBeforeContentScripts ? `\n${extraBeforeContentScripts}` : ''
+      }`;
+    }
     const initialHeaders = buildStorefrontAuthHeadersFromSession(
       customerSessionToken,
       apiSessionToken,
@@ -729,6 +746,7 @@ export function WebViewScreen({
     cfg.storefrontCheckoutApiBaseUrl,
     country,
     customerSessionToken,
+    disableStorefrontAuthBridge,
     extraBeforeContentScripts,
     storefrontApiKey,
   ]);
@@ -1222,7 +1240,9 @@ export function WebViewScreen({
           }}
           onLoadEnd={() => {
             setLoading(false);
-            injectStorefrontBridgeHeaders();
+            if (!disableStorefrontAuthBridge) {
+              injectStorefrontBridgeHeaders();
+            }
             // NOTE: Do NOT hide the native splash here. `onLoadEnd` fires when
             // the network load finishes but BEFORE the WebView has flushed its
             // first paint, which causes a white-flash between logo and content.
@@ -1248,6 +1268,9 @@ export function WebViewScreen({
             webViewRef.current?.injectJavaScript(HIDE_THIRD_PARTY_LOGIN_INJECTION);
             if (hideStorefrontMobileHeader) {
               webViewRef.current?.injectJavaScript(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
+            }
+            if (hideEmbeddedSiteAppBar) {
+              webViewRef.current?.injectJavaScript(STOREFRONT_HIDE_EMBEDDED_SITE_APP_BAR_INJECTION);
             }
             if (hideStorefrontMobileFooter) {
               webViewRef.current?.injectJavaScript(
