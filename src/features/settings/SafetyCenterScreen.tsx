@@ -64,9 +64,13 @@ function SectionTitle({ children }: { children: string }): React.ReactElement {
 }
 
 function ReportRow({ title }: { title: string }): React.ReactElement {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   return (
     <TouchableOpacity
-      onPress={() => analytics.track('safety_center_report_row', { title })}
+      onPress={() => {
+        analytics.track('safety_center_report_row', { title });
+        navigation.navigate('Contact');
+      }}
       accessibilityRole="button"
       activeOpacity={0.7}
       style={{

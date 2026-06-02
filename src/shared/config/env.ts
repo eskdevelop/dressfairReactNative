@@ -52,6 +52,13 @@ export function countryIsoCode2(country: CountryCode): 'AE' | 'OM' | 'SA' {
   }
 }
 
+/** Native region picker labels (Settings, onboarding, etc.). */
+export const COUNTRY_OPTIONS: { code: CountryCode; label: string; flag: string }[] = [
+  { code: 'UAE', label: 'United Arab Emirates', flag: '🇦🇪' },
+  { code: 'OMN', label: 'Oman', flag: '🇴🇲' },
+  { code: 'KSA', label: 'Saudi Arabia', flag: '🇸🇦' },
+];
+
 export type EnvConfig = {
   apiBaseUrl: string;
   // Split apiHost / apiRoutePrefix make it possible to compose REST URLs that
