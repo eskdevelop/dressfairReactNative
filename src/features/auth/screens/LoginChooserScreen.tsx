@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, Platform, ScrollView, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,7 +14,9 @@ import {
   AuthPromoStrip,
   AuthToolbar,
 } from '../components/AuthShell';
-import { AuthOutlinedButton, AuthWhatsAppButton } from '../components/AuthOutlinedButton';
+// AuthWhatsAppButton is temporarily unused — the WhatsApp login button is
+// commented out below until that flow is fixed. Re-add to this import then.
+import { AuthGoogleButton, AuthOutlinedButton } from '../components/AuthOutlinedButton';
 import type { AuthStackParamList } from '../AuthNavigator';
 import { signInWithApple } from '../appleAuth';
 import { signInWithGoogle } from '../googleAuth';
@@ -66,23 +68,28 @@ export function LoginChooserScreen(): React.ReactElement {
         <AuthBrandHeader />
         <AuthPromoStrip />
         <View style={{ height: spacing.xl }} />
-        <AuthWhatsAppButton onPress={() => navigation.navigate('WhatsAppPhone')} />
+        {/* TEMPORARILY HIDDEN: "Continue with WhatsApp" login is not fully
+            working yet. Per product decision, hide it on both iOS and Android
+            and re-enable once the WhatsApp flow is fixed. */}
+        {/* <AuthWhatsAppButton onPress={() => navigation.navigate('WhatsAppPhone')} /> */}
         <AuthOutlinedButton
           label="Continue with Email"
           icon="mail-outline"
           onPress={() => navigation.navigate('EmailLogin')}
         />
-        <AuthOutlinedButton
+        <AuthGoogleButton
           label={googleLoading ? 'Signing in…' : 'Continue with Google'}
-          icon="logo-google"
-          iconColor="#4285F4"
           onPress={() => void onGoogle()}
         />
-        <AuthOutlinedButton
-          label={appleLoading ? 'Signing in…' : 'Sign in with Apple'}
-          icon="logo-apple"
-          onPress={() => void onApple()}
-        />
+        {/* Apple Sign-In is native to iOS only. Android would require an Apple
+            Services ID + HTTPS return URL + server relay, so we hide it there. */}
+        {Platform.OS === 'ios' ? (
+          <AuthOutlinedButton
+            label={appleLoading ? 'Signing in…' : 'Sign in with Apple'}
+            icon="logo-apple"
+            onPress={() => void onApple()}
+          />
+        ) : null}
         <AuthLegalFooter />
       </ScrollView>
       <AppLoadingOverlay

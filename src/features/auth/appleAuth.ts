@@ -82,7 +82,23 @@ export async function signInWithAppleNative(): Promise<AppleAuthResult> {
       return { ok: false, cancelled: true };
     }
     crashReporter.capture(error, { source: 'appleAuth.signInWithAppleNative' });
-    return { ok: false, message: err.message ?? 'Sign in with Apple failed.' };
+    // ASAuthorizationError 1000 ("authorization attempt failed for an unknown
+    // reason") almost always means the device isn't signed into iCloud (or the
+    // build is missing the Sign in with Apple entitlement). Surface actionable
+    // guidance instead of Apple's opaque message.
+    const message = err.message ?? '';
+    const isUnknownAuthFailure =
+      err.code === 'ERR_REQUEST_UNKNOWN' ||
+      err.code === 'ERR_REQUEST_NOT_HANDLED' ||
+      /unknown reason|not handled/i.test(message);
+    if (isUnknownAuthFailure) {
+      return {
+        ok: false,
+        message:
+          'Apple could not sign you in. Make sure this device is signed into iCloud (Settings > Sign in to your iPhone), then try again. On the iOS Simulator this can be unreliable — a real iPhone works best.',
+      };
+    }
+    return { ok: false, message: message || 'Sign in with Apple failed.' };
   }
 }
 

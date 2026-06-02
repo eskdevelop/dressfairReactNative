@@ -49,7 +49,11 @@ lives only in Firebase Console + your local `~/Documents/Keys/Apple/` backup.
 2. Click **Add app** → Android.
 3. Android package name: `com.dressfair.dressfairrnhybrid` (must match `app.json` `android.package` exactly).
 4. App nickname: `DressFair Android`.
-5. SHA-1: leave blank (only needed for Google Sign-In, which we don't use).
+5. SHA-1: this app **does** use Google Sign-In, so the Android signing
+   fingerprints must be registered here. You can skip it during this first
+   registration and add them afterwards — see
+   [docs/google-signin-sha.md](docs/google-signin-sha.md) for which SHA-1s to
+   collect (debug, EAS upload, and Google Play App Signing) and how to add them.
 6. Download `google-services.json` and save it to the repo root.
 7. **Skip Step 3 ("Add Firebase SDK") and Step 4 ("Run app to verify").** Those
    are for native Android Studio projects — Expo wires the Gradle plugin

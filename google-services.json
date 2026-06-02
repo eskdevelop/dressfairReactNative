@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "83170068558-0301hhvf24uv4m71guqbqo396q6672oj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.dressfair.dressfairrnhybrid",
+            "certificate_hash": "5042f5cabb2c3e0a8cf37c8b4c3e84d05d5765e7"
+          }
+        },
+        {
           "client_id": "83170068558-t49j21mj50dsuf4bvopl1ehcdojlp4oo.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

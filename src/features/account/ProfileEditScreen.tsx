@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
   Image,
+  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -61,13 +62,20 @@ export function ProfileEditScreen() {
 
   const pickProfilePhoto = useCallback(async (): Promise<void> => {
     try {
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        Alert.alert(
-          'Photos',
-          'Allow photo library access so you can update your profile picture.',
-        );
-        return;
+      // Android uses the system Photo Picker (expo-image-picker v17), which
+      // needs no runtime media permission — in fact READ_EXTERNAL_STORAGE is
+      // intentionally blocked in app.json, so requesting it here always
+      // returns `granted: false` and would block the picker entirely. Only
+      // gate behind the permission prompt on iOS.
+      if (Platform.OS === 'ios') {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(
+            'Photos',
+            'Allow photo library access so you can update your profile picture.',
+          );
+          return;
+        }
       }
       // NOTE: `allowsEditing` triggers the native crop UI which fails to
       // present on the iOS Simulator (picker just closes, returns canceled).
