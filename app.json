@@ -2,8 +2,8 @@
   "expo": {
     "name": "Dress Fair Shopping",
     "slug": "dressfair-rn-hybrid",
-    "version": "1.0.14",
-    "runtimeVersion": "1.0.14",
+    "version": "1.0.15",
+    "runtimeVersion": "1.0.15",
     "scheme": "dressfair",
     "orientation": "portrait",
     "platforms": [
@@ -30,7 +30,7 @@
     ],
     "ios": {
       "bundleIdentifier": "com.dressfair.dressfairrnhybrid",
-      "buildNumber": "16",
+      "buildNumber": "19",
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "icon": "./assets/icon.png",
