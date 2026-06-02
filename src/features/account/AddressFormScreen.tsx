@@ -2,14 +2,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Platform,
   ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import type { RouteProp } from '@react-navigation/native';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -31,6 +29,7 @@ import type {
 } from '@features/account/types';
 import type { RootStackParamList } from '@navigation/types';
 import { AppButton } from '@shared/ui/AppButton';
+import { FormSelectField } from '@shared/ui/FormSelectField';
 import { crashReporter } from '@shared/observability/crash';
 
 const PROVINCE_PLACEHOLDER = '__province_none__';
@@ -286,16 +285,7 @@ export function AddressFormScreen() {
     }
   };
 
-  /** Bordered shell shared by picker rows + inline messages (non-picker may clip). */
-  const pickerShellStyle = {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.md,
-    backgroundColor: '#FFFFFF' as const,
-    overflow: 'hidden' as const,
-  };
-
-  /** Picker row: avoid `overflow: 'hidden'` so Android Spinner text is not vertically clipped. */
+  /** Picker row shell for loading / error states. */
   const pickerFieldShell = {
     borderWidth: 1,
     borderColor: colors.border,
@@ -303,23 +293,9 @@ export function AddressFormScreen() {
     backgroundColor: '#FFFFFF' as const,
   };
 
-  /** Single-line row for Material dropdowns; street field stays slightly larger for readability. */
+  /** Single-line row height for select fields. */
   const compactRowHeight = 48;
   const compactFontSize = 15;
-  /** Smaller type in native pickers (selected + list items on Android). */
-  const pickerFontSize = 13;
-
-  const pickerCompactAndroid = {
-    color: colors.textPrimary,
-    fontSize: pickerFontSize,
-    paddingVertical: 0,
-  };
-
-  const pickerCompactIos = {
-    marginVertical: -4,
-    color: colors.textPrimary,
-    fontSize: pickerFontSize,
-  };
 
   if (loadingBoot) {
     return (
@@ -443,12 +419,12 @@ export function AddressFormScreen() {
               </Text>
               {citiesLoading ? (
                 <View
-                  style={[pickerShellStyle, { height: compactRowHeight, justifyContent: 'center' }]}
+                  style={[pickerFieldShell, { height: compactRowHeight, justifyContent: 'center' }]}
                 >
                   <ActivityIndicator color={colors.brand} size="small" />
                 </View>
               ) : provincesFetchFailed || cities.length === 0 ? (
-                <View style={[pickerShellStyle, { padding: spacing.md, alignItems: 'center' }]}>
+                <View style={[pickerFieldShell, { padding: spacing.md, alignItems: 'center' }]}>
                   <Text
                     style={{
                       textAlign: 'center',
@@ -468,50 +444,21 @@ export function AddressFormScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View
-                  style={[
-                    pickerFieldShell,
-                    {
-                      minHeight: compactRowHeight,
-                      justifyContent: 'center',
-                    },
-                  ]}
-                >
-                  <Picker
-                    key={`province-${isEdit ? address?.id ?? 0 : 'add'}-${cities.length}`}
-                    selectedValue={provincePickerSelectedValue}
-                    onValueChange={val => {
-                      const key = String(val);
-                      if (key === PROVINCE_PLACEHOLDER) return;
-                      const id = Number(val);
-                      const picked = cities.find(c => c.id === id);
-                      if (picked) void onPickCity(picked);
-                    }}
-                    {...(Platform.OS === 'android' ? { mode: 'dropdown' as const } : {})}
-                    dropdownIconColor={colors.textMuted}
-                    style={Platform.OS === 'android' ? pickerCompactAndroid : pickerCompactIos}
-                    itemStyle={
-                      Platform.OS === 'ios'
-                        ? { height: 38, fontSize: pickerFontSize }
-                        : undefined
-                    }
-                  >
-                    <Picker.Item
-                      label="Select Province"
-                      value={PROVINCE_PLACEHOLDER}
-                      color={colors.textMuted}
-                      style={Platform.OS === 'android' ? { fontSize: pickerFontSize } : undefined}
-                    />
-                    {cities.map(c => (
-                      <Picker.Item
-                        key={c.id}
-                        label={c.name}
-                        value={String(c.id)}
-                        style={Platform.OS === 'android' ? { fontSize: pickerFontSize } : undefined}
-                      />
-                    ))}
-                  </Picker>
-                </View>
+                <FormSelectField
+                  placeholder="Select Province"
+                  selectedValue={provincePickerSelectedValue}
+                  options={cities.map(c => ({
+                    label: c.name,
+                    value: String(c.id),
+                  }))}
+                  onValueChange={val => {
+                    if (val === PROVINCE_PLACEHOLDER) return;
+                    const id = Number(val);
+                    const picked = cities.find(c => c.id === id);
+                    if (picked) void onPickCity(picked);
+                  }}
+                  minHeight={compactRowHeight}
+                />
               )}
             </View>
 
@@ -525,14 +472,14 @@ export function AddressFormScreen() {
               {loadingAreas && areas.length === 0 ? (
                 <View
                   style={[
-                    pickerShellStyle,
+                    pickerFieldShell,
                     { height: compactRowHeight, justifyContent: 'center', alignItems: 'center' },
                   ]}
                 >
                   <ActivityIndicator color={colors.brand} size="small" />
                 </View>
               ) : areas.length === 0 ? (
-                <View style={[pickerShellStyle, { padding: spacing.md, alignItems: 'center' }]}>
+                <View style={[pickerFieldShell, { padding: spacing.md, alignItems: 'center' }]}>
                   <Text
                     style={{
                       textAlign: 'center',
@@ -550,50 +497,21 @@ export function AddressFormScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View
-                  style={[
-                    pickerFieldShell,
-                    {
-                      minHeight: compactRowHeight,
-                      justifyContent: 'center',
-                    },
-                  ]}
-                >
-                  <Picker
-                    key={`area-${city.id}-${areas.length}`}
-                    selectedValue={areaPickerSelectedValue}
-                    onValueChange={val => {
-                      const key = String(val);
-                      if (key === AREA_PLACEHOLDER) return;
-                      const id = Number(val);
-                      const pickedArea = areas.find(a => a.id === id);
-                      if (pickedArea) setArea(pickedArea);
-                    }}
-                    {...(Platform.OS === 'android' ? { mode: 'dropdown' as const } : {})}
-                    dropdownIconColor={colors.textMuted}
-                    style={Platform.OS === 'android' ? pickerCompactAndroid : pickerCompactIos}
-                    itemStyle={
-                      Platform.OS === 'ios'
-                        ? { height: 38, fontSize: pickerFontSize }
-                        : undefined
-                    }
-                  >
-                    <Picker.Item
-                      label="Select City Or Area"
-                      value={AREA_PLACEHOLDER}
-                      color={colors.textMuted}
-                      style={Platform.OS === 'android' ? { fontSize: pickerFontSize } : undefined}
-                    />
-                    {areas.map(a => (
-                      <Picker.Item
-                        key={a.id}
-                        label={a.name}
-                        value={String(a.id)}
-                        style={Platform.OS === 'android' ? { fontSize: pickerFontSize } : undefined}
-                      />
-                    ))}
-                  </Picker>
-                </View>
+                <FormSelectField
+                  placeholder="Select City Or Area"
+                  selectedValue={areaPickerSelectedValue}
+                  options={areas.map(a => ({
+                    label: a.name,
+                    value: String(a.id),
+                  }))}
+                  onValueChange={val => {
+                    if (val === AREA_PLACEHOLDER) return;
+                    const id = Number(val);
+                    const pickedArea = areas.find(a => a.id === id);
+                    if (pickedArea) setArea(pickedArea);
+                  }}
+                  minHeight={compactRowHeight}
+                />
               )}
             </View>
             ) : null}
