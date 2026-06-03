@@ -19,6 +19,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, spacing } from '@app/theme/tokens';
 import { fetchNewArrivalsPage } from '@features/account/newArrivalsApi';
 import { CartNewArrivalProductTile } from '@features/cart/components/CartNewArrivalProductTile';
+import { QuickAddToCartSheet } from '@features/cart/components/QuickAddToCartSheet';
 import type { ListingProductRow } from '@features/categories/categoryModel';
 import type { RootStackParamList } from '@navigation/types';
 import type { CountryCode } from '@shared/config/env';
@@ -58,6 +59,7 @@ export const CartNewArrivalsSection = forwardRef<CartNewArrivalsSectionHandle, P
     const [error, setError] = useState<string | null>(null);
     const [hasMore, setHasMore] = useState(true);
     const [nextPage, setNextPage] = useState(1);
+    const [quickAddSku, setQuickAddSku] = useState<string | null>(null);
 
     const loadMoreInFlightRef = useRef(false);
     const lastScrollMetricsRef = useRef<NativeScrollEvent | null>(null);
@@ -145,6 +147,13 @@ export const CartNewArrivalsSection = forwardRef<CartNewArrivalsSectionHandle, P
       [navigation],
     );
 
+    const openQuickAdd = useCallback((sku: string) => {
+      const s = sku.trim();
+      if (!s) return;
+      analytics.track('cart_new_arrivals_quick_add_open');
+      setQuickAddSku(s);
+    }, []);
+
     const pairs: [ListingProductRow, ListingProductRow | undefined][] = [];
     for (let i = 0; i < items.length; i += 2) {
       pairs.push([items[i], items[i + 1]]);
@@ -187,6 +196,7 @@ export const CartNewArrivalsSection = forwardRef<CartNewArrivalsSectionHandle, P
                   width={cardW}
                   imgH={cardH}
                   onOpen={openPdp}
+                  onQuickAdd={openQuickAdd}
                   storeCurrencyFallback={storeCurrencyCode}
                 />
                 {pair[1] ? (
@@ -196,6 +206,7 @@ export const CartNewArrivalsSection = forwardRef<CartNewArrivalsSectionHandle, P
                     width={cardW}
                     imgH={cardH}
                     onOpen={openPdp}
+                    onQuickAdd={openQuickAdd}
                     storeCurrencyFallback={storeCurrencyCode}
                   />
                 ) : (
@@ -211,6 +222,15 @@ export const CartNewArrivalsSection = forwardRef<CartNewArrivalsSectionHandle, P
             ) : null}
           </View>
         )}
+
+        <QuickAddToCartSheet
+          visible={quickAddSku != null}
+          sku={quickAddSku}
+          country={country}
+          storeCurrencyCode={storeCurrencyCode}
+          onClose={() => setQuickAddSku(null)}
+          onGoToCart={() => setQuickAddSku(null)}
+        />
       </View>
     );
   },

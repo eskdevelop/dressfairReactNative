@@ -12,6 +12,7 @@ import {
   notifyNativeCartMutation,
   setCartHydrated,
   setCartItems,
+  setRecentlyDeletedLines,
   toggleCartLineSelected,
   toggleSelectAllForCheckout,
 } from './cartSlice';
@@ -22,7 +23,7 @@ import {
   savePersistedCart,
 } from './cartPersistence';
 import { cartContentsMatchNative, filterStaleWebCartRows, shouldApplyWebCartSnapshot } from './cartSyncUtils';
-import type { CartLineItem } from './cartTypes';
+import type { CartLineItem, WebCartRawItem } from './cartTypes';
 
 function syncBadge(dispatch: AppDispatch, items: CartLineItem[]): void {
   dispatch(setCartBadgeQuantity(cartTotalQuantity(items)));
@@ -93,6 +94,45 @@ export async function clearNativeCart(
   dispatch(clearCart());
   await clearPersistedCart(country);
   dispatch(setCartBadgeQuantity(0));
+}
+
+/**
+ * Native add-to-cart (quick-add sheet). Builds a web-shaped cart line so the
+ * existing native->web write-back (`notifyNativeCartMutation`) syncs it into
+ * webview `localStorage.cart`. Merges by `lineKey` (sku::product_option_id),
+ * incrementing quantity when the same variant is already in the cart.
+ */
+export async function addProductToCartAndPersist(
+  dispatch: AppDispatch,
+  country: CountryCode,
+  web: WebCartRawItem,
+  currentItems: CartLineItem[],
+): Promise<boolean> {
+  const [incoming] = parseWebCartItems([web]);
+  if (!incoming) return false;
+
+  // A native add must clear any recent-delete tombstone for this line so the
+  // write-back is not filtered as a stale re-add.
+  dispatch(setRecentlyDeletedLines(
+    store.getState().cart.recentlyDeletedLines.filter(d => d.lineKey !== incoming.lineKey),
+  ));
+
+  const existingIdx = currentItems.findIndex(r => r.lineKey === incoming.lineKey);
+  let next: CartLineItem[];
+  if (existingIdx >= 0) {
+    const prev = currentItems[existingIdx];
+    const quantity = Math.min(prev.quantity + incoming.quantity, 99);
+    next = currentItems.map((row, i) =>
+      i === existingIdx
+        ? { ...row, quantity, web: { ...row.web, quantity } }
+        : row,
+    );
+  } else {
+    next = [incoming, ...currentItems];
+  }
+
+  await persistCartItems(dispatch, country, next);
+  return true;
 }
 
 export async function updateCartLineQuantityAndPersist(

@@ -15,12 +15,13 @@ type Props = {
   width: number;
   imgH: number;
   onOpen: (sku: string) => void;
+  /** Cart button tap — opens the native quick-add sheet. Falls back to onOpen. */
+  onQuickAdd?: (sku: string) => void;
   storeCurrencyFallback: string;
 };
 
 const CART_BTN_HEIGHT = 26;
 
-/*
 function CartGridAddButton({ onPress }: { onPress: () => void }): React.ReactElement {
   return (
     <Pressable
@@ -45,8 +46,6 @@ function CartGridAddButton({ onPress }: { onPress: () => void }): React.ReactEle
     </Pressable>
   );
 }
-*/
-// Hidden for now — You tab + Cart empty-state new-arrivals grids.
 
 function formatCartTilePrice(amount: number): string {
   if (!Number.isFinite(amount)) return '0.00';
@@ -59,6 +58,7 @@ export function CartNewArrivalProductTile({
   width,
   imgH,
   onOpen,
+  onQuickAdd,
   storeCurrencyFallback,
 }: Props): React.ReactElement {
   const first = row.images[0]?.image ?? '';
@@ -154,7 +154,9 @@ export function CartNewArrivalProductTile({
             </Text>
           ) : null}
         </View>
-        {/* <CartGridAddButton onPress={() => onOpen(row.productSku)} /> */}
+        <CartGridAddButton
+          onPress={() => (onQuickAdd ?? onOpen)(row.productSku)}
+        />
       </View>
     </View>
   );
