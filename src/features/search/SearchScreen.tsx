@@ -75,7 +75,6 @@ function categoryStackNavigation(
 }
 
 const SUGGESTIONS_DEBOUNCE_MS = 200;
-const RESULTS_DEBOUNCE_MS = 350;
 const GRID_HORIZONTAL_PADDING = spacing.lg;
 const GRID_GAP = spacing.md;
 
@@ -159,29 +158,85 @@ export function SearchScreen() {
     }, [country]),
   );
 
+  /** Hide stale results when the user edits the query after submitting. */
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed !== committedQuery && committedQuery.length > 0) {
+      setResults([]);
+      setResultsPage(1);
+      setResultsLastPage(1);
+      setResultsStatus('idle');
+      setResultsError(null);
+      setCommittedQuery('');
+    }
+  }, [query, committedQuery]);
+
+  const resetResults = useCallback(() => {
+    setResults([]);
+    setResultsPage(1);
+    setResultsLastPage(1);
+    setResultsStatus('idle');
+    setResultsError(null);
+    setCommittedQuery('');
+  }, []);
+
+  const clearActiveSearch = useCallback(() => {
+    setQuery('');
+    setSuggestions([]);
+    setSuggestionsStatus('idle');
+    resetResults();
+  }, [resetResults]);
+
   /** Android: first back clears the query (Flutter WillPopScope parity). */
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener('hardwareBackPress', () => {
         if (query.trim().length === 0) return false;
-        setQuery('');
-        setSuggestions([]);
-        setCommittedQuery('');
-        setResults([]);
-        setResultsPage(1);
-        setResultsLastPage(1);
-        setResultsStatus('idle');
+        clearActiveSearch();
         return true;
       });
       return () => sub.remove();
-    }, [query]),
+    }, [query, clearActiveSearch]),
   );
+
+  const runSearch = useCallback(async (term: string) => {
+    const trimmed = term.trim();
+    if (trimmed.length < 2) return;
+
+    setCommittedQuery(trimmed);
+    setResultsStatus('loading');
+    setResultsError(null);
+    setResults([]);
+    setResultsPage(1);
+    setResultsLastPage(1);
+
+    try {
+      const { items, lastPage } = await searchProductsLp(trimmed, { page: 1 });
+      setResults(items);
+      setResultsPage(1);
+      setResultsLastPage(lastPage);
+      setResultsStatus('success');
+      analytics.track('search_query_committed', {
+        length: trimmed.length,
+        resultCount: items.length,
+      });
+    } catch (error) {
+      crashReporter.capture(error, {
+        source: 'SearchScreen.searchProductsLp',
+      });
+      setResultsStatus('error');
+      setResultsError('Unable to search right now. Please try again.');
+    }
+  }, []);
 
   useEffect(() => {
     const trimmed = query.trim();
-    if (trimmed.length < 1 || trimmed === committedQuery) {
+    if (trimmed.length < 1) {
       setSuggestions([]);
       setSuggestionsStatus('idle');
+      return;
+    }
+    if (trimmed === committedQuery) {
       return;
     }
 
@@ -210,56 +265,6 @@ export function SearchScreen() {
       controller.abort();
     };
   }, [query, committedQuery]);
-
-  useEffect(() => {
-    const trimmed = query.trim();
-    if (trimmed.length < 2) {
-      setResults([]);
-      setResultsStatus('idle');
-      setResultsError(null);
-      setCommittedQuery('');
-      setResultsPage(1);
-      setResultsLastPage(1);
-      return;
-    }
-    if (trimmed === committedQuery && resultsStatus === 'success') {
-      return;
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(async () => {
-      setResultsStatus('loading');
-      setResultsError(null);
-      try {
-        const { items, lastPage } = await searchProductsLp(trimmed, {
-          signal: controller.signal,
-          page: 1,
-        });
-        if (controller.signal.aborted) return;
-        setResults(items);
-        setResultsPage(1);
-        setResultsLastPage(lastPage);
-        setResultsStatus('success');
-        setCommittedQuery(trimmed);
-        analytics.track('search_query_committed', {
-          length: trimmed.length,
-          resultCount: items.length,
-        });
-      } catch (error) {
-        if (controller.signal.aborted) return;
-        crashReporter.capture(error, {
-          source: 'SearchScreen.searchProductsLp',
-        });
-        setResultsStatus('error');
-        setResultsError('Unable to search right now. Please try again.');
-      }
-    }, RESULTS_DEBOUNCE_MS);
-
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-    };
-  }, [query, committedQuery, resultsStatus]);
 
   const loadMoreResults = useCallback(async () => {
     const trimmed = committedQuery.trim();
@@ -419,13 +424,8 @@ export function SearchScreen() {
     if (trimmed.length === 0) return;
     void persistRecent(trimmed);
     Keyboard.dismiss();
-    if (trimmed.length >= 2) {
-      setCommittedQuery('');
-      setResultsStatus('idle');
-      setResultsPage(1);
-      setResultsLastPage(1);
-    }
-  }, [persistRecent, query]);
+    void runSearch(trimmed);
+  }, [persistRecent, query, runSearch]);
 
   const onPopularCategoryPress = useCallback(
     (cat: CategoryRow) => {
@@ -616,24 +616,37 @@ export function SearchScreen() {
   );
 
   const trimmedQuery = query.trim();
+  const isShowingCommittedResults =
+    trimmedQuery === committedQuery && committedQuery.length >= 2;
   const showZeroState =
     trimmedQuery.length === 0 &&
     recents.length === 0 &&
     !popularLoading &&
     popularCategories.length === 0;
   const showPopular = trimmedQuery.length === 0 && !showZeroState;
-  const showSuggestions =
-    trimmedQuery.length >= 1 &&
-    suggestions.length > 0 &&
-    trimmedQuery !== committedQuery;
+  const showSuggestionsPanel = trimmedQuery.length >= 1 && !isShowingCommittedResults;
+  const showSuggestionsLoading =
+    showSuggestionsPanel && suggestionsStatus === 'loading';
+  const showSuggestionsList =
+    showSuggestionsPanel && suggestions.length > 0;
+  const showNoSuggestions =
+    showSuggestionsPanel &&
+    suggestionsStatus === 'success' &&
+    suggestions.length === 0;
+  const showSuggestionsError =
+    showSuggestionsPanel && suggestionsStatus === 'error';
   const showResultsLoading =
-    trimmedQuery.length >= 2 && resultsStatus === 'loading' && results.length === 0;
-  const showResultsError = resultsStatus === 'error' && results.length === 0;
+    isShowingCommittedResults && resultsStatus === 'loading';
+  const showResultsError =
+    isShowingCommittedResults && resultsStatus === 'error';
   const showNoResults =
+    isShowingCommittedResults &&
     resultsStatus === 'success' &&
-    results.length === 0 &&
-    committedQuery.length > 0;
-  const showResultsGrid = resultsStatus === 'success' && results.length > 0;
+    results.length === 0;
+  const showResultsGrid =
+    isShowingCommittedResults &&
+    resultsStatus === 'success' &&
+    results.length > 0;
 
   return (
     <SafeAreaView
@@ -685,7 +698,7 @@ export function SearchScreen() {
             <TouchableOpacity
               accessibilityRole="button"
               accessibilityLabel="Clear search"
-              onPress={() => setQuery('')}
+              onPress={clearActiveSearch}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               style={{ paddingRight: 4 }}
             >
@@ -804,7 +817,16 @@ export function SearchScreen() {
         </View>
       ) : null}
 
-      {showSuggestions ? (
+      {showSuggestionsLoading ? (
+        <View style={{ paddingTop: spacing.xl, alignItems: 'center' }}>
+          <ActivityIndicator color={colors.brand} />
+          <Text style={{ color: colors.textMuted, fontSize: 12, marginTop: spacing.sm }}>
+            Searching…
+          </Text>
+        </View>
+      ) : null}
+
+      {showSuggestionsList ? (
         <FlatList
           data={suggestions}
           keyExtractor={(item, idx) =>
@@ -819,27 +841,92 @@ export function SearchScreen() {
                 paddingVertical: spacing.sm,
               }}
             >
-              <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                {suggestionsStatus === 'loading' ? 'Searching…' : 'Suggestions'}
-              </Text>
+              <Text style={{ color: colors.textMuted, fontSize: 12 }}>Suggestions</Text>
             </View>
           }
         />
       ) : null}
 
-      {!showSuggestions && showResultsLoading ? (
+      {showNoSuggestions ? (
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.xl,
+            alignItems: 'center',
+          }}
+        >
+          <Ionicons name="search-outline" size={40} color={colors.textMuted} />
+          <Text
+            style={{
+              color: colors.textPrimary,
+              marginTop: spacing.md,
+              fontWeight: '600',
+              fontSize: 15,
+              textAlign: 'center',
+            }}
+          >
+            No results found for &ldquo;{trimmedQuery}&rdquo;
+          </Text>
+          <Text
+            style={{
+              color: colors.textMuted,
+              marginTop: spacing.xs,
+              textAlign: 'center',
+              fontSize: 13,
+              lineHeight: 18,
+            }}
+          >
+            Try a different keyword or tap the search button to browse matching products.
+          </Text>
+        </View>
+      ) : null}
+
+      {showSuggestionsError ? (
+        <View
+          style={{
+            flex: 1,
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.xl,
+            alignItems: 'center',
+          }}
+        >
+          <Ionicons name="cloud-offline-outline" size={40} color={colors.textMuted} />
+          <Text
+            style={{
+              color: colors.textPrimary,
+              marginTop: spacing.md,
+              fontWeight: '600',
+              textAlign: 'center',
+            }}
+          >
+            Unable to load suggestions
+          </Text>
+          <Text
+            style={{
+              color: colors.textMuted,
+              marginTop: spacing.xs,
+              textAlign: 'center',
+              fontSize: 13,
+            }}
+          >
+            Check your connection and try again.
+          </Text>
+        </View>
+      ) : null}
+
+      {!showSuggestionsPanel && showResultsLoading ? (
         <View style={{ paddingTop: spacing.xl, alignItems: 'center' }}>
           <ActivityIndicator color={colors.brand} />
         </View>
       ) : null}
 
-      {!showSuggestions && showResultsError ? (
+      {!showSuggestionsPanel && showResultsError ? (
         <View style={{ padding: spacing.lg }}>
           <Text style={{ color: colors.danger }}>{resultsError}</Text>
           <TouchableOpacity
             onPress={() => {
-              setCommittedQuery('');
-              setQuery(q => `${q} `.trimEnd() + (q.endsWith(' ') ? '' : ' '));
+              void runSearch(committedQuery.length > 0 ? committedQuery : trimmedQuery);
             }}
             style={{
               marginTop: spacing.md,
@@ -855,7 +942,7 @@ export function SearchScreen() {
         </View>
       ) : null}
 
-      {!showSuggestions && showNoResults ? (
+      {!showSuggestionsPanel && showNoResults ? (
         <View
           style={{
             paddingHorizontal: spacing.lg,
@@ -885,7 +972,7 @@ export function SearchScreen() {
         </View>
       ) : null}
 
-      {!showSuggestions && showResultsGrid ? (
+      {!showSuggestionsPanel && showResultsGrid ? (
         <FlatList
           data={results}
           keyExtractor={item => item.productId}
