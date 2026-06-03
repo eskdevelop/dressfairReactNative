@@ -1,8 +1,24 @@
-# Apple 4.2 — Resubmission Notes (1.0.6)
+# Apple 4.2 — Resubmission Notes
 
 Submission ID being addressed: `3ad55757-4dc4-40c8-8d57-4e7f24b22563`
 Reviewer guideline: 4.2.0 Design — Minimum Functionality
-Submitted version: `1.0.6 (5)`
+
+## What changed in 1.0.15 (Settings — native, no embedded WebView)
+
+The Settings screen no longer embeds a WebView (`/user/country-region-language`).
+It is a fully native stack screen opened from the Menu tab (gear icon or Settings row):
+
+| Settings area | Implementation |
+|---------------|----------------|
+| Main Settings hub | Native `MenuSettingsScreen` — security grid, country picker, chevron rows |
+| Country & region | Native `FormSelectField` + `applyCountryChange` (not a web form) |
+| Account security | Native `AccountSettingScreen` — profile from API/cache |
+| Privacy / Terms / Return / About / FAQ / Contact | Native `LegalScreen` + bundled content |
+| Safety center / Permissions | Native stack screens |
+| Payment methods / password / 2FA | Confirmation alert → **Safari** via `Linking.openURL` (not in-app WebView) |
+
+Settings flows must **never** call `openWebPath` (Home tab WebView). Account deletion
+and privacy links already opened Safari; payment, password, and 2FA now match that pattern.
 
 ## What changed in 1.0.6
 
@@ -74,16 +90,27 @@ DressFair team
 >    unread indicator. Tap to mark read and deep-link, long-press to
 >    delete, or use "Mark all read" / "Clear" in the header.
 >
-> 3. Tap the **Menu** tab. "Share app" opens the native iOS share
->    sheet. "Terms and conditions" and "Privacy policy" both open
->    native scrollable text screens — no web browser. "Delete account"
->    presents a native confirmation dialog before opening the account
->    deletion request page.
+> 3. Tap the **Menu** tab → gear icon or **Settings** row. You should see a
+>    **native** Settings screen (security grid, country dropdown, chevron list)
+>    — **not** a website. Tap **Privacy** or **Terms** for full text in native
+>    ScrollViews. Tap **Account security** for the native account screen; password,
+>    payment methods, and 2FA open **Safari** if website management is needed.
+>    "Share app" opens the native iOS share sheet. "Delete account" presents a
+>    native confirmation dialog before opening the deletion page in Safari.
 >
 > 4. Return to **Home** to browse the storefront. The hardware / swipe
 >    back gesture traverses WebView history natively.
 
-## Pre-submission checklist
+## Pre-submission checklist (1.0.15)
+
+- [ ] Open Settings on a **fresh 1.0.15 (20)** build — confirm native grid + country picker (no WebView).
+- [ ] Tap Payment methods → Open website — confirm **Safari** opens (not Home tab WebView).
+- [ ] Tap Account security → Password → Open website — confirm **Safari** (not silent WebView jump).
+- [ ] Run `npm run lint && npm run typecheck && npm test` before EAS build.
+- [ ] Build iOS: `eas build --platform ios --profile production` (or your store profile).
+- [ ] Attach App Review screenshots: native Settings grid, native Privacy scroll, native country picker.
+
+## Pre-submission checklist (1.0.6 — historical)
 
 - [ ] Replace the placeholder copy in
       `src/features/menu/content/terms.ts` and

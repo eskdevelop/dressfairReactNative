@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { CommonActions, useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -98,12 +98,7 @@ export function AppPermissionsScreen(): React.ReactElement {
 
   const openNotificationTab = (): void => {
     analytics.track('app_permissions_open_notifications_tab');
-    navigation.dispatch(
-      CommonActions.navigate({
-        name: 'MainTabs',
-        params: { screen: 'Notifications' },
-      }),
-    );
+    navigation.navigate('NotificationsInbox');
   };
 
   const badgeLabel = notifyProbeSkipped

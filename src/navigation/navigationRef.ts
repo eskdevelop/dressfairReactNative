@@ -13,7 +13,7 @@ let pendingPath: string | null = null;
 //   • cold-start notification / universal link routing,
 //   • the in-app Notifications inbox (tap a stored push),
 //   • native Search (tap a product result),
-//   • the Menu tab when it deep-links into legacy account pages.
+//   • commerce deep links from orders, wishlist, etc.
 //
 // We always:
 //   1. push the path into the cross-tab `webNav` slice so the Home tab's

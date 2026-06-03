@@ -219,14 +219,6 @@ export const privacyPolicyUrl = (country: CountryCode): string => {
   return `${base}${locale}/privacy-policy`;
 };
 
-/** Embedded Settings WebView: storefront country / region / language hub. */
-export const storefrontCountryRegionLanguageUrl = (country: CountryCode): string => {
-  const { webBaseUrl, webCategoriesPath } = getEnvConfig(country);
-  const base = webBaseUrl.replace(/\/+$/, '');
-  const locale = webCategoriesPath.replace(/\/+$/, '');
-  return `${base}${locale}/user/country-region-language`;
-};
-
 // Build a relative storefront path for a product, given its SKU (the OpenCart
 // `model` field on result items, or the `sku` field on suggestion items).
 // The path is intentionally relative so callers can dispatch it through

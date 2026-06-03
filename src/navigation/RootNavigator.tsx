@@ -18,6 +18,7 @@ import { AccountSettingScreen } from '@features/settings/AccountSettingScreen';
 import { AppPermissionsScreen } from '@features/settings/AppPermissionsScreen';
 import { SafetyCenterScreen } from '@features/settings/SafetyCenterScreen';
 import { MenuSettingsScreen } from '@features/menu/screens/MenuSettingsScreen';
+import { NotificationsInboxScreen } from '@features/notifications/NotificationsInboxScreen';
 import { OrderHistoryScreen } from '@features/orders/OrderHistoryScreen';
 import { AuthNavigator } from '@features/auth/AuthNavigator';
 import { CheckoutScreen } from '@features/checkout/screens/CheckoutScreen';
@@ -118,6 +119,11 @@ export function RootNavigator() {
       <Stack.Screen
         name="AppPermissions"
         component={AppPermissionsScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="NotificationsInbox"
+        component={NotificationsInboxScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen

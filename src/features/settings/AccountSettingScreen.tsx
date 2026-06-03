@@ -23,7 +23,6 @@ import {
 } from '@features/account/customerProfileCache';
 import type { CustomerProfile } from '@features/account/types';
 import type { RootStackParamList } from '@navigation/types';
-import { openWebPath } from '@navigation/navigationRef';
 import type { CountryCode } from '@shared/config/env';
 import { getEnvConfig, privacyPolicyUrl } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
@@ -195,8 +194,23 @@ export function AccountSettingScreen(): React.ReactElement {
   };
 
   const openAccountWeb = (): void => {
-    analytics.track('account_setting_open_account_web');
-    openWebPath(accountPath);
+    const url = `${cfg.webBaseUrl}${accountPath}`;
+    analytics.track('account_setting_open_account_web', { url });
+    Linking.openURL(url).catch(() =>
+      Alert.alert('Unable to open link', 'Please check your connection and try again.'),
+    );
+  };
+
+  const onPassword = (): void => {
+    analytics.track('account_setting_password');
+    Alert.alert(
+      'Password',
+      'Manage your password on dressfair.com from your account security settings.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Open website', onPress: () => openAccountWeb() },
+      ],
+    );
   };
 
   const onPrivacyPolicy = (): void => {
@@ -329,14 +343,7 @@ export function AccountSettingScreen(): React.ReactElement {
           />
           <ThinDivider />
 
-          <SettingRow
-            title="Password"
-            actionLabel="Add"
-            onAction={() => {
-              analytics.track('account_setting_password');
-              openAccountWeb();
-            }}
-          />
+          <SettingRow title="Password" actionLabel="Add" onAction={onPassword} />
           <ThinDivider />
 
           <SettingRow

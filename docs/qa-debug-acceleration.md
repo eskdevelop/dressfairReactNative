@@ -1,15 +1,5 @@
 # QA Debug Acceleration
 
-## In-app Health Panel
-
-- Added `HealthDebugPanel` inside settings screen.
-- Displays runtime diagnostics:
-  - country
-  - offline/boot/auth flags
-  - network type
-  - session token presence
-  - push token presence
-
 ## Smoke Checklist Runner
 
 - Run:

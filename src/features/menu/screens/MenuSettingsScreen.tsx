@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -11,17 +12,17 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { CompositeNavigationProp } from '@react-navigation/native';
-import { CommonActions, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
+import { openStorefrontLogin } from '@features/account/requireStorefrontLogin';
 import { logoutEverywhere } from '@features/auth/authSync';
 import { signOutGoogle } from '@features/auth/googleAuth';
 import { applyCountryChange } from '@features/region/applyCountryChange';
-import { openWebPath } from '@navigation/navigationRef';
 import type { MainTabParamList, RootStackParamList } from '@navigation/types';
 import {
   COUNTRY_OPTIONS,
@@ -37,8 +38,11 @@ type NavProps = CompositeNavigationProp<
   NativeStackNavigationProp<RootStackParamList>
 >;
 
-const SETTINGS_GREEN = colors.success;
-const BODY_GREY = '#616161';
+const TEMU_GREEN = '#16A34A';
+const BODY_GREY = '#6B6B6B';
+const ROW_CHEVRON = '#9CA3AF';
+const VALUE_GREY = '#888888';
+const DIVIDER = '#F0F0F0';
 
 const APP_SHARE_URL =
   Platform.OS === 'ios'
@@ -46,7 +50,11 @@ const APP_SHARE_URL =
     : 'https://play.google.com/store/apps/details?id=com.dressfair.dressfairrnhybrid';
 
 function ThinDivider(): React.ReactElement {
-  return <View style={{ height: 1, backgroundColor: colors.dividerLight }} />;
+  return <View style={{ height: 1, backgroundColor: DIVIDER }} />;
+}
+
+function SectionGap(): React.ReactElement {
+  return <View style={{ height: 8, backgroundColor: '#F2F2F2' }} />;
 }
 
 type GridTileProps = {
@@ -64,27 +72,30 @@ function SettingsGridTile({ icon, label, onPress }: GridTileProps): React.ReactE
       style={({ pressed }) => ({
         flex: 1,
         margin: 4,
-        paddingVertical: 14,
-        paddingHorizontal: 8,
-        borderWidth: 1,
-        borderColor: colors.border,
-        borderRadius: radii.md,
+        flexDirection: 'row',
         alignItems: 'center',
+        paddingVertical: 12,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: '#EAEAEA',
+        borderRadius: 8,
         backgroundColor: pressed ? '#F9FAFB' : '#FFFFFF',
       })}
     >
-      <Ionicons name={icon} size={24} color={SETTINGS_GREEN} />
+      <Ionicons name={icon} size={20} color={TEMU_GREEN} />
       <Text
         style={{
-          marginTop: 8,
-          fontSize: 11,
+          flex: 1,
+          marginLeft: 8,
+          fontSize: 13,
           fontWeight: '500',
           color: colors.textPrimary,
-          textAlign: 'center',
         }}
+        numberOfLines={2}
       >
         {label}
       </Text>
+      <Ionicons name="chevron-forward" size={16} color={TEMU_GREEN} />
     </Pressable>
   );
 }
@@ -104,16 +115,41 @@ function SettingsChevronRow({ title, value, onPress }: ChevronRowProps): React.R
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
+        minHeight: 50,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: 12,
+        backgroundColor: pressed ? '#F9FAFB' : '#FFFFFF',
+      })}
+    >
+      <Text style={{ flex: 1, fontSize: 14, color: '#000000' }}>{title}</Text>
+      {value ? (
+        <Text style={{ fontSize: 13, color: VALUE_GREY, marginRight: 4 }}>{value}</Text>
+      ) : null}
+      <Ionicons name="chevron-forward" size={17} color={ROW_CHEVRON} />
+    </Pressable>
+  );
+}
+
+type PlainRowProps = {
+  title: string;
+  onPress: () => void;
+};
+
+function SettingsPlainRow({ title, onPress }: PlainRowProps): React.ReactElement {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        minHeight: 50,
+        justifyContent: 'center',
         paddingHorizontal: spacing.lg,
         paddingVertical: 14,
         backgroundColor: pressed ? '#F9FAFB' : '#FFFFFF',
       })}
     >
-      <Text style={{ flex: 1, fontSize: 14, color: colors.textPrimary }}>{title}</Text>
-      {value ? (
-        <Text style={{ fontSize: 14, color: colors.textMuted, marginRight: 6 }}>{value}</Text>
-      ) : null}
-      <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      <Text style={{ fontSize: 14, color: '#000000' }}>{title}</Text>
     </Pressable>
   );
 }
@@ -123,7 +159,6 @@ export function MenuSettingsScreen(): React.ReactElement {
   const dispatch = useAppDispatch();
   const country = useAppSelector(s => s.app.country) as CountryCode;
   const storeCurrencyCode = useAppSelector(s => s.app.storeCurrencyCode);
-  const storeCurrencyTitle = useAppSelector(s => s.app.storeCurrencyTitle);
   const isAuthenticated = useAppSelector(s => s.app.isAuthenticated);
   const cfg = getEnvConfig(country);
 
@@ -139,13 +174,13 @@ export function MenuSettingsScreen(): React.ReactElement {
     [],
   );
 
-  const currencyDisplay = useMemo(() => {
-    if (storeCurrencyCode && storeCurrencyTitle) {
-      return `${storeCurrencyCode} (${storeCurrencyTitle})`;
-    }
-    if (storeCurrencyCode) return storeCurrencyCode;
-    return '—';
-  }, [storeCurrencyCode, storeCurrencyTitle]);
+  const currencyShort = storeCurrencyCode?.trim() || '—';
+
+  const countryValueDisplay = useMemo(() => {
+    const match = COUNTRY_OPTIONS.find(o => o.code === country);
+    if (!match) return country;
+    return `${match.code} ${match.flag}`;
+  }, [country]);
 
   const performLogout = useCallback(async () => {
     setLoggingOut(true);
@@ -161,12 +196,12 @@ export function MenuSettingsScreen(): React.ReactElement {
 
   const confirmLogout = useCallback(() => {
     Alert.alert(
-      'Log out',
+      'Sign out',
       'This clears your session, cached profile and login data on this device. You will need to sign in again.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Log out',
+          text: 'Sign out',
           style: 'destructive',
           onPress: () => {
             void performLogout();
@@ -175,6 +210,32 @@ export function MenuSettingsScreen(): React.ReactElement {
       ],
     );
   }, [performLogout]);
+
+  const onSwitchAccounts = useCallback(() => {
+    analytics.track('settings_switch_accounts_tap');
+    if (!isAuthenticated) {
+      openStorefrontLogin(country);
+      return;
+    }
+    Alert.alert('Switch accounts', 'Sign out and sign in with another account?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Continue',
+        onPress: () => {
+          setLoggingOut(true);
+          void (async () => {
+            try {
+              await signOutGoogle();
+              await logoutEverywhere();
+              openStorefrontLogin(country);
+            } finally {
+              setLoggingOut(false);
+            }
+          })();
+        },
+      },
+    ]);
+  }, [country, isAuthenticated]);
 
   const onCountryChange = useCallback(
     (value: string) => {
@@ -207,19 +268,26 @@ export function MenuSettingsScreen(): React.ReactElement {
     analytics.track('settings_payment_methods_tap');
     Alert.alert(
       'Payment methods',
-      'Manage saved payment methods on the DressFair website.',
+      'Manage saved payment methods on the DressFair website in Safari.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Open website',
           onPress: () => {
             const locale = cfg.webCategoriesPath.replace(/\/$/, '');
-            openWebPath(`${locale}/account`);
+            const url = `${cfg.webBaseUrl}${locale}/account`;
+            analytics.track('settings_payment_methods_open_web', { url });
+            Linking.openURL(url).catch(() =>
+              Alert.alert(
+                'Unable to open link',
+                'Please check your connection and try again.',
+              ),
+            );
           },
         },
       ],
     );
-  }, [cfg.webCategoriesPath]);
+  }, [cfg.webBaseUrl, cfg.webCategoriesPath]);
 
   const onLegalTerms = useCallback(() => {
     Alert.alert('Legal terms & policies', 'Choose a document to view.', [
@@ -254,12 +322,7 @@ export function MenuSettingsScreen(): React.ReactElement {
 
   const openNotificationsTab = useCallback(() => {
     analytics.track('settings_notifications_tap');
-    navigation.dispatch(
-      CommonActions.navigate({
-        name: 'MainTabs',
-        params: { screen: 'Notifications' },
-      }),
-    );
+    navigation.navigate('NotificationsInbox');
   }, [navigation]);
 
   return (
@@ -271,7 +334,7 @@ export function MenuSettingsScreen(): React.ReactElement {
           paddingHorizontal: spacing.md,
           paddingVertical: spacing.sm,
           borderBottomWidth: 1,
-          borderBottomColor: colors.border,
+          borderBottomColor: DIVIDER,
         }}
       >
         <TouchableOpacity
@@ -293,29 +356,7 @@ export function MenuSettingsScreen(): React.ReactElement {
         >
           Settings
         </Text>
-        {isAuthenticated ? (
-          <TouchableOpacity
-            onPress={confirmLogout}
-            accessibilityRole="button"
-            accessibilityLabel="Log out"
-            hitSlop={12}
-            style={{ flexDirection: 'row', alignItems: 'center' }}
-          >
-            <Ionicons name="log-out-outline" size={22} color="#DC2626" />
-            <Text
-              style={{
-                marginLeft: 4,
-                fontSize: 14,
-                fontWeight: '600',
-                color: '#DC2626',
-              }}
-            >
-              Logout
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={{ width: 24 }} />
-        )}
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView
@@ -324,10 +365,10 @@ export function MenuSettingsScreen(): React.ReactElement {
         contentContainerStyle={{ paddingBottom: spacing.xl * 2 }}
       >
         <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: SETTINGS_GREEN }}>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: TEMU_GREEN }}>
             Your account is protected
           </Text>
-          <Text style={{ marginTop: 6, fontSize: 12, color: BODY_GREY, lineHeight: 17 }}>
+          <Text style={{ marginTop: 6, fontSize: 13, color: BODY_GREY, lineHeight: 18 }}>
             Dressfair protects your personal information and keeps it private, safe and secure.
           </Text>
         </View>
@@ -335,7 +376,7 @@ export function MenuSettingsScreen(): React.ReactElement {
         <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.lg }}>
           <View style={{ flexDirection: 'row' }}>
             <SettingsGridTile
-              icon="shield-checkmark-outline"
+              icon="person"
               label="Account security"
               onPress={() => {
                 analytics.track('settings_grid_account_security');
@@ -343,7 +384,7 @@ export function MenuSettingsScreen(): React.ReactElement {
               }}
             />
             <SettingsGridTile
-              icon="lock-closed-outline"
+              icon="lock-closed"
               label="Privacy"
               onPress={() => {
                 analytics.track('settings_grid_privacy');
@@ -353,7 +394,7 @@ export function MenuSettingsScreen(): React.ReactElement {
           </View>
           <View style={{ flexDirection: 'row' }}>
             <SettingsGridTile
-              icon="key-outline"
+              icon="key"
               label="Permissions"
               onPress={() => {
                 analytics.track('settings_grid_permissions');
@@ -361,7 +402,7 @@ export function MenuSettingsScreen(): React.ReactElement {
               }}
             />
             <SettingsGridTile
-              icon="shield-outline"
+              icon="shield-checkmark"
               label="Safety center"
               onPress={() => {
                 analytics.track('settings_grid_safety_center');
@@ -371,45 +412,44 @@ export function MenuSettingsScreen(): React.ReactElement {
           </View>
         </View>
 
-        <View style={{ height: spacing.lg }} />
-        <ThinDivider />
+        <View style={{ height: spacing.md }} />
+        <SectionGap />
 
         <SettingsChevronRow title="Your payment methods" onPress={onPaymentMethods} />
         <ThinDivider />
 
-        <View style={{ paddingHorizontal: spacing.lg, paddingVertical: spacing.md }}>
-          <Text style={{ fontSize: 14, color: colors.textPrimary, marginBottom: 8 }}>
-            Country & region
-          </Text>
-          <FormSelectField
-            placeholder="Select country"
-            selectedValue={country}
-            options={countrySelectOptions}
-            onValueChange={onCountryChange}
-            disabled={switchingCountry}
-          />
-          {switchingCountry ? (
-            <Text style={{ marginTop: 6, fontSize: 11, color: colors.textMuted }}>
-              Updating region…
-            </Text>
-          ) : null}
-        </View>
+        <FormSelectField
+          placeholder="Select country"
+          selectedValue={country}
+          options={countrySelectOptions}
+          onValueChange={onCountryChange}
+          disabled={switchingCountry}
+          renderTrigger={({ open }) => (
+            <SettingsChevronRow
+              title="Country & region"
+              value={switchingCountry ? 'Updating…' : countryValueDisplay}
+              onPress={open}
+            />
+          )}
+        />
         <ThinDivider />
 
         <SettingsChevronRow
           title="Currency"
-          value={currencyDisplay}
+          value={currencyShort}
           onPress={() => {
             Alert.alert(
               'Currency',
-              `Prices are shown in ${currencyDisplay} for your selected region.`,
+              `Prices are shown in ${currencyShort} for your selected region.`,
             );
           }}
         />
-        <ThinDivider />
+
+        <SectionGap />
 
         <SettingsChevronRow title="Notifications" onPress={openNotificationsTab} />
-        <ThinDivider />
+
+        <SectionGap />
 
         <SettingsChevronRow
           title="About this app"
@@ -424,7 +464,8 @@ export function MenuSettingsScreen(): React.ReactElement {
         <ThinDivider />
 
         <SettingsChevronRow title="Share this app" onPress={() => void onShareApp()} />
-        <ThinDivider />
+
+        <SectionGap />
 
         <SettingsChevronRow
           title="Contact & support"
@@ -442,11 +483,21 @@ export function MenuSettingsScreen(): React.ReactElement {
             navigation.navigate('Faq');
           }}
         />
+
+        <SectionGap />
+
+        <SettingsChevronRow title="Switch accounts" onPress={onSwitchAccounts} />
+        {isAuthenticated ? (
+          <>
+            <ThinDivider />
+            <SettingsPlainRow title="Sign out" onPress={confirmLogout} />
+          </>
+        ) : null}
       </ScrollView>
 
       <AppLoadingOverlay
         visible={loggingOut || switchingCountry}
-        message={loggingOut ? 'Logging out…' : 'Updating region…'}
+        message={loggingOut ? 'Signing out…' : 'Updating region…'}
       />
     </SafeAreaView>
   );

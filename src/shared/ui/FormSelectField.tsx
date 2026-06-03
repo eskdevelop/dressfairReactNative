@@ -16,6 +16,12 @@ export type FormSelectOption = {
   value: string;
 };
 
+type TriggerApi = {
+  open: () => void;
+  selectedLabel: string | null;
+  selectedValue: string;
+};
+
 type Props = {
   placeholder: string;
   selectedValue: string;
@@ -23,6 +29,8 @@ type Props = {
   onValueChange: (value: string) => void;
   disabled?: boolean;
   minHeight?: number;
+  /** Custom trigger (e.g. a settings row). When omitted, a default bordered box is rendered. */
+  renderTrigger?: (api: TriggerApi) => React.ReactElement;
 };
 
 /**
@@ -36,6 +44,7 @@ export function FormSelectField({
   onValueChange,
   disabled = false,
   minHeight = 48,
+  renderTrigger,
 }: Props): React.ReactElement {
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
@@ -52,38 +61,50 @@ export function FormSelectField({
     close();
   };
 
+  const openSheet = (): void => {
+    if (!disabled) setOpen(true);
+  };
+
   return (
     <>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled, expanded: open }}
-        disabled={disabled}
-        onPress={() => setOpen(true)}
-        style={{
-          minHeight,
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderWidth: 1,
-          borderColor: colors.border,
-          borderRadius: radii.md,
-          backgroundColor: '#FFFFFF',
-          paddingHorizontal: spacing.md,
-          opacity: disabled ? 0.55 : 1,
-        }}
-      >
-        <Text
-          numberOfLines={1}
-          style={{
-            flex: 1,
-            fontSize: 15,
-            color: selectedLabel ? colors.textPrimary : colors.textMuted,
-          }}
+      {renderTrigger ? (
+        renderTrigger({ open: openSheet, selectedLabel, selectedValue })
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled, expanded: open }}
+          disabled={disabled}
+          onPress={openSheet}
+          style={({ pressed }) => ({
+            minHeight,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            borderWidth: 1,
+            borderColor: open ? colors.brand : colors.border,
+            borderRadius: radii.lg,
+            backgroundColor: pressed ? '#FAFAFA' : '#FFFFFF',
+            paddingHorizontal: spacing.lg,
+            opacity: disabled ? 0.55 : 1,
+          })}
         >
-          {selectedLabel ?? placeholder}
-        </Text>
-        <Ionicons name="chevron-down" size={18} color={colors.textMuted} />
-      </Pressable>
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              fontSize: 15,
+              color: selectedLabel ? colors.textPrimary : colors.textMuted,
+            }}
+          >
+            {selectedLabel ?? placeholder}
+          </Text>
+          <Ionicons
+            name={open ? 'chevron-up' : 'chevron-down'}
+            size={18}
+            color={colors.textMuted}
+          />
+        </Pressable>
+      )}
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
         <Pressable
@@ -98,28 +119,50 @@ export function FormSelectField({
             style={{
               maxHeight: '70%',
               backgroundColor: '#FFFFFF',
-              borderTopLeftRadius: radii.lg,
-              borderTopRightRadius: radii.lg,
+              borderTopLeftRadius: 20,
+              borderTopRightRadius: 20,
               paddingBottom: Math.max(insets.bottom, spacing.md),
             }}
             onPress={e => e.stopPropagation()}
           >
+            <View style={{ alignItems: 'center', paddingTop: spacing.sm }}>
+              <View
+                style={{
+                  width: 40,
+                  height: 4,
+                  borderRadius: 2,
+                  backgroundColor: '#E0E0E0',
+                }}
+              />
+            </View>
+
             <View
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 paddingHorizontal: spacing.lg,
-                paddingVertical: spacing.md,
-                borderBottomWidth: 1,
-                borderBottomColor: colors.border,
+                paddingTop: spacing.md,
+                paddingBottom: spacing.md,
               }}
             >
-              <Text style={{ fontSize: 16, fontWeight: '600', color: colors.textPrimary }}>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: colors.textPrimary }}>
                 {placeholder}
               </Text>
-              <Pressable accessibilityRole="button" onPress={close} hitSlop={12}>
-                <Ionicons name="close" size={22} color={colors.textMuted} />
+              <Pressable
+                accessibilityRole="button"
+                onPress={close}
+                hitSlop={12}
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: '#F2F2F2',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons name="close" size={18} color={colors.textMuted} />
               </Pressable>
             </View>
 
@@ -127,22 +170,33 @@ export function FormSelectField({
               data={options}
               keyExtractor={item => item.value}
               keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm }}
               renderItem={({ item }) => {
                 const selected = item.value === selectedValue;
                 return (
                   <Pressable
                     accessibilityRole="button"
+                    accessibilityState={{ selected }}
                     onPress={() => pick(item.value)}
-                    style={{
-                      paddingHorizontal: spacing.lg,
-                      paddingVertical: spacing.md,
-                      backgroundColor: selected ? '#FFF7ED' : '#FFFFFF',
-                      borderBottomWidth: 1,
-                      borderBottomColor: colors.dividerLight,
-                    }}
+                    style={({ pressed }) => ({
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      minHeight: 52,
+                      paddingHorizontal: spacing.md,
+                      marginVertical: 3,
+                      borderRadius: radii.md,
+                      backgroundColor: selected
+                        ? '#FFF7ED'
+                        : pressed
+                          ? '#F7F7F7'
+                          : '#FFFFFF',
+                      borderWidth: 1,
+                      borderColor: selected ? colors.brand : 'transparent',
+                    })}
                   >
                     <Text
                       style={{
+                        flex: 1,
                         fontSize: 15,
                         color: selected ? colors.brand : colors.textPrimary,
                         fontWeight: selected ? '600' : '400',
@@ -150,6 +204,9 @@ export function FormSelectField({
                     >
                       {item.label}
                     </Text>
+                    {selected ? (
+                      <Ionicons name="checkmark-circle" size={20} color={colors.brand} />
+                    ) : null}
                   </Pressable>
                 );
               }}

@@ -97,16 +97,15 @@ type Props = {
    */
   hideStorefrontMobileFooterMode?: 'full' | 'semantic';
   /**
-   * Native Settings shell already shows back + title; hide duplicate in-page
+   * Native shell already shows back + title; hide duplicate in-page
    * storefront toolbar (see `storefrontHideEmbeddedSiteAppBarInjection.ts`).
    */
   hideEmbeddedSiteAppBar?: boolean;
   /**
    * When true, skip the native auth/session bridge injections (fetch/XHR header
    * patching + web session hydration). Use for guest-capable storefront pages
-   * (e.g. the embedded Settings / country-region-language page) that render
-   * fine in a plain browser but break when we force native headers onto their
-   * own API calls. Makes the WebView behave like a normal mobile browser.
+   * that render fine in a plain browser but break when we force native headers
+   * onto their own API calls. Makes the WebView behave like a normal mobile browser.
    */
   disableStorefrontAuthBridge?: boolean;
   /**

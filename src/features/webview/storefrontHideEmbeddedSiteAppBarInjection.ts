@@ -1,6 +1,6 @@
 /**
- * Menu Settings WebView: hide storefront chrome that duplicates the native shell:
- *   • Duplicate Settings toolbar (div.fixed full-bleed top bar with border-b-gray-200 and z-[99999])
+ * Hide duplicate storefront chrome when a native shell already provides back/title:
+ *   • Duplicate top toolbar (div.fixed full-bleed top bar with border-b-gray-200 and z-[99999])
  *   • Floating home FAB (fixed + bottom-* + right-* + rounded-full + SVG)
  *
  * Primary matching uses Tailwind class substrings from production DOM (Chrome inspector).

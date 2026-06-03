@@ -10,7 +10,6 @@ import { colors } from '@app/theme/tokens';
 import { CategorySearchBar } from '@features/categories/components/CategorySearchBar';
 import { CategoryNavigator } from '@features/categories/CategoryNavigator';
 import { AccountScreen } from '@features/account/AccountScreen';
-import { NotificationsInboxScreen } from '@features/notifications/NotificationsInboxScreen';
 import { notificationInbox } from '@features/notifications/notificationInbox';
 import { SearchScreen } from '@features/search/SearchScreen';
 import { CartScreen } from '@features/cart/screens/CartScreen';
@@ -319,14 +318,6 @@ export function MainTabs() {
         <Tab.Screen
           name="Wishlist"
           component={WishlistScreen}
-          options={{
-            tabBarButton: hiddenTabBarButton,
-            tabBarItemStyle: hiddenTabBarItemStyle,
-          }}
-        />
-        <Tab.Screen
-          name="Notifications"
-          component={NotificationsInboxScreen}
           options={{
             tabBarButton: hiddenTabBarButton,
             tabBarItemStyle: hiddenTabBarItemStyle,

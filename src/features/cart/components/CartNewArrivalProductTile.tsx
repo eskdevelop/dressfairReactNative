@@ -19,13 +19,8 @@ type Props = {
 };
 
 const CART_BTN_HEIGHT = 26;
-const CART_BTN_RADIUS = CART_BTN_HEIGHT / 2;
 
-function formatCartTilePrice(amount: number): string {
-  if (!Number.isFinite(amount)) return '0.00';
-  return (Math.round(amount * 100) / 100).toFixed(2);
-}
-
+/*
 function CartGridAddButton({ onPress }: { onPress: () => void }): React.ReactElement {
   return (
     <Pressable
@@ -36,7 +31,7 @@ function CartGridAddButton({ onPress }: { onPress: () => void }): React.ReactEle
       style={({ pressed }) => ({
         height: CART_BTN_HEIGHT,
         paddingHorizontal: 11,
-        borderRadius: CART_BTN_RADIUS,
+        borderRadius: CART_BTN_HEIGHT / 2,
         borderWidth: 1,
         borderColor: '#222222',
         backgroundColor: '#FFFFFF',
@@ -49,6 +44,13 @@ function CartGridAddButton({ onPress }: { onPress: () => void }): React.ReactEle
       <Ionicons name="cart-outline" size={14} color="#222222" />
     </Pressable>
   );
+}
+*/
+// Hidden for now — You tab + Cart empty-state new-arrivals grids.
+
+function formatCartTilePrice(amount: number): string {
+  if (!Number.isFinite(amount)) return '0.00';
+  return (Math.round(amount * 100) / 100).toFixed(2);
 }
 
 export function CartNewArrivalProductTile({
@@ -152,7 +154,7 @@ export function CartNewArrivalProductTile({
             </Text>
           ) : null}
         </View>
-        <CartGridAddButton onPress={() => onOpen(row.productSku)} />
+        {/* <CartGridAddButton onPress={() => onOpen(row.productSku)} /> */}
       </View>
     </View>
   );

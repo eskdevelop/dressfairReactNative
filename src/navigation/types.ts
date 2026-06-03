@@ -24,7 +24,6 @@ export type MainTabParamList = {
   Category: NavigatorScreenParams<CategoryStackParamList>;
   Search: undefined;
   Wishlist: undefined;
-  Notifications: undefined;
   Menu: undefined;
   Cart: undefined;
 };
@@ -59,6 +58,7 @@ export type RootStackParamList = {
   AccountSetting: undefined;
   SafetyCenter: undefined;
   AppPermissions: undefined;
+  NotificationsInbox: undefined;
   Profile: undefined;
   ProfileEdit: { profile: CustomerProfile };
   Addresses: undefined;

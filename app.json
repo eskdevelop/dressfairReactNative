@@ -30,7 +30,7 @@
     ],
     "ios": {
       "bundleIdentifier": "com.dressfair.dressfairrnhybrid",
-      "buildNumber": "19",
+      "buildNumber": "20",
       "supportsTablet": false,
       "usesAppleSignIn": true,
       "icon": "./assets/icon.png",

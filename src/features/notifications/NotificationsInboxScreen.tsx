@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
@@ -34,6 +34,7 @@ const formatRelativeTime = (timestamp: number): string => {
 };
 
 export function NotificationsInboxScreen() {
+  const navigation = useNavigation();
   const items = useAppSelector(state => state.notifications.items);
   const hydrated = useAppSelector(state => state.notifications.hydrated);
   const [deleteTarget, setDeleteTarget] = useState<StoredNotification | null>(null);
@@ -237,21 +238,32 @@ export function NotificationsInboxScreen() {
           justifyContent: 'space-between',
         }}
       >
-        <View>
-          <Text
-            style={{
-              fontSize: 22,
-              fontWeight: '700',
-              color: colors.textPrimary,
-            }}
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={12}
+            style={{ marginRight: spacing.sm }}
           >
-            Notifications
-          </Text>
-          <Text style={{ color: colors.textMuted, marginTop: spacing.xs }}>
-            {unreadCount > 0
-              ? `${unreadCount} unread`
-              : 'You are all caught up'}
-          </Text>
+            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: '700',
+                color: colors.textPrimary,
+              }}
+            >
+              Notifications
+            </Text>
+            <Text style={{ color: colors.textMuted, marginTop: spacing.xs }}>
+              {unreadCount > 0
+                ? `${unreadCount} unread`
+                : 'You are all caught up'}
+            </Text>
+          </View>
         </View>
         {items.length > 0 ? (
           <View style={{ flexDirection: 'row', gap: spacing.md }}>
