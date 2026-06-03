@@ -16,12 +16,12 @@ export function YouOffersPromoBar({ onPress }: Props): React.ReactElement {
       <View style={{ backgroundColor: BAR_BG, paddingVertical: 8, paddingHorizontal: 12 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Ionicons name="checkmark-circle" color={GREEN} size={18} />
+            <Ionicons name="checkmark" color={GREEN} size={18} />
             <Text style={{ marginLeft: 6, fontSize: 10, color: GREEN, fontWeight: '500' }}>Free shipping</Text>
 
             <View style={{ width: 14 }} />
 
-            <Ionicons name="checkmark-circle" color={GREEN} size={18} />
+            <Ionicons name="checkmark" color={GREEN} size={18} />
             <Text style={{ marginLeft: 6, fontSize: 10, color: GREEN, fontWeight: '500' }}>
               Pay when you receive your order
             </Text>

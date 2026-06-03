@@ -20,32 +20,9 @@ type Props = {
   storeCurrencyFallback: string;
 };
 
+const STAR_COLOR = '#F59E0B';
+const STAR_EMPTY = '#D1D5DB';
 const CART_BTN_HEIGHT = 26;
-
-function CartGridAddButton({ onPress }: { onPress: () => void }): React.ReactElement {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Add to cart"
-      hitSlop={6}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        height: CART_BTN_HEIGHT,
-        paddingHorizontal: 11,
-        borderRadius: CART_BTN_HEIGHT / 2,
-        borderWidth: 1,
-        borderColor: '#222222',
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        opacity: pressed ? 0.75 : 1,
-      })}
-    >
-      <Ionicons name="cart-outline" size={14} color="#222222" />
-    </Pressable>
-  );
-}
 
 function formatCartTilePrice(amount: number): string {
   if (!Number.isFinite(amount)) return '0.00';
@@ -64,7 +41,6 @@ export function CartNewArrivalProductTile({
   const first = row.images[0]?.image ?? '';
   const uri = first ? cdnAssetUrl(country, first) : '';
   const ok = !!uri && isSupportedRemoteImage(uri);
-  const fakeR = 4.5;
   const currency = (storeCurrencyFallback || row.currencyCode || '').trim();
   const displayAmt = formatCartTilePrice(displayPriceFor(row.price));
   const strikeAmt = strikePriceIfAny(row.price);
@@ -72,26 +48,28 @@ export function CartNewArrivalProductTile({
   return (
     <View style={{ flex: 1, maxWidth: width, backgroundColor: '#FFF' }}>
       <Pressable onPress={() => onOpen(row.productSku)}>
-        {ok ? (
-          <Image style={{ width: '100%', height: imgH }} source={{ uri }} resizeMode="cover" />
-        ) : (
-          <View
-            style={{
-              height: imgH,
-              backgroundColor: '#F3F4F6',
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <Ionicons name="image-outline" size={28} color="#9CA3AF" />
-          </View>
-        )}
+        <View style={{ overflow: 'hidden', borderRadius: 6 }}>
+          {ok ? (
+            <Image style={{ width: '100%', height: imgH }} source={{ uri }} resizeMode="cover" />
+          ) : (
+            <View
+              style={{
+                height: imgH,
+                backgroundColor: '#F3F4F6',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons name="image-outline" size={28} color="#9CA3AF" />
+            </View>
+          )}
+        </View>
       </Pressable>
 
       <Pressable onPress={() => onOpen(row.productSku)}>
         <Text
-          style={{ fontSize: 10, marginTop: 5, paddingHorizontal: 3, color: '#111' }}
-          numberOfLines={1}
+          style={{ fontSize: 11, lineHeight: 15, marginTop: 4, paddingHorizontal: 3, color: '#111' }}
+          numberOfLines={2}
         >
           {row.name}
         </Text>
@@ -101,18 +79,16 @@ export function CartNewArrivalProductTile({
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 4,
+          gap: 3,
           paddingHorizontal: 2,
-          paddingTop: 2,
+          paddingTop: 1,
         }}
       >
         {[1, 2, 3, 4, 5].map(i =>
-          fakeR >= i ? (
-            <Ionicons key={i} name="star" size={12} color="#111" />
-          ) : fakeR > i - 1 && fakeR < i ? (
-            <Ionicons key={i} name="star-half" size={12} color="#111" />
+          i <= 4 ? (
+            <Ionicons key={i} name="star" size={10} color={STAR_COLOR} />
           ) : (
-            <Ionicons key={i} name="star-outline" size={12} color="#D1D5DB" />
+            <Ionicons key={i} name="star-outline" size={10} color={STAR_EMPTY} />
           ),
         )}
         <Text style={{ fontSize: 10, color: '#111' }}>4.5</Text>
@@ -125,21 +101,12 @@ export function CartNewArrivalProductTile({
           alignItems: 'center',
           justifyContent: 'space-between',
           paddingHorizontal: 3,
-          paddingTop: 6,
-          paddingBottom: 4,
-          minHeight: CART_BTN_HEIGHT,
+          paddingTop: 4,
+          paddingBottom: 2,
         }}
       >
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'baseline',
-            flexShrink: 1,
-            gap: 5,
-            paddingRight: 6,
-          }}
-        >
-          <Text style={{ fontWeight: '700', fontSize: 11, color: categoryTheme.primary }}>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 5 }}>
+          <Text style={{ fontWeight: '700', fontSize: 12, color: categoryTheme.primary }}>
             {currency.length > 0 ? `${currency} ${displayAmt}` : displayAmt}
           </Text>
           {strikeAmt != null ? (
@@ -154,9 +121,27 @@ export function CartNewArrivalProductTile({
             </Text>
           ) : null}
         </View>
-        <CartGridAddButton
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add to cart"
+          hitSlop={6}
           onPress={() => (onQuickAdd ?? onOpen)(row.productSku)}
-        />
+          style={({ pressed }) => ({
+            height: CART_BTN_HEIGHT,
+            paddingHorizontal: 10,
+            borderRadius: CART_BTN_HEIGHT / 2,
+            borderWidth: 1,
+            borderColor: '#222222',
+            backgroundColor: '#FFFFFF',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            marginLeft: 4,
+            opacity: pressed ? 0.75 : 1,
+          })}
+        >
+          <Ionicons name="cart-outline" size={15} color="#111" />
+        </Pressable>
       </View>
     </View>
   );

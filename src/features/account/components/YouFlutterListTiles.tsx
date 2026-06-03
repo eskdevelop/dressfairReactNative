@@ -65,8 +65,8 @@ function TileRow({
 }): React.ReactElement {
   return (
     <Pressable accessibilityRole="button" onPress={onPress}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16 }}>
-        <Ionicons name={icon} size={22} color="#111" style={{ marginRight: 14 }} />
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16 }}>
+        <Ionicons name={icon} size={20} color="#111" style={{ marginRight: 14 }} />
         <Text style={{ flex: 1, fontSize: 12, fontWeight: '500', color: '#111' }}>{label}</Text>
         <Ionicons name="chevron-forward" size={20} color="#6B7280" />
       </View>

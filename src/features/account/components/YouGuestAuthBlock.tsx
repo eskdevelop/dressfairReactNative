@@ -5,7 +5,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { colors, radii } from '@app/theme/tokens';
 
 const { width: screenW } = Dimensions.get('window');
-const BUTTON_MAX = 300;
 
 /** Matches Flutter `Colors.grey.shade200` */
 const ICON_CIRCLE_BG = '#EEEEEE';
@@ -17,15 +16,15 @@ type Props = {
 };
 
 export function YouGuestAuthBlock({ onPressSignIn }: Props): React.ReactElement {
-  const btnWidth = Math.min(BUTTON_MAX, screenW - 32);
+  const btnWidth = screenW - 32;
 
   return (
-    <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 10 }}>
+    <View style={{ alignItems: 'center', paddingTop: 8, paddingBottom: 0 }}>
       <Text style={{ textAlign: 'center', fontSize: 15, fontWeight: '600', color: '#000' }}>
-        Sign In For The Best Experience
+        Sign in for the best experience
       </Text>
 
-      <View style={{ paddingHorizontal: 16, paddingVertical: 20, width: '100%' }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4, width: '100%' }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-evenly' }}>
           <ColumnCircle
             icon="local-shipping"
@@ -44,18 +43,17 @@ export function YouGuestAuthBlock({ onPressSignIn }: Props): React.ReactElement 
         onPress={onPressSignIn}
         style={{
           width: btnWidth,
-          height: 38,
+          height: 44,
           borderRadius: radii.pill,
           backgroundColor: colors.brand,
           alignItems: 'center',
           justifyContent: 'center',
-          marginVertical: 4,
+          marginTop: 8,
+          marginBottom: 16,
         }}
       >
-        <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 14 }}>Sign In / Register</Text>
+        <Text style={{ color: '#FFF', fontWeight: '600', fontSize: 14 }}>Sign in / Register</Text>
       </Pressable>
-
-      <View style={{ height: 10 }} />
     </View>
   );
 }
@@ -75,19 +73,19 @@ function ColumnCircle({
     <View style={{ alignItems: 'center', maxWidth: screenW * 0.42 }}>
       <View
         style={{
-          width: 50,
-          height: 50,
-          borderRadius: 25,
+          width: 44,
+          height: 44,
+          borderRadius: 22,
           backgroundColor: ICON_CIRCLE_BG,
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <MaterialIcons name={icon} color={colors.brand} size={28} />
+        <MaterialIcons name={icon} color={colors.brand} size={24} />
       </View>
       <Text
         style={[
-          { marginTop: 8, fontWeight: '700', fontSize: 14, color: '#000', textAlign: 'center' },
+          { marginTop: 6, fontWeight: '700', fontSize: 13, color: '#000', textAlign: 'center' },
           textTrim,
         ]}
       >
@@ -95,7 +93,7 @@ function ColumnCircle({
       </Text>
       <Text
         style={[
-          { marginTop: 2, fontSize: 12, color: SUBTITLE_COLOR, textAlign: 'center' },
+          { marginTop: 2, fontSize: 11, color: SUBTITLE_COLOR, textAlign: 'center' },
           textTrim,
         ]}
       >

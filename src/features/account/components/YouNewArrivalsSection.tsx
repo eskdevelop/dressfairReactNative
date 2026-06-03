@@ -59,7 +59,7 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
     const cardGap = 4;
     const hPad = spacing.sm * 2;
     const cardW = Math.floor((ww - hPad - cardGap) / 2);
-    const cardH = ww * 0.29;
+    const cardH = Math.round(cardW * 1.32);
 
     const [items, setItems] = useState<ListingProductRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -172,7 +172,7 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
     }
 
     return (
-      <View style={{ marginTop: spacing.md, paddingHorizontal: spacing.sm }}>
+      <View style={{ marginTop: spacing.sm, paddingHorizontal: spacing.sm }}>
         {loading && items.length === 0 ? (
           <ProductGridSkeleton cardW={cardW} cardH={cardH} />
         ) : error && items.length === 0 ? (

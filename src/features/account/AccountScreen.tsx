@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, ScrollView } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -7,7 +7,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
-import { spacing } from '@app/theme/tokens';
+import { colors, spacing } from '@app/theme/tokens';
 import { fetchCustomerProfile } from '@features/account/customerApi';
 import {
   loadCachedProfile,
@@ -41,6 +41,10 @@ type AccountNavigation = CompositeNavigationProp<
 >;
 
 const LOGIN_FOR_FEATURES = 'Please Login For Full Features Access';
+
+function YouSectionDivider(): React.ReactElement {
+  return <View style={{ height: 10, backgroundColor: colors.pageMuted }} />;
+}
 
 export function AccountScreen() {
   const navigation = useNavigation<AccountNavigation>();
@@ -170,7 +174,11 @@ export function AccountScreen() {
           onGuestRestriction={onGuestRestrictedRow}
         />
 
+        <YouSectionDivider />
+
         <YouOffersPromoBar onPress={() => setOffersOpen(true)} />
+
+        <YouSectionDivider />
 
         <YouNewArrivalsSection
           ref={youNewArrivalsRef}

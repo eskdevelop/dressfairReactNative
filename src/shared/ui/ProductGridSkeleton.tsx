@@ -13,13 +13,14 @@ type Props = {
 function ProductGridSkeletonCard({ cardW, cardH }: { cardW: number; cardH: number }): React.ReactElement {
   return (
     <View style={{ flex: 1, maxWidth: cardW, backgroundColor: '#FFF' }}>
-      <SkeletonBox width="100%" height={cardH} borderRadius={0} />
-      <SkeletonBox width="85%" height={10} borderRadius={4} style={{ marginTop: 5, marginHorizontal: 3 }} />
+      <SkeletonBox width="100%" height={cardH} borderRadius={6} />
+      <SkeletonBox width="90%" height={10} borderRadius={4} style={{ marginTop: 4, marginHorizontal: 3 }} />
+      <SkeletonBox width="70%" height={10} borderRadius={4} style={{ marginTop: 3, marginHorizontal: 3 }} />
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 4,
+          gap: 3,
           paddingHorizontal: 2,
           paddingTop: 4,
         }}
@@ -36,12 +37,14 @@ function ProductGridSkeletonCard({ cardW, cardH }: { cardW: number; cardH: numbe
           alignItems: 'center',
           justifyContent: 'space-between',
           paddingHorizontal: 3,
-          paddingTop: 6,
-          paddingBottom: 4,
-          minHeight: 26,
+          paddingTop: 4,
+          paddingBottom: 2,
         }}
       >
-        <SkeletonBox width="45%" height={10} borderRadius={4} />
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <SkeletonBox width="45%" height={10} borderRadius={4} />
+          <SkeletonBox width="25%" height={8} borderRadius={4} />
+        </View>
         <SkeletonBox width={36} height={26} borderRadius={13} />
       </View>
     </View>
