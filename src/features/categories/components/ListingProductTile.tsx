@@ -8,6 +8,7 @@ import type { ListingProductRow } from '../categoryModel';
 import { hubPriceLine } from '../categoryModel';
 import { categoryTheme } from '../categoryTheme';
 import { cdnAssetUrl, isSupportedRemoteImage } from '../categoryImage';
+import { CategoryProductAddToCartButton } from './CategoryProductAddToCartButton';
 
 type Props = {
   row: ListingProductRow;
@@ -15,6 +16,7 @@ type Props = {
   width: number;
   imgH: number;
   onOpen: (sku: string) => void;
+  onQuickAdd?: (sku: string) => void;
   storeCurrencyFallback: string;
 };
 
@@ -24,15 +26,25 @@ export function ListingProductTile({
   width,
   imgH,
   onOpen,
+  onQuickAdd,
   storeCurrencyFallback,
 }: Props): React.ReactElement {
   const first = row.images[0]?.image ?? '';
   const uri = first ? cdnAssetUrl(country, first) : '';
   const ok = !!uri && isSupportedRemoteImage(uri);
   const fakeR = 4.5;
+
+  const onCartPress = () => {
+    if (onQuickAdd) {
+      onQuickAdd(row.productSku);
+      return;
+    }
+    onOpen(row.productSku);
+  };
+
   return (
     <View style={{ flex: 1, maxWidth: width, marginHorizontal: 5, marginBottom: 6, backgroundColor: '#FFF' }}>
-      <View>
+      <View style={{ position: 'relative' }}>
         <Pressable onPress={() => onOpen(row.productSku)}>
           {ok ? (
             <Image style={{ width: '100%', height: imgH }} source={{ uri }} resizeMode="cover" />
@@ -42,12 +54,7 @@ export function ListingProductTile({
             </View>
           )}
         </Pressable>
-        <Pressable
-          style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: '#FFF', borderRadius: 16, padding: 5, elevation: 2 }}
-          onPress={() => onOpen(row.productSku)}
-        >
-          <Ionicons name="cart-outline" size={16} color="#111" />
-        </Pressable>
+        <CategoryProductAddToCartButton onPress={onCartPress} size="large" />
       </View>
       <Pressable onPress={() => onOpen(row.productSku)}>
         <Text style={{ fontSize: 10, marginTop: 5, paddingHorizontal: 3 }} numberOfLines={1}>

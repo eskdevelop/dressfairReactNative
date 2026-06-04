@@ -39,7 +39,12 @@ export function CartNewArrivalProductTile({
   storeCurrencyFallback,
 }: Props): React.ReactElement {
   const first = row.images[0]?.image ?? '';
-  const uri = first ? cdnAssetUrl(country, first) : '';
+  const uri =
+    first.length > 0
+      ? /^https?:\/\//i.test(first)
+        ? first
+        : cdnAssetUrl(country, first)
+      : '';
   const ok = !!uri && isSupportedRemoteImage(uri);
   const currency = (storeCurrencyFallback || row.currencyCode || '').trim();
   const displayAmt = formatCartTilePrice(displayPriceFor(row.price));

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -8,7 +9,9 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
-import type { CategoryStackParamList } from '@navigation/types';
+import type { CategoryStackParamList, MainTabParamList } from '@navigation/types';
+import { QuickAddToCartSheet } from '@features/cart/components/QuickAddToCartSheet';
+import { analytics } from '@shared/observability/analytics';
 import { openWebPath } from '@navigation/navigationRef';
 import { productHrefForSku } from '@shared/config/env';
 import type { CountryCode } from '@shared/config/env';
@@ -31,6 +34,7 @@ export function CategoryProductListingScreen({
   const country = useAppSelector(s => s.app.country);
   const storeCurrencyCode = useAppSelector(s => s.app.storeCurrencyCode);
   const [offersOpen, setOffersOpen] = useState(false);
+  const [quickAddSku, setQuickAddSku] = useState<string | null>(null);
   const [sortModal, setSortModal] = useState(false);
   const [sortChoice, setSortChoice] = useState<SortChoice>('Default');
   const [items, setItems] = useState<ListingProductRow[]>([]);
@@ -95,9 +99,29 @@ export function CategoryProductListingScreen({
     if (href) openWebPath(href);
   };
 
+  const openQuickAdd = useCallback((sku: string) => {
+    const s = sku.trim();
+    if (!s) return;
+    analytics.track('category_listing_quick_add_open');
+    setQuickAddSku(s);
+  }, []);
+
+  const goToCartTab = useCallback(() => {
+    setQuickAddSku(null);
+    navigation.getParent<BottomTabNavigationProp<MainTabParamList>>()?.navigate('Cart');
+  }, [navigation]);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top']}>
       <OffersModal visible={offersOpen} onClose={() => setOffersOpen(false)} />
+      <QuickAddToCartSheet
+        visible={quickAddSku != null}
+        sku={quickAddSku}
+        country={country as CountryCode}
+        storeCurrencyCode={storeCurrencyCode}
+        onClose={() => setQuickAddSku(null)}
+        onGoToCart={goToCartTab}
+      />
 
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 8, gap: 8 }}>
         <Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={10} onPress={() => navigation.goBack()}>
@@ -180,6 +204,7 @@ export function CategoryProductListingScreen({
               width={cardW}
               imgH={cardH}
               onOpen={openPdp}
+              onQuickAdd={openQuickAdd}
               storeCurrencyFallback={storeCurrencyCode}
             />
           )}

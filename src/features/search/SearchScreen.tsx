@@ -4,7 +4,6 @@ import {
   BackHandler,
   Dimensions,
   FlatList,
-  Image,
   Keyboard,
   Pressable,
   Text,
@@ -37,7 +36,9 @@ import {
 import { loadCachedCategories } from '@features/categories/categoryCache';
 import { fetchNormalizeAndPersist } from '@features/categories/categoryHydration';
 import type { CategoryRow } from '@features/categories/categoryModel';
-import { wishlist } from '@features/wishlist/wishlist';
+import { CartNewArrivalProductTile } from '@features/cart/components/CartNewArrivalProductTile';
+import { QuickAddToCartSheet } from '@features/cart/components/QuickAddToCartSheet';
+import type { CountryCode } from '@shared/config/env';
 import { WebViewScreen } from '@features/webview/WebViewScreen';
 
 import {
@@ -59,7 +60,7 @@ import {
 import { PopularCategoryChips, RecentSearchChipRow } from './SearchHomeSections';
 import { recentSearches, type RecentSearchEntry } from './recentSearches';
 import type { SearchProductHit, SearchSuggestion } from './searchApi';
-import { fetchSuggestions, searchProductsLp } from './searchApi';
+import { fetchSuggestions, searchHitToListingRow, searchProductsLp } from './searchApi';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
@@ -83,11 +84,8 @@ export function SearchScreen() {
   const route = useRoute();
   const isCategoryHostedSearch = route.name === 'CategorySearch';
   const country = useAppSelector(state => state.app.country);
-  const wishlistItems = useAppSelector(state => state.wishlist.items);
-  const wishlistIdSet = useMemo(
-    () => new Set(wishlistItems.map(item => item.productId)),
-    [wishlistItems],
-  );
+  const storeCurrencyCode = useAppSelector(state => state.app.storeCurrencyCode);
+  const [quickAddSku, setQuickAddSku] = useState<string | null>(null);
   const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
   const [committedQuery, setCommittedQuery] = useState('');
@@ -386,23 +384,11 @@ export function SearchScreen() {
     [committedQuery, openProductPdp, persistRecent, query],
   );
 
-  const onToggleWishlist = useCallback((product: SearchProductHit) => {
-    void wishlist
-      .toggle(product)
-      .then(({ favourited }) => {
-        analytics.track(
-          favourited ? 'wishlist_item_added' : 'wishlist_item_removed_from_search',
-          {
-            productId: product.productId,
-            sku: product.sku,
-          },
-        );
-      })
-      .catch(error => {
-        crashReporter.capture(error, {
-          source: 'SearchScreen.toggleWishlist',
-        });
-      });
+  const openQuickAdd = useCallback((sku: string) => {
+    const s = sku.trim();
+    if (!s) return;
+    analytics.track('search_quick_add_open');
+    setQuickAddSku(s);
   }, []);
 
   const onSuggestionPress = useCallback(
@@ -490,116 +476,26 @@ export function SearchScreen() {
   );
 
   const renderProduct = useCallback(
-    ({ item, index }: { item: SearchProductHit; index: number }) => {
-      const favourited = wishlistIdSet.has(item.productId);
-      return (
-        <View
-          style={{
-            width: cardWidth,
-            marginLeft: index % 2 === 0 ? 0 : GRID_GAP,
-            marginBottom: spacing.lg,
-          }}
-        >
-          <TouchableOpacity
-            accessibilityRole="button"
-            accessibilityLabel={`${item.name}${item.specialPrice ? `, on sale for ${item.specialPrice}` : ''}`}
-            onPress={() => onProductPress(item)}
-          >
-            <View
-              style={{
-                width: cardWidth,
-                height: cardWidth,
-                borderRadius: radii.md,
-                backgroundColor: '#F3F4F6',
-                overflow: 'hidden',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {item.imageUrl ? (
-                <Image
-                  source={{ uri: item.imageUrl }}
-                  style={{ width: '100%', height: '100%' }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <Ionicons name="image-outline" size={28} color={colors.textMuted} />
-              )}
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={
-                  favourited
-                    ? `Remove ${item.name} from wishlist`
-                    : `Add ${item.name} to wishlist`
-                }
-                onPress={() => onToggleWishlist(item)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                testID={`search-heart-${item.productId}`}
-                style={{
-                  position: 'absolute',
-                  top: spacing.sm,
-                  right: spacing.sm,
-                  width: 32,
-                  height: 32,
-                  borderRadius: radii.pill,
-                  backgroundColor: 'rgba(255,255,255,0.9)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Ionicons
-                  name={favourited ? 'heart' : 'heart-outline'}
-                  size={18}
-                  color={favourited ? colors.brand : colors.textPrimary}
-                />
-              </TouchableOpacity>
-            </View>
-            <Text
-              numberOfLines={2}
-              style={{
-                color: colors.textPrimary,
-                fontWeight: '600',
-                marginTop: spacing.sm,
-                fontSize: 13,
-              }}
-            >
-              {item.name}
-            </Text>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginTop: spacing.xs,
-                gap: spacing.xs,
-                flexWrap: 'wrap',
-              }}
-            >
-              {item.specialPrice ? (
-                <>
-                  <Text style={{ color: colors.brand, fontWeight: '700' }}>
-                    {item.currencyCode} {item.specialPrice}
-                  </Text>
-                  <Text
-                    style={{
-                      color: colors.textMuted,
-                      textDecorationLine: 'line-through',
-                      fontSize: 12,
-                    }}
-                  >
-                    {item.currencyCode} {item.price}
-                  </Text>
-                </>
-              ) : item.price.length > 0 ? (
-                <Text style={{ color: colors.brand, fontWeight: '700' }}>
-                  {item.currencyCode} {item.price}
-                </Text>
-              ) : null}
-            </View>
-          </TouchableOpacity>
-        </View>
-      );
-    },
-    [cardWidth, onProductPress, onToggleWishlist, wishlistIdSet],
+    ({ item, index }: { item: SearchProductHit; index: number }) => (
+      <View
+        style={{
+          width: cardWidth,
+          marginLeft: index % 2 === 0 ? 0 : GRID_GAP,
+          marginBottom: spacing.lg,
+        }}
+      >
+        <CartNewArrivalProductTile
+          row={searchHitToListingRow(item)}
+          country={country as CountryCode}
+          width={cardWidth}
+          imgH={cardWidth}
+          onOpen={() => onProductPress(item)}
+          onQuickAdd={openQuickAdd}
+          storeCurrencyFallback={storeCurrencyCode}
+        />
+      </View>
+    ),
+    [cardWidth, country, onProductPress, openQuickAdd, storeCurrencyCode],
   );
 
   const renderSuggestion = useCallback(
@@ -997,6 +893,18 @@ export function SearchScreen() {
           </Text>
         </View>
       ) : null}
+
+      <QuickAddToCartSheet
+        visible={quickAddSku != null}
+        sku={quickAddSku}
+        country={country as CountryCode}
+        storeCurrencyCode={storeCurrencyCode}
+        onClose={() => setQuickAddSku(null)}
+        onGoToCart={() => {
+          setQuickAddSku(null);
+          navigation.navigate('Cart');
+        }}
+      />
 
       {!showSuggestionsPanel && showResultsGrid ? (
         <FlatList

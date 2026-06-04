@@ -5,6 +5,7 @@ import {
   OC_MERCHANT_ID,
   OC_MERCHANT_LANGUAGE,
 } from '@features/api/sessionApi';
+import type { ListingProductRow } from '@features/categories/categoryModel';
 import type { CountryCode } from '@shared/config/env';
 import { getEnvConfig, productHrefForSku } from '@shared/config/env';
 
@@ -38,6 +39,39 @@ export type SearchProductHit = {
   currencyCode: string;
   href: string;
 };
+
+/** Maps LP search hits to listing rows for shared product tiles (You / quick-add parity). */
+export function searchHitToListingRow(hit: SearchProductHit): ListingProductRow {
+  const normal = Number.parseFloat(hit.price);
+  const normalPrice = Number.isFinite(normal) ? normal : 0;
+  const specialNum = hit.specialPrice != null ? Number.parseFloat(hit.specialPrice) : NaN;
+  const hasSale =
+    Number.isFinite(specialNum) &&
+    specialNum > 0 &&
+    (normalPrice <= 0 || specialNum < normalPrice);
+
+  return {
+    productId: Number.parseInt(hit.productId, 10) || 0,
+    productSku: hit.sku,
+    currencyCode: hit.currencyCode,
+    name: hit.name,
+    nameAr: '',
+    productCategory: null,
+    price: {
+      normalPrice: normalPrice > 0 ? normalPrice : hasSale ? specialNum : 0,
+      salePrice: hasSale ? specialNum : null,
+      offerPrice: null,
+      bundlePrice: null,
+      hasSale,
+      hasOffer: false,
+      hasBundle: false,
+      hasNormal: !hasSale,
+    },
+    images: hit.imageUrl
+      ? [{ image: hit.imageUrl, isMain: 1, isArabicMain: 0 }]
+      : [],
+  };
+}
 
 const RESULTS_PER_PAGE = 30;
 const REQUEST_TIMEOUT_MS = 15000;

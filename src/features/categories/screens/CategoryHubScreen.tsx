@@ -30,8 +30,11 @@ import {
 import { loadCachedCategories } from '../categoryCache';
 import { fetchNormalizeAndPersist } from '../categoryHydration';
 import type { CategoryRow } from '../categoryModel';
-import { hubPriceLine } from '../categoryModel';
+import { displayPriceFor, hubPriceLine, strikePriceIfAny } from '../categoryModel';
 import type { HubProductRow, SubCategoryRow } from '../categoryModel';
+import { QuickAddToCartSheet } from '@features/cart/components/QuickAddToCartSheet';
+import { CategoryProductAddToCartButton } from '../components/CategoryProductAddToCartButton';
+import { analytics } from '@shared/observability/analytics';
 import { cdnAssetUrl, isSupportedRemoteImage } from '../categoryImage';
 import { categoryTheme } from '../categoryTheme';
 import { CategorySearchBar } from '../components/CategorySearchBar';
@@ -94,36 +97,48 @@ function StarsRow({ rating }: { rating: number }) {
   );
 }
 
+function formatTilePrice(amount: number): string {
+  if (!Number.isFinite(amount)) return '0.00';
+  return (Math.round(amount * 100) / 100).toFixed(2);
+}
+
 function RelatedProductCard(props: {
   item: HubProductRow;
   country: CountryCode;
   onPressSku: (sku: string) => void;
+  onQuickAdd: (sku: string) => void;
   cardWidth: number;
   imageHeight: number;
   storeCurrencyFallback: string;
 }) {
-  const { item, country, onPressSku, cardWidth, imageHeight, storeCurrencyFallback } = props;
+  const { item, country, onPressSku, onQuickAdd, cardWidth, imageHeight, storeCurrencyFallback } =
+    props;
 
   const first = item.images[0]?.image ?? '';
   const uri = first ? cdnAssetUrl(country, first) : '';
-
   const showImg = !!uri && isSupportedRemoteImage(uri);
+  const currency = (storeCurrencyFallback || item.currencyCode || '').trim();
+  const displayAmt = formatTilePrice(displayPriceFor(item.price));
+  const strikeAmt = strikePriceIfAny(item.price);
 
   return (
     <View style={{ backgroundColor: '#FFF', width: cardWidth, marginHorizontal: 3, overflow: 'hidden' }}>
-      <Pressable accessibilityRole="button" onPress={() => onPressSku(item.productSku)}>
-        {showImg ? (
-          <Image
-            source={{ uri }}
-            style={{ height: imageHeight, width: '100%', backgroundColor: '#EEE' }}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={{ height: imageHeight, backgroundColor: '#EEE', justifyContent: 'center', alignItems: 'center' }}>
-            <Ionicons name="image-outline" size={32} color="#9CA3AF" />
-          </View>
-        )}
-      </Pressable>
+      <View style={{ position: 'relative' }}>
+        <Pressable accessibilityRole="button" onPress={() => onPressSku(item.productSku)}>
+          {showImg ? (
+            <Image
+              source={{ uri }}
+              style={{ height: imageHeight, width: '100%', backgroundColor: '#EEE' }}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={{ height: imageHeight, backgroundColor: '#EEE', justifyContent: 'center', alignItems: 'center' }}>
+              <Ionicons name="image-outline" size={32} color="#9CA3AF" />
+            </View>
+          )}
+        </Pressable>
+        <CategoryProductAddToCartButton onPress={() => onQuickAdd(item.productSku)} />
+      </View>
       <View style={{ gap: 4, paddingHorizontal: 4, paddingVertical: 6 }}>
         <Pressable onPress={() => onPressSku(item.productSku)}>
           <Text style={{ fontSize: 11, fontWeight: '500' }} numberOfLines={1}>
@@ -136,9 +151,22 @@ function RelatedProductCard(props: {
           <Text style={{ fontSize: 10 }}>({FAKE_REVIEWS})</Text>
         </View>
         <Pressable onPress={() => onPressSku(item.productSku)}>
-          <Text style={{ fontWeight: '700', color: categoryTheme.primary, fontSize: 11 }}>
-            {hubPriceLine(item, storeCurrencyFallback)}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 4 }}>
+            <Text style={{ fontWeight: '700', color: categoryTheme.primary, fontSize: 11 }}>
+              {currency.length > 0 ? `${currency} ${displayAmt}` : hubPriceLine(item, storeCurrencyFallback)}
+            </Text>
+            {strikeAmt != null ? (
+              <Text
+                style={{
+                  fontSize: 10,
+                  color: '#999999',
+                  textDecorationLine: 'line-through',
+                }}
+              >
+                {formatTilePrice(strikeAmt)}
+              </Text>
+            ) : null}
+          </View>
         </Pressable>
       </View>
     </View>
@@ -194,6 +222,7 @@ export function CategoryHubScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [offersOpen, setOffersOpen] = useState(false);
+  const [quickAddSku, setQuickAddSku] = useState<string | null>(null);
   const { width: ww } = useWindowDimensions();
 
   const sidebarWidth = ww * 0.25;
@@ -296,6 +325,13 @@ export function CategoryHubScreen({ navigation }: Props) {
     [navigation],
   );
 
+  const openQuickAdd = useCallback((sku: string) => {
+    const s = sku.trim();
+    if (!s) return;
+    analytics.track('category_hub_quick_add_open');
+    setQuickAddSku(s);
+  }, []);
+
   const relatedRows = useMemo(() => chunkPairs(selected?.products ?? []), [selected?.products]);
   const relPad = 6;
   const relGap = 8;
@@ -306,6 +342,17 @@ export function CategoryHubScreen({ navigation }: Props) {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top']}>
       <OffersModal visible={offersOpen} onClose={() => setOffersOpen(false)} />
+      <QuickAddToCartSheet
+        visible={quickAddSku != null}
+        sku={quickAddSku}
+        country={country as CountryCode}
+        storeCurrencyCode={storeCurrencyCode}
+        onClose={() => setQuickAddSku(null)}
+        onGoToCart={() => {
+          setQuickAddSku(null);
+          navigation.navigate('Cart');
+        }}
+      />
       <View style={{ paddingTop: 6 }}>
         <CategorySearchBar onOpenSearch={() => navigation.navigate('CategorySearch')} />
       </View>
@@ -435,8 +482,9 @@ export function CategoryHubScreen({ navigation }: Props) {
                 >
                   <RelatedProductCard
                     item={pair[0]!}
-                    country={country}
+                    country={country as CountryCode}
                     onPressSku={openPdp}
+                    onQuickAdd={openQuickAdd}
                     cardWidth={relatedCardW}
                     imageHeight={relatedImgH}
                     storeCurrencyFallback={storeCurrencyCode}
@@ -444,8 +492,9 @@ export function CategoryHubScreen({ navigation }: Props) {
                   {pair[1] ? (
                     <RelatedProductCard
                       item={pair[1]}
-                      country={country}
+                      country={country as CountryCode}
                       onPressSku={openPdp}
+                      onQuickAdd={openQuickAdd}
                       cardWidth={relatedCardW}
                       imageHeight={relatedImgH}
                       storeCurrencyFallback={storeCurrencyCode}
