@@ -18,12 +18,18 @@ import type { CountryCode } from '@shared/config/env';
 
 import { fetchProductsBySlug } from '../categoryApi';
 import type { ListingProductRow } from '../categoryModel';
+import {
+  getMemoryListingPage1,
+  loadCachedListingPage1,
+  saveCachedListingPage1,
+} from '../listingCache';
 import { categoryTheme } from '../categoryTheme';
 import { ListingProductTile } from '../components/ListingProductTile';
 import { CategorySearchBar } from '../components/CategorySearchBar';
 import { DeliveryBanner } from '../components/DeliveryBanner';
 import { OffersModal } from '../components/OffersModal';
 import { apiSortFieldsForChoice, labelForStoredSort, type SortChoice } from '../categorySort';
+import { ProductGridSkeleton } from '@shared/ui/ProductGridSkeleton';
 
 /** Flutter `SubCategoryProductScreen` + filter bar parity (stubs for filter/color/size). */
 export function CategoryProductListingScreen({
@@ -37,45 +43,112 @@ export function CategoryProductListingScreen({
   const [quickAddSku, setQuickAddSku] = useState<string | null>(null);
   const [sortModal, setSortModal] = useState(false);
   const [sortChoice, setSortChoice] = useState<SortChoice>('Default');
-  const [items, setItems] = useState<ListingProductRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { sort, order } = useMemo(() => apiSortFieldsForChoice(sortChoice), [sortChoice]);
+
+  const listingSeed = useMemo(
+    () => getMemoryListingPage1(country as CountryCode, cateKey, sort, order),
+    [country, cateKey, sort, order],
+  );
+
+  const [items, setItems] = useState<ListingProductRow[]>(() => listingSeed?.products ?? []);
+  const [loading, setLoading] = useState(() => !listingSeed);
   const [moreLoading, setMoreLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(1);
-  const [lastPage, setLastPage] = useState(1);
+  const [page, setPage] = useState(() => listingSeed?.pagination.currentPage ?? 1);
+  const [lastPage, setLastPage] = useState(() => listingSeed?.pagination.lastPage ?? 1);
 
   const { width: ww } = useWindowDimensions();
   const cardGap = 4;
   const cardW = Math.floor((ww - cardGap) / 2) - 10;
   const cardH = ww * 0.29;
 
-  const { sort, order } = useMemo(() => apiSortFieldsForChoice(sortChoice), [sortChoice]);
+  const applyListingResult = useCallback(
+    (products: ListingProductRow[], pagination: { currentPage: number; lastPage: number }, append: boolean) => {
+      if (append) {
+        setItems(prev => [...prev, ...products]);
+      } else {
+        setItems(products);
+      }
+      setLastPage(pagination.lastPage);
+      setPage(pagination.currentPage);
+    },
+    [],
+  );
+
+  const refreshPage1InBackground = useCallback(async () => {
+    const res = await fetchProductsBySlug(cateKey, 1, { sort, order, country: country as CountryCode });
+    if (!res.ok) return;
+    applyListingResult(res.products, res.pagination, false);
+    void saveCachedListingPage1(
+      country as CountryCode,
+      cateKey,
+      sort,
+      order,
+      res.products,
+      res.pagination,
+    );
+  }, [applyListingResult, cateKey, country, order, sort]);
 
   const loadPage = useCallback(
     async (nextPage: number, append: boolean) => {
-      if (append) setMoreLoading(true);
-      else setLoading(true);
+      if (append) {
+        setMoreLoading(true);
+      } else if (nextPage === 1) {
+        const memoryHit = getMemoryListingPage1(country as CountryCode, cateKey, sort, order);
+        if (memoryHit) {
+          applyListingResult(memoryHit.products, memoryHit.pagination, false);
+          setLoading(false);
+          setError(null);
+          void refreshPage1InBackground();
+          return;
+        }
+
+        const diskHit = await loadCachedListingPage1(country as CountryCode, cateKey, sort, order);
+        if (diskHit) {
+          applyListingResult(diskHit.products, diskHit.pagination, false);
+          setLoading(false);
+          setError(null);
+          void refreshPage1InBackground();
+          return;
+        }
+
+        setLoading(true);
+      } else {
+        setLoading(true);
+      }
+
       setError(null);
-      const res = await fetchProductsBySlug(cateKey, nextPage, { sort, order, country });
+      const res = await fetchProductsBySlug(cateKey, nextPage, { sort, order, country: country as CountryCode });
       if (!res.ok) {
         setError(res.error ?? 'Failed to load');
         if (!append) setItems([]);
-      } else if (append) {
-        setItems(prev => [...prev, ...res.products]);
       } else {
-        setItems(res.products);
+        applyListingResult(res.products, res.pagination, append);
+        if (nextPage === 1 && !append) {
+          void saveCachedListingPage1(
+            country as CountryCode,
+            cateKey,
+            sort,
+            order,
+            res.products,
+            res.pagination,
+          );
+        }
       }
-      setLastPage(res.pagination.lastPage);
-      setPage(res.pagination.currentPage);
       if (append) setMoreLoading(false);
       else setLoading(false);
     },
-    [cateKey, sort, order, country],
+    [applyListingResult, cateKey, country, order, refreshPage1InBackground, sort],
   );
 
   useEffect(() => {
+    const seed = getMemoryListingPage1(country as CountryCode, cateKey, sort, order);
+    if (!seed) {
+      setItems([]);
+      setLoading(true);
+    }
     void loadPage(1, false);
-  }, [loadPage, sortChoice, cateKey]);
+  }, [loadPage, sortChoice, cateKey, country, sort, order]);
 
   const canLoadMore = page < lastPage;
 
@@ -165,9 +238,9 @@ export function CategoryProductListingScreen({
         </Pressable>
       </Modal>
 
-      {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 80 }}>
-          <ActivityIndicator size="large" color={categoryTheme.primary} />
+      {loading && items.length === 0 ? (
+        <View style={{ flex: 1, paddingTop: 12 }}>
+          <ProductGridSkeleton cardW={cardW} cardH={cardH} />
         </View>
       ) : error && items.length === 0 ? (
         <View style={{ padding: 32, alignItems: 'center', gap: 12 }}>

@@ -27,8 +27,8 @@ import {
   isFeatureHubCategory,
   listingSlugForViewAll,
 } from '../categoryBrowseRoutes';
-import { loadCachedCategories } from '../categoryCache';
-import { fetchNormalizeAndPersist } from '../categoryHydration';
+import { getMemoryCategories } from '../categoryCache';
+import { useCategoryTreeQuery } from '../useCategoryTreeQuery';
 import type { CategoryRow } from '../categoryModel';
 import { displayPriceFor, hubPriceLine, strikePriceIfAny } from '../categoryModel';
 import type { HubProductRow, SubCategoryRow } from '../categoryModel';
@@ -217,10 +217,13 @@ export function CategoryHubScreen({ navigation }: Props) {
   const country = useAppSelector(s => s.app.country);
   const storeCurrencyCode = useAppSelector(s => s.app.storeCurrencyCode);
 
-  const [categories, setCategories] = useState<CategoryRow[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [bannerError, setBannerError] = useState<string | null>(null);
+  const memorySeed = getMemoryCategories(country);
+  const { data: categories = [], isPending, isError, error, refetch } = useCategoryTreeQuery(country);
+  const loading = isPending && categories.length === 0;
+  const bannerError =
+    isError && categories.length === 0 ? (error?.message ?? 'Could not load categories') : null;
+
+  const [selectedId, setSelectedId] = useState<number | null>(() => memorySeed[0]?.id ?? null);
   const [offersOpen, setOffersOpen] = useState(false);
   const [quickAddSku, setQuickAddSku] = useState<string | null>(null);
   const { width: ww } = useWindowDimensions();
@@ -234,35 +237,13 @@ export function CategoryHubScreen({ navigation }: Props) {
   const subGridInner = Math.max(0, contentWidth - subGridHPad);
   const cellWidth = Math.max(0, (subGridInner - subColGap * (subCols - 1)) / subCols);
 
-  const loadTree = useCallback(async () => {
-    setBannerError(null);
-
-    const cached = await loadCachedCategories(country);
-    if (cached.length > 0) {
-      setCategories(cached);
-      setSelectedId(cached[0]?.id ?? 0);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    const res = await fetchNormalizeAndPersist(country);
-    if (!res.ok || res.categories.length === 0) {
-      setCategories([]);
-      setSelectedId(null);
-      setBannerError(res.error ?? 'Could not load categories');
-      setLoading(false);
-      return;
-    }
-
-    setCategories(res.categories);
-    setSelectedId(res.categories[0]?.id ?? 0);
-    setLoading(false);
-  }, [country]);
-
   useEffect(() => {
-    void loadTree();
-  }, [loadTree]);
+    if (categories.length === 0) return;
+    setSelectedId(prev => {
+      if (prev !== null && categories.some(c => c.id === prev)) return prev;
+      return categories[0]?.id ?? null;
+    });
+  }, [categories]);
 
   const selected = useMemo(
     () => (selectedId !== null ? categories.find(c => c.id === selectedId) ?? null : null),
@@ -374,7 +355,7 @@ export function CategoryHubScreen({ navigation }: Props) {
       ) : bannerError !== null && categories.length === 0 ? (
         <View style={{ padding: 28, gap: 12, alignItems: 'center' }}>
           <Text style={{ color: '#111', textAlign: 'center' }}>{bannerError}</Text>
-          <Pressable style={{ paddingVertical: 10, paddingHorizontal: 22, borderRadius: 8, backgroundColor: categoryTheme.primary }} onPress={() => void loadTree()}>
+          <Pressable style={{ paddingVertical: 10, paddingHorizontal: 22, borderRadius: 8, backgroundColor: categoryTheme.primary }} onPress={() => void refetch()}>
             <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
           </Pressable>
         </View>

@@ -72,6 +72,7 @@ keystore.properties
 
 # EAS / Expo build artifacts
 build-artifacts/
+releases/
 *.apk
 *.aab
 *.ipa

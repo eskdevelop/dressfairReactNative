@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -20,6 +21,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { colors, spacing } from '@app/theme/tokens';
 import { fetchNewArrivalsPage } from '@features/account/newArrivalsApi';
+import { useNewArrivalsPage1Query } from '@features/account/useNewArrivalsQuery';
 import { CartNewArrivalProductTile } from '@features/cart/components/CartNewArrivalProductTile';
 import { QuickAddToCartSheet } from '@features/cart/components/QuickAddToCartSheet';
 import type { ListingProductRow } from '@features/categories/categoryModel';
@@ -61,42 +63,40 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
     const cardW = Math.floor((ww - hPad - cardGap) / 2);
     const cardH = Math.round(cardW * 1.32);
 
-    const [items, setItems] = useState<ListingProductRow[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { data: page1, isPending, isError, error: queryError, refetch } = useNewArrivalsPage1Query(country);
+
+    const [appendItems, setAppendItems] = useState<ListingProductRow[]>([]);
     const [moreLoading, setMoreLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [hasMore, setHasMore] = useState(true);
-    const [nextPage, setNextPage] = useState(1);
+    const [nextPage, setNextPage] = useState(2);
     const [quickAddSku, setQuickAddSku] = useState<string | null>(null);
 
     const loadMoreInFlightRef = useRef(false);
     const lastScrollMetricsRef = useRef<NativeScrollEvent | null>(null);
     const loadMoreRef = useRef<(() => Promise<void>) | null>(null);
 
-    const loadInitial = useCallback(async () => {
-      setLoading(true);
-      setError(null);
-      setItems([]);
-      setHasMore(true);
-      setNextPage(1);
-      lastScrollMetricsRef.current = null;
-      const res = await fetchNewArrivalsPage(1);
-      if (!res.ok) {
-        setError(res.error ?? 'Could not load new arrivals');
-        setItems([]);
-        setHasMore(false);
-      } else {
-        setItems(res.products);
-        setHasMore(res.hasMore);
-        setNextPage(res.hasMore ? 2 : 1);
-      }
-      setLoading(false);
-    }, []);
-
-    /** Load once per mount / when region changes — not on every tab refocus (e.g. back from PDP). */
     useEffect(() => {
-      void loadInitial();
-    }, [country, loadInitial]);
+      setAppendItems([]);
+      if (page1) {
+        setHasMore(page1.hasMore);
+        setNextPage(page1.hasMore ? 2 : 1);
+      }
+    }, [country, page1]);
+
+    const items = useMemo(
+      () => [...(page1?.products ?? []), ...appendItems],
+      [appendItems, page1?.products],
+    );
+    const loading = isPending && items.length === 0;
+    const error =
+      isError && items.length === 0
+        ? (queryError?.message ?? 'Could not load new arrivals')
+        : null;
+
+    const loadInitial = useCallback(async () => {
+      setAppendItems([]);
+      await refetch();
+    }, [refetch]);
 
     const loadMore = useCallback(async () => {
       if (!hasMore || loading || nextPage < 2) return;
@@ -106,7 +106,7 @@ export const YouNewArrivalsSection = forwardRef<YouNewArrivalsSectionHandle, Pro
       try {
         const res = await fetchNewArrivalsPage(nextPage);
         if (res.ok) {
-          setItems(prev => [...prev, ...res.products]);
+          setAppendItems(prev => [...prev, ...res.products]);
           setHasMore(res.hasMore);
           if (res.hasMore) {
             setNextPage(p => p + 1);

@@ -4,32 +4,34 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaintenanceScreen } from '@features/shell/screens/MaintenanceScreen';
 import { OfflineScreen } from '@features/shell/screens/OfflineScreen';
 import { SplashScreen } from '@features/shell/screens/SplashScreen';
-import { AboutScreen } from '@features/menu/screens/AboutScreen';
-import { ContactScreen } from '@features/menu/screens/ContactScreen';
-import { FaqScreen } from '@features/menu/screens/FaqScreen';
-import { PrivacyScreen } from '@features/menu/screens/PrivacyScreen';
-import { ReturnPolicyScreen } from '@features/menu/screens/ReturnPolicyScreen';
-import { TermsScreen } from '@features/menu/screens/TermsScreen';
-import { ProfileScreen } from '@features/account/ProfileScreen';
-import { ProfileEditScreen } from '@features/account/ProfileEditScreen';
-import { AddressListScreen } from '@features/account/AddressListScreen';
-import { AddressFormScreen } from '@features/account/AddressFormScreen';
-import { AccountSettingScreen } from '@features/settings/AccountSettingScreen';
-import { AppPermissionsScreen } from '@features/settings/AppPermissionsScreen';
-import { SafetyCenterScreen } from '@features/settings/SafetyCenterScreen';
-import { MenuSettingsScreen } from '@features/menu/screens/MenuSettingsScreen';
-import { NotificationsInboxScreen } from '@features/notifications/NotificationsInboxScreen';
-import { OrderHistoryScreen } from '@features/orders/OrderHistoryScreen';
-import { AuthNavigator } from '@features/auth/AuthNavigator';
-import { CheckoutScreen } from '@features/checkout/screens/CheckoutScreen';
-import { DeliveryGuaranteeScreen } from '@features/checkout/screens/DeliveryGuaranteeScreen';
-import { PurchaseProtectionScreen } from '@features/checkout/screens/PurchaseProtectionScreen';
-import { OrderSuccessScreen } from '@features/checkout/screens/OrderSuccessScreen';
-import { StorefrontLoginScreen } from '@features/account/StorefrontLoginScreen';
-import { StorefrontCheckoutWebScreen } from '@features/webview/StorefrontCheckoutWebScreen';
-import { StorefrontProductWebScreen } from '@features/webview/StorefrontProductWebScreen';
 import { MainTabs } from '@navigation/MainTabs';
-import { NotificationRouterScreen } from '@navigation/NotificationRouterScreen';
+import {
+  LazyAboutScreen,
+  LazyAccountSettingScreen,
+  LazyAddressFormScreen,
+  LazyAddressListScreen,
+  LazyAppPermissionsScreen,
+  LazyAuthNavigator,
+  LazyCheckoutScreen,
+  LazyContactScreen,
+  LazyDeliveryGuaranteeScreen,
+  LazyFaqScreen,
+  LazyMenuSettingsScreen,
+  LazyNotificationRouterScreen,
+  LazyNotificationsInboxScreen,
+  LazyOrderHistoryScreen,
+  LazyOrderSuccessScreen,
+  LazyPrivacyScreen,
+  LazyProfileEditScreen,
+  LazyProfileScreen,
+  LazyPurchaseProtectionScreen,
+  LazyReturnPolicyScreen,
+  LazySafetyCenterScreen,
+  LazyStorefrontCheckoutWebScreen,
+  LazyStorefrontLoginScreen,
+  LazyStorefrontProductWebScreen,
+  LazyTermsScreen,
+} from '@navigation/lazyScreens';
 import type { RootStackParamList } from '@navigation/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -45,7 +47,7 @@ export function RootNavigator() {
       />
       <Stack.Screen
         name="NativeLogin"
-        component={AuthNavigator}
+        component={LazyAuthNavigator}
         options={{
           presentation: 'modal',
           animation: 'slide_from_bottom',
@@ -55,7 +57,7 @@ export function RootNavigator() {
       />
       <Stack.Screen
         name="StorefrontLoginWeb"
-        component={StorefrontLoginScreen}
+        component={LazyStorefrontLoginScreen}
         options={{
           presentation: 'modal',
           animation: 'slide_from_bottom',
@@ -65,90 +67,66 @@ export function RootNavigator() {
       />
       <Stack.Screen name="Offline" component={OfflineScreen} />
       <Stack.Screen name="Maintenance" component={MaintenanceScreen} />
-      <Stack.Screen name="NotificationRouter" component={NotificationRouterScreen} />
-      <Stack.Screen
-        name="Terms"
-        component={TermsScreen}
-        options={{ presentation: 'card' }}
-      />
-      <Stack.Screen
-        name="Privacy"
-        component={PrivacyScreen}
-        options={{ presentation: 'card' }}
-      />
+      <Stack.Screen name="NotificationRouter" component={LazyNotificationRouterScreen} />
+      <Stack.Screen name="Terms" component={LazyTermsScreen} options={{ presentation: 'card' }} />
+      <Stack.Screen name="Privacy" component={LazyPrivacyScreen} options={{ presentation: 'card' }} />
       <Stack.Screen
         name="ReturnPolicy"
-        component={ReturnPolicyScreen}
+        component={LazyReturnPolicyScreen}
         options={{ presentation: 'card' }}
       />
-      <Stack.Screen
-        name="About"
-        component={AboutScreen}
-        options={{ presentation: 'card' }}
-      />
-      <Stack.Screen
-        name="Faq"
-        component={FaqScreen}
-        options={{ presentation: 'card' }}
-      />
-      <Stack.Screen
-        name="Contact"
-        component={ContactScreen}
-        options={{ presentation: 'card' }}
-      />
+      <Stack.Screen name="About" component={LazyAboutScreen} options={{ presentation: 'card' }} />
+      <Stack.Screen name="Faq" component={LazyFaqScreen} options={{ presentation: 'card' }} />
+      <Stack.Screen name="Contact" component={LazyContactScreen} options={{ presentation: 'card' }} />
       <Stack.Screen
         name="OrderHistory"
-        component={OrderHistoryScreen}
+        component={LazyOrderHistoryScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="MenuSettings"
-        component={MenuSettingsScreen}
+        component={LazyMenuSettingsScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="AccountSetting"
-        component={AccountSettingScreen}
+        component={LazyAccountSettingScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="SafetyCenter"
-        component={SafetyCenterScreen}
+        component={LazySafetyCenterScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="AppPermissions"
-        component={AppPermissionsScreen}
+        component={LazyAppPermissionsScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="NotificationsInbox"
-        component={NotificationsInboxScreen}
+        component={LazyNotificationsInboxScreen}
         options={{ presentation: 'card' }}
       />
-      <Stack.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{ presentation: 'card' }}
-      />
+      <Stack.Screen name="Profile" component={LazyProfileScreen} options={{ presentation: 'card' }} />
       <Stack.Screen
         name="ProfileEdit"
-        component={ProfileEditScreen}
+        component={LazyProfileEditScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="Addresses"
-        component={AddressListScreen}
+        component={LazyAddressListScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="AddressForm"
-        component={AddressFormScreen}
+        component={LazyAddressFormScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="Checkout"
-        component={CheckoutScreen}
+        component={LazyCheckoutScreen}
         options={{
           presentation: 'card',
           headerShown: false,
@@ -157,7 +135,7 @@ export function RootNavigator() {
       />
       <Stack.Screen
         name="OrderSuccess"
-        component={OrderSuccessScreen}
+        component={LazyOrderSuccessScreen}
         options={{
           presentation: 'card',
           headerShown: false,
@@ -166,17 +144,17 @@ export function RootNavigator() {
       />
       <Stack.Screen
         name="DeliveryGuarantee"
-        component={DeliveryGuaranteeScreen}
+        component={LazyDeliveryGuaranteeScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="PurchaseProtection"
-        component={PurchaseProtectionScreen}
+        component={LazyPurchaseProtectionScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen
         name="StorefrontCheckoutWeb"
-        component={StorefrontCheckoutWebScreen}
+        component={LazyStorefrontCheckoutWebScreen}
         options={{
           presentation: 'card',
           headerShown: false,
@@ -185,7 +163,7 @@ export function RootNavigator() {
       />
       <Stack.Screen
         name="StorefrontProductWeb"
-        component={StorefrontProductWebScreen}
+        component={LazyStorefrontProductWebScreen}
         options={{
           presentation: 'card',
           headerShown: false,

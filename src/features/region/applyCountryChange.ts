@@ -15,7 +15,12 @@ import { apiSessionStore } from '@features/api/apiSessionStore';
 import { bootstrapSession } from '@features/api/sessionApi';
 import { clearCachedProfile } from '@features/account/customerProfileCache';
 import { clearMobileCategoriesCacheAllRegions } from '@features/categories/categoryCache';
+import { clearMemoryListingCache } from '@features/categories/listingCache';
 import { fetchNormalizeAndPersist } from '@features/categories/categoryHydration';
+import { categoryTreeQueryKey } from '@features/categories/useCategoryTreeQuery';
+import { clearNewArrivalsCacheAllRegions } from '@features/account/newArrivalsCache';
+import { newArrivalsPage1QueryKey } from '@features/account/useNewArrivalsQuery';
+import { queryClient } from '@app/queryClient';
 import { sessionStore } from '@features/auth/sessionStore';
 import { fetchStoreSettingsFromNetwork } from '@features/store/storeSettingsApi';
 import type { CountryCode } from '@shared/config/env';
@@ -56,6 +61,12 @@ export function applyCountryChange(params: {
     analytics.track('country_change_begin', { from: prev, to: nextCountry, reason });
 
     await clearMobileCategoriesCacheAllRegions();
+    await clearNewArrivalsCacheAllRegions();
+    clearMemoryListingCache();
+    queryClient.removeQueries({ queryKey: categoryTreeQueryKey(prev) });
+    queryClient.removeQueries({ queryKey: categoryTreeQueryKey(nextCountry) });
+    queryClient.removeQueries({ queryKey: newArrivalsPage1QueryKey(prev) });
+    queryClient.removeQueries({ queryKey: newArrivalsPage1QueryKey(nextCountry) });
     await clearCachedProfile();
 
     await sessionStore.clear();

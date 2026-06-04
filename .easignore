@@ -4,3 +4,8 @@ src/flutter-code/
 # Native build outputs — EAS runs its own prebuild.
 android/
 ios/
+
+# Release artifacts — must never ship inside the app bundle.
+releases/
+*.aab
+*.apk

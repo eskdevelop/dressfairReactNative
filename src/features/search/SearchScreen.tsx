@@ -33,8 +33,7 @@ import {
   cateKeyForCategoryListing,
   listingSlugForViewAll,
 } from '@features/categories/categoryBrowseRoutes';
-import { loadCachedCategories } from '@features/categories/categoryCache';
-import { fetchNormalizeAndPersist } from '@features/categories/categoryHydration';
+import { useCategoryTreeQuery } from '@features/categories/useCategoryTreeQuery';
 import type { CategoryRow } from '@features/categories/categoryModel';
 import { CartNewArrivalProductTile } from '@features/cart/components/CartNewArrivalProductTile';
 import { QuickAddToCartSheet } from '@features/cart/components/QuickAddToCartSheet';
@@ -98,8 +97,8 @@ export function SearchScreen() {
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [suggestionsStatus, setSuggestionsStatus] = useState<Status>('idle');
   const [recents, setRecents] = useState<RecentSearchEntry[]>([]);
-  const [popularCategories, setPopularCategories] = useState<CategoryRow[]>([]);
-  const [popularLoading, setPopularLoading] = useState(true);
+  const { data: popularCategories = [], isPending: popularQueryPending } = useCategoryTreeQuery(country);
+  const popularLoading = popularQueryPending && popularCategories.length === 0;
   /** Set from embedded browsing-history WebView bridge when the page lists product hits. */
   const [browsingHistoryHasItems, setBrowsingHistoryHasItems] = useState(false);
 
@@ -131,29 +130,6 @@ export function SearchScreen() {
         active = false;
       };
     }, []),
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      let cancelled = false;
-      (async () => {
-        setPopularLoading(true);
-        const cached = await loadCachedCategories(country);
-        if (cancelled) return;
-        if (cached.length > 0) {
-          setPopularCategories(cached);
-          setPopularLoading(false);
-          return;
-        }
-        const res = await fetchNormalizeAndPersist(country);
-        if (cancelled) return;
-        setPopularCategories(res.categories);
-        setPopularLoading(false);
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }, [country]),
   );
 
   /** Hide stale results when the user edits the query after submitting. */

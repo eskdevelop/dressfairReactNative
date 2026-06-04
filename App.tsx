@@ -1,9 +1,11 @@
 import React from 'react';
 import { Platform, StatusBar } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
 import { AppRoot } from './src/app/AppRoot';
+import { queryClient } from './src/app/queryClient';
 import { store } from './src/app/store';
 import { installObservability } from './src/shared/observability/setup';
 
@@ -22,14 +24,16 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 export default function App() {
   return (
     <Provider store={store}>
-      <SafeAreaProvider>
-        <StatusBar
-          barStyle="dark-content"
-          translucent={Platform.OS === 'android'}
-          backgroundColor={Platform.OS === 'android' ? 'transparent' : '#ffffff'}
-        />
-        <AppRoot />
-      </SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <SafeAreaProvider>
+          <StatusBar
+            barStyle="dark-content"
+            translucent={Platform.OS === 'android'}
+            backgroundColor={Platform.OS === 'android' ? 'transparent' : '#ffffff'}
+          />
+          <AppRoot />
+        </SafeAreaProvider>
+      </QueryClientProvider>
     </Provider>
   );
 }

@@ -9,6 +9,27 @@ import { insertSyntheticFeaturedRow } from './categoryNormalize';
 
 const VERSION = 'v2';
 
+/** Process-lifetime cache so bootstrap prefetch is visible synchronously on first tab visit. */
+const memoryByCountry = new Map<CountryCode, CategoryRow[]>();
+
+export function getMemoryCategories(country?: CountryCode): CategoryRow[] {
+  const c = country ?? store.getState().app.country;
+  return memoryByCountry.get(c) ?? [];
+}
+
+export function setMemoryCategories(rows: CategoryRow[], country?: CountryCode): void {
+  const c = country ?? store.getState().app.country;
+  if (rows.length === 0) {
+    memoryByCountry.delete(c);
+    return;
+  }
+  memoryByCountry.set(c, rows);
+}
+
+export function clearMemoryCategoriesAllRegions(): void {
+  memoryByCountry.clear();
+}
+
 function ensureFeaturedFirstRow(rows: CategoryRow[]): { rows: CategoryRow[]; fixed: boolean } {
   if (rows.length === 0) return { rows, fixed: false };
   const head = rows[0];
@@ -32,6 +53,7 @@ export async function loadCachedCategories(country?: CountryCode): Promise<Categ
     if (!Array.isArray(decoded)) return [];
     const parsed = decoded.map(parseCategoryRow).filter(Boolean) as CategoryRow[];
     const { rows: withFeature, fixed } = ensureFeaturedFirstRow(parsed);
+    setMemoryCategories(withFeature, country);
     if (fixed) void saveCachedCategories(withFeature, country);
     return withFeature;
   } catch {
@@ -40,7 +62,9 @@ export async function loadCachedCategories(country?: CountryCode): Promise<Categ
 }
 
 export async function saveCachedCategories(rows: CategoryRow[], country?: CountryCode): Promise<void> {
-  const key = categoryStorageKey(country);
+  const c = country ?? store.getState().app.country;
+  setMemoryCategories(rows, c);
+  const key = categoryStorageKey(c);
   await AsyncStorage.setItem(key, JSON.stringify(rows));
 }
 
@@ -48,5 +72,6 @@ const ALL_COUNTRY_CODES: CountryCode[] = ['UAE', 'OMN', 'KSA'];
 
 /** After a region switch, drop cached trees so the hub refetches for the active storefront. */
 export async function clearMobileCategoriesCacheAllRegions(): Promise<void> {
+  clearMemoryCategoriesAllRegions();
   await Promise.all(ALL_COUNTRY_CODES.map(c => AsyncStorage.removeItem(categoryStorageKey(c))));
 }

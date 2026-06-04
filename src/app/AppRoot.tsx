@@ -11,7 +11,8 @@ import {
   bootstrapSession,
   hydrateSessionFromStorage,
 } from '@features/api/sessionApi';
-import { prefetchCategoryCacheIfStale } from '@features/categories/categoryHydration';
+import { prefetchCategoryTreeQuery } from '@features/categories/useCategoryTreeQuery';
+import { prefetchNewArrivalsPage1Query } from '@features/account/useNewArrivalsQuery';
 import { fetchStoreSettingsFromNetwork } from '@features/store/storeSettingsApi';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
@@ -19,14 +20,6 @@ import { perf } from '@shared/observability/performance';
 import { loadPersistedCountry } from '@features/region/persistedCountry';
 import { store } from './store';
 import { setBootstrapped, setCountry, setCustomerSessionToken, setOffline, setStoreCurrencySettings, setStorefrontCheckoutApiOriginOverride, setStoreOpenCartCountryId } from './storeSlices/appSlice';
-
-const CATEGORY_PREFETCH_MAX_MS = 2500;
-
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => {
-    setTimeout(resolve, ms);
-  });
-}
 
 export function AppRoot() {
   const dispatch = useAppDispatch();
@@ -67,40 +60,11 @@ export function AppRoot() {
       dispatch(setCustomerSessionToken(tokenResult));
 
       if (apiSessionResult === null && !isOffline) {
-        await bootstrapSession();
+        // Home WebView does not need the REST session; fetch in background so tabs appear sooner.
+        void bootstrapSession();
       }
 
-      let categoryPrefetchMs = 0;
-      let categoryPrefetchOutcome: 'offline' | 'skipped' | 'ok' | 'fail' | 'timeout' = 'offline';
       const country = store.getState().app.country;
-      const prefetchT0 = Date.now();
-
-      if (!isOffline) {
-        void fetchStoreSettingsFromNetwork(country).then(res => {
-          if (!mounted || !res.ok || !res.settings) return;
-          dispatch(setStoreCurrencySettings(res.settings));
-          dispatch(setStorefrontCheckoutApiOriginOverride(res.checkoutApiOriginOverride ?? null));
-          dispatch(setStoreOpenCartCountryId(res.openCartCountryId ?? null));
-        });
-
-        const prefetchPromise = prefetchCategoryCacheIfStale(country).then(r => ({
-          timedOut: false as const,
-          ok: r.ok,
-          skipped: r.skipped,
-        }));
-        const race = await Promise.race([
-          prefetchPromise,
-          delay(CATEGORY_PREFETCH_MAX_MS).then(() => ({ timedOut: true as const })),
-        ]);
-        categoryPrefetchMs = Date.now() - prefetchT0;
-        if ('timedOut' in race && race.timedOut) {
-          categoryPrefetchOutcome = 'timeout';
-        } else if (!race.timedOut) {
-          if (race.skipped) categoryPrefetchOutcome = 'skipped';
-          else if (race.ok) categoryPrefetchOutcome = 'ok';
-          else categoryPrefetchOutcome = 'fail';
-        }
-      }
 
       dispatch(setBootstrapped(true));
 
@@ -110,8 +74,33 @@ export function AppRoot() {
           elapsedMs: elapsed,
           networkProbeOk: networkResult !== null,
           isOffline,
-          categoryPrefetchMs,
-          categoryPrefetchOutcome,
+          categoryPrefetchMs: 0,
+          categoryPrefetchOutcome: isOffline ? 'offline' : 'deferred',
+        });
+      }
+
+      if (!isOffline) {
+        void fetchStoreSettingsFromNetwork(country).then(res => {
+          if (!mounted || !res.ok || !res.settings) return;
+          dispatch(setStoreCurrencySettings(res.settings));
+          dispatch(setStorefrontCheckoutApiOriginOverride(res.checkoutApiOriginOverride ?? null));
+          dispatch(setStoreOpenCartCountryId(res.openCartCountryId ?? null));
+        });
+
+        const prefetchT0 = Date.now();
+        void prefetchCategoryTreeQuery(country).then(r => {
+          if (!mounted) return;
+          analytics.track('app_category_prefetch_complete', {
+            elapsedMs: Date.now() - prefetchT0,
+            categoryPrefetchOutcome: r.skipped ? 'skipped' : r.ok ? 'ok' : 'fail',
+          });
+        });
+
+        void prefetchNewArrivalsPage1Query(country).then(() => {
+          if (!mounted) return;
+          analytics.track('app_new_arrivals_prefetch_complete', {
+            elapsedMs: Date.now() - prefetchT0,
+          });
         });
       }
     };

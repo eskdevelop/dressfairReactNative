@@ -47,6 +47,7 @@ import {
   CART_STORAGE_BRIDGE_INJECTION,
 } from '@features/cart/cartStorageBridgeInjection';
 import { applyWebCartSnapshot } from '@features/cart/cartActions';
+import { scheduleHomeTabWarmPrefetch } from '@features/shell/homeTabWarmPrefetch';
 import { pushNativeCartToWebView } from '@features/cart/pushNativeCartToWeb';
 import { selectWebWriteGeneration } from '@features/cart/cartSlice';
 
@@ -248,12 +249,21 @@ const FIRST_PAINT_INJECTION = `
     }
   }
   function whenLoaded() {
-    // Two RAFs: first one resolves layout, second resolves paint.
     requestAnimationFrame(function() { requestAnimationFrame(notify); });
   }
-  if (document.readyState === 'complete') {
-    whenLoaded();
+  function tryEarly() {
+    if (document.body && document.body.childElementCount > 0) {
+      whenLoaded();
+      return true;
+    }
+    return false;
+  }
+  if (document.readyState === 'interactive' || document.readyState === 'complete') {
+    if (!tryEarly()) whenLoaded();
   } else {
+    document.addEventListener('DOMContentLoaded', function() {
+      if (!tryEarly()) whenLoaded();
+    }, { once: true });
     window.addEventListener('load', whenLoaded, { once: true });
   }
 })();
@@ -707,11 +717,14 @@ export function WebViewScreen({
   );
   const beforeContentScripts = useMemo(() => {
     const cartBridgePrefix = syncWebCartToNative ? `${CART_STORAGE_BRIDGE_INJECTION}\n` : '';
+    const authCapturePrefix = applyWebNavFromStore
+      ? `${AUTH_CAPTURE_INJECTION_BEFORE_CONTENT}\n`
+      : `${BEFORE_PAGE_SCRIPTS_INJECTION}\n`;
     // Guest-capable pages (Settings) must behave like a plain browser: forcing
     // native auth headers onto their own API calls makes the storefront return
     // empty data and render "undefined". Skip the auth/session bridge here.
     if (disableStorefrontAuthBridge) {
-      return `${cartBridgePrefix}${BEFORE_PAGE_SCRIPTS_INJECTION}${
+      return `${cartBridgePrefix}${authCapturePrefix}${
         extraBeforeContentScripts ? `\n${extraBeforeContentScripts}` : ''
       }`;
     }
@@ -733,7 +746,7 @@ export function WebViewScreen({
     } catch {
       /* ignore */
     }
-    return `${cartBridgePrefix}${BEFORE_PAGE_SCRIPTS_INJECTION}\n${buildStorefrontFetchAuthInjection(
+    return `${cartBridgePrefix}${authCapturePrefix}${buildStorefrontFetchAuthInjection(
       JSON.stringify(initialHeaders),
       JSON.stringify([...checkoutHosts]),
     )}\n${buildStorefrontWebSessionHydration(JSON.stringify(customerInfoApiUrl))}${
@@ -741,6 +754,7 @@ export function WebViewScreen({
     }`;
   }, [
     apiSessionToken,
+    applyWebNavFromStore,
     cfg.allowedDomains,
     cfg.mobileCategoriesApiBaseUrl,
     cfg.storefrontCheckoutApiBaseUrl,
@@ -808,7 +822,7 @@ export function WebViewScreen({
   );
 
   const injectedJavaScriptBundle = useMemo(() => {
-    const parts = [COMBINED_INJECTION];
+    const parts = applyWebNavFromStore ? [FIRST_PAINT_INJECTION] : [COMBINED_INJECTION];
     if (hideStorefrontMobileHeader) parts.push(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
     if (hideStorefrontMobileFooter) {
       parts.push(
@@ -824,6 +838,7 @@ export function WebViewScreen({
     if (openStorefrontLoginModal) parts.push(STOREFRONT_OPEN_LOGIN_MODAL_INJECTION);
     return parts.join('\n');
   }, [
+    applyWebNavFromStore,
     hideEmbeddedSiteAppBar,
     hideStorefrontMobileFooter,
     hideStorefrontMobileFooterMode,
@@ -1124,6 +1139,9 @@ export function WebViewScreen({
           if (!initialLoadDone) {
             setInitialLoadDone(true);
             hideNativeSplashOnce('webview_first_paint');
+            if (applyWebNavFromStore) {
+              scheduleHomeTabWarmPrefetch();
+            }
           }
           return;
         }
@@ -1251,6 +1269,9 @@ export function WebViewScreen({
           source={{ uri: currentUri }}
           {...(forceMobileStorefrontUserAgent ? { userAgent: STOREFRONT_PDP_MOBILE_USER_AGENT } : {})}
           cacheEnabled
+          {...(Platform.OS === 'android' && applyWebNavFromStore
+            ? { cacheMode: 'LOAD_CACHE_ELSE_NETWORK' as const }
+            : {})}
           domStorageEnabled
           // Session parity with MenuNewInWebView: iOS shares HTTPCookieStorage across
           // WebViews (login modal vs Cart/checkout); Android accepts third-party cookies

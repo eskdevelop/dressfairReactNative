@@ -8,16 +8,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { colors } from '@app/theme/tokens';
+import { selectWebWriteGeneration } from '@features/cart/cartSlice';
 import { CategorySearchBar } from '@features/categories/components/CategorySearchBar';
 import { CategoryNavigator } from '@features/categories/CategoryNavigator';
 import { AccountScreen } from '@features/account/AccountScreen';
-import { notificationInbox } from '@features/notifications/notificationInbox';
 import { SearchScreen } from '@features/search/SearchScreen';
 import { CartScreen } from '@features/cart/screens/CartScreen';
 import { CartWebWriteBridge } from '@features/cart/CartWebWriteBridge';
 import { hydrateNativeCart } from '@features/cart/cartActions';
 import { WebViewScreen } from '@features/webview/WebViewScreen';
 import { WishlistScreen } from '@features/wishlist/WishlistScreen';
+import { notificationInbox } from '@features/notifications/notificationInbox';
 import { wishlist } from '@features/wishlist/wishlist';
 import { crashReporter } from '@shared/observability/crash';
 
@@ -220,6 +221,7 @@ function CartTabBarIconWrapper({
 
 export function MainTabs() {
   const dispatch = useAppDispatch();
+  const webWriteGeneration = useAppSelector(selectWebWriteGeneration);
 
   // Hydrate the inbox and wishlist once at the tab shell mount so counts on
   // the Menu screen and initial state are correct. Subsequent updates flow
@@ -306,7 +308,7 @@ export function MainTabs() {
 
   return (
     <View style={{ flex: 1 }}>
-      <CartWebWriteBridge />
+      {webWriteGeneration > 0 ? <CartWebWriteBridge /> : null}
       <Tab.Navigator screenOptions={screenOptions}>
         <Tab.Screen
           name="Home"
