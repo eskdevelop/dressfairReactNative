@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
@@ -19,7 +20,6 @@ import { WebViewScreen } from '@features/webview/WebViewScreen';
 import { WishlistScreen } from '@features/wishlist/WishlistScreen';
 import { wishlist } from '@features/wishlist/wishlist';
 import { crashReporter } from '@shared/observability/crash';
-import { getEnvConfig } from '@shared/config/env';
 
 import { CenteredTabBarButton } from './CenteredTabBarButton';
 import { MAIN_TAB_BAR_CONTENT_HEIGHT } from './tabBarMetrics';
@@ -205,9 +205,21 @@ function CartTabBarIcon({
   );
 }
 
+function CartTabBarIconWrapper({
+  color,
+  size,
+  focused,
+}: {
+  color: string;
+  size: number;
+  focused: boolean;
+}) {
+  const quantity = useAppSelector(state => state.cartBadge.quantity);
+  return <CartTabBarIcon color={color} size={size} focused={focused} quantity={quantity} />;
+}
+
 export function MainTabs() {
   const dispatch = useAppDispatch();
-  const cartQuantity = useAppSelector(state => state.cartBadge.quantity);
 
   // Hydrate the inbox and wishlist once at the tab shell mount so counts on
   // the Menu screen and initial state are correct. Subsequent updates flow
@@ -229,41 +241,73 @@ export function MainTabs() {
   const tabBarBottomInset = useTabBarBottomInset();
   const tabBarHeight = MAIN_TAB_BAR_CONTENT_HEIGHT + tabBarBottomInset;
 
+  const renderTabBarButton = useCallback(
+    (props: BottomTabBarButtonProps) => <CenteredTabBarButton {...props} />,
+    [],
+  );
+
+  const screenOptions = useMemo(
+    () => ({
+      lazy: true,
+      freezeOnBlur: true,
+      headerShown: false,
+      tabBarActiveTintColor: colors.brand,
+      tabBarInactiveTintColor: TAB_BAR_INACTIVE_TINT,
+      tabBarButton: renderTabBarButton,
+      tabBarStyle: {
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.border,
+        paddingTop: 2,
+        paddingBottom: tabBarBottomInset,
+        height: tabBarHeight,
+        backgroundColor: colors.background,
+      },
+      tabBarItemStyle: {
+        flex: 1,
+        minWidth: 0,
+        paddingVertical: 2,
+        paddingHorizontal: 3,
+      },
+      tabBarLabelStyle: {
+        fontSize: 9,
+        marginTop: 1,
+        marginBottom: 1,
+        fontWeight: '500' as const,
+        textAlign: 'center' as const,
+        width: '100%' as const,
+      },
+      sceneStyle: { backgroundColor: 'transparent' },
+    }),
+    [renderTabBarButton, tabBarBottomInset, tabBarHeight],
+  );
+
+  const categoryTabListeners = useCallback(
+    ({ navigation }: { navigation: { getState: () => { index: number; routes: Array<{ name: string; state?: { index?: number; routes?: Array<{ name: string }> } }> }; navigate: (opts: unknown) => void } }) => ({
+      tabPress: () => {
+        const state = navigation.getState();
+        const currentRoute = state.routes[state.index];
+        if (currentRoute?.name !== 'Category') {
+          return;
+        }
+        const nested = currentRoute.state;
+        const nestedName = nested?.routes?.[nested.index ?? 0]?.name;
+        if (nestedName === 'CategoryHub' || nestedName === undefined) {
+          return;
+        }
+        navigation.navigate({
+          name: 'Category',
+          params: { screen: 'CategoryHub' },
+          merge: true,
+        });
+      },
+    }),
+    [],
+  );
+
   return (
     <View style={{ flex: 1 }}>
       <CartWebWriteBridge />
-      <Tab.Navigator
-        screenOptions={{
-          lazy: true,
-          headerShown: false,
-          tabBarActiveTintColor: colors.brand,
-          tabBarInactiveTintColor: TAB_BAR_INACTIVE_TINT,
-          tabBarButton: props => <CenteredTabBarButton {...props} />,
-          tabBarStyle: {
-            borderTopWidth: StyleSheet.hairlineWidth,
-            borderTopColor: colors.border,
-            paddingTop: 2,
-            paddingBottom: tabBarBottomInset,
-            height: tabBarHeight,
-            backgroundColor: colors.background,
-          },
-          tabBarItemStyle: {
-            flex: 1,
-            minWidth: 0,
-            paddingVertical: 2,
-            paddingHorizontal: 3,
-          },
-          tabBarLabelStyle: {
-            fontSize: 9,
-            marginTop: 1,
-            marginBottom: 1,
-            fontWeight: '500',
-            textAlign: 'center',
-            width: '100%',
-          },
-          sceneStyle: { backgroundColor: 'transparent' },
-        }}
-      >
+      <Tab.Navigator screenOptions={screenOptions}>
         <Tab.Screen
           name="Home"
           component={HomeTab}
@@ -281,15 +325,7 @@ export function MainTabs() {
               <CategoryTabIcon color={color} size={size} focused={focused} />
             ),
           }}
-          listeners={({ navigation }) => ({
-            tabPress: () => {
-              navigation.navigate({
-                name: 'Category',
-                params: { screen: 'CategoryHub' },
-                merge: true,
-              });
-            },
-          })}
+          listeners={categoryTabListeners}
         />
         <Tab.Screen
           name="Menu"
@@ -304,7 +340,7 @@ export function MainTabs() {
           component={CartTab}
           options={{
             tabBarLabel: 'Cart',
-            tabBarIcon: props => <CartTabBarIcon {...props} quantity={cartQuantity} />,
+            tabBarIcon: props => <CartTabBarIconWrapper {...props} />,
           }}
         />
         <Tab.Screen

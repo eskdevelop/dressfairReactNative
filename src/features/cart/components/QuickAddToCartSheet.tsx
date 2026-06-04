@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   Pressable,
@@ -16,8 +17,12 @@ import { colors, radii, spacing } from '@app/theme/tokens';
 import { CartStarRating } from '@features/cart/components/CartStarRating';
 import {
   addProductToCartAndPersist,
-  updateCartLineQuantityAndPersist,
+  updateCartLineQuantityWithStockCheck,
 } from '@features/cart/cartActions';
+import {
+  canIncreaseCartQuantity,
+  clampCartQuantity,
+} from '@features/cart/cartStock';
 import { selectCartItems } from '@features/cart/cartSlice';
 import type { WebCartRawItem } from '@features/cart/cartTypes';
 import { cartLineKey } from '@features/cart/parseWebCartItems';
@@ -136,12 +141,35 @@ export function QuickAddToCartSheet({
     [cartItems, selectedLineKey],
   );
 
+  const maxQty = useMemo(() => {
+    if (!detail) return 0;
+    if (selectedSize) return Math.max(0, Math.floor(selectedSize.availableQuantity));
+    return Math.max(0, Math.floor(detail.availableQty));
+  }, [detail, selectedSize]);
+
   const priceText = (amount: number): string =>
     currency.length > 0 ? `${currency} ${priceAmount(amount)}` : priceAmount(amount);
+
+  const stockAlert = useCallback((available: number, requested: number) => {
+    if (available <= 0) {
+      Alert.alert('', 'This item is out of stock.');
+      return;
+    }
+    Alert.alert(
+      '',
+      available === 1
+        ? 'Only 1 item available in stock.'
+        : `Only ${available} items available in stock.`,
+    );
+  }, []);
 
   const handleAdd = useCallback(async () => {
     if (!detail || adding) return;
     if (requiresSize && (!selectedSize || selectedSize.availableQuantity <= 0)) return;
+    if (maxQty <= 0) {
+      Alert.alert('', 'This item is out of stock.');
+      return;
+    }
 
     setAdding(true);
     const web: WebCartRawItem = {
@@ -154,30 +182,47 @@ export function QuickAddToCartSheet({
       size: selectedSize?.label ?? '',
       color: detail.color,
       image: headerImage,
+      available_quantity: maxQty,
     };
     if (strike && strike > displayPrice) {
       web.normal_price = strike;
     }
 
-    const ok = await addProductToCartAndPersist(dispatch, country, web, cartItems);
+    const existing = cartLine?.quantity ?? 0;
+    if (existing > 0 && !canIncreaseCartQuantity(existing, maxQty)) {
+      setAdding(false);
+      stockAlert(maxQty, existing + 1);
+      return;
+    }
+
+    const result = await addProductToCartAndPersist(dispatch, country, web, cartItems, {
+      availableQuantity: maxQty,
+    });
     setAdding(false);
-    if (ok) {
+    if (result === 'added') {
       analytics.track('native_quick_add_to_cart', {
         sku: detail.sku,
         product_option_id: selectedSize?.productOptionId ?? 0,
       });
+      return;
+    }
+    if (result === 'out_of_stock' || result === 'exceeds_stock') {
+      stockAlert(maxQty, clampCartQuantity(existing + 1, maxQty) + 1);
     }
   }, [
     detail,
     adding,
     requiresSize,
     selectedSize,
+    maxQty,
     displayPrice,
     strike,
     headerImage,
     dispatch,
     country,
     cartItems,
+    cartLine,
+    stockAlert,
   ]);
 
   const changeQty = useCallback(
@@ -185,9 +230,24 @@ export function QuickAddToCartSheet({
       if (!cartLine) return;
       const next = cartLine.quantity + delta;
       if (next < 1) return;
-      void updateCartLineQuantityAndPersist(dispatch, country, cartLine.lineKey, next, cartItems);
+      if (delta > 0 && !canIncreaseCartQuantity(cartLine.quantity, maxQty)) {
+        stockAlert(maxQty, next);
+        return;
+      }
+      void (async () => {
+        const result = await updateCartLineQuantityWithStockCheck(
+          dispatch,
+          country,
+          cartLine.lineKey,
+          next,
+          cartItems,
+        );
+        if (!result.ok && result.reason !== 'not_found') {
+          stockAlert(result.available, result.requested);
+        }
+      })();
     },
-    [cartLine, dispatch, country, cartItems],
+    [cartLine, dispatch, country, cartItems, maxQty, stockAlert],
   );
 
   const handleGoToCart = useCallback(() => {
@@ -461,7 +521,7 @@ export function QuickAddToCartSheet({
                         accessibilityRole="button"
                         accessibilityLabel="Increase quantity"
                         hitSlop={6}
-                        disabled={cartLine.quantity >= 99}
+                        disabled={!canIncreaseCartQuantity(cartLine.quantity, maxQty)}
                         onPress={() => changeQty(1)}
                         style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center' }}
                       >

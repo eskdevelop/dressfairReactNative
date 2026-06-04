@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -8,15 +8,22 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { colors, spacing } from '@app/theme/tokens';
 import {
+  deselectUnavailableCartLines,
   removeCartLineAndPersist,
   removeSelectedCartLinesAndPersist,
   toggleCartLineSelectedAndPersist,
-  toggleSelectAllForCheckoutAndPersist,
+  toggleSelectAllInStockForCheckoutAndPersist,
+  updateCartLineQuantityWithStockCheck,
 } from '@features/cart/cartActions';
+import {
+  fetchAvailableQuantityForCartLine,
+  partitionCartLinesByStock,
+} from '@features/cart/cartStock';
 import { CartCheckoutBar } from '@features/cart/components/CartCheckoutBar';
 import { CartCheckbox } from '@features/cart/components/CartCheckbox';
 import { CartEmptyState } from '@features/cart/components/CartEmptyState';
 import { CartLineItemRow } from '@features/cart/components/CartLineItemRow';
+import { CartUnavailableLineItemRow } from '@features/cart/components/CartUnavailableLineItemRow';
 import {
   CartNewArrivalsSection,
   type CartNewArrivalsSectionHandle,
@@ -26,6 +33,7 @@ import { CartTrustBadgesRow } from '@features/cart/components/CartTrustBadgesRow
 import { ManageCartSheet } from '@features/cart/components/ManageCartSheet';
 import { PriceDetailsCartSheet } from '@features/cart/components/PriceDetailsCartSheet';
 import { AppDeleteDialog } from '@shared/ui/AppDeleteDialog';
+import { useAppToast } from '@shared/ui/AppToast';
 import {
   parseShippingConfigFromStore,
   selectedTotalNormalPrice,
@@ -47,6 +55,14 @@ function CartSectionDivider(): React.ReactElement {
   return <View style={{ height: 8, backgroundColor: '#F5F5F5' }} />;
 }
 
+function CartListDivider(): React.ReactElement {
+  return (
+    <View
+      style={{ height: 1, backgroundColor: '#F0F0F0', marginHorizontal: spacing.md }}
+    />
+  );
+}
+
 export function CartScreen(): React.ReactElement {
   const navigation = useNavigation<RootNav>();
   const dispatch = useAppDispatch();
@@ -58,15 +74,45 @@ export function CartScreen(): React.ReactElement {
   const cfg = getEnvConfig(country);
   const currency = storeCurrencyCode || 'AED';
   const newArrivalsRef = useRef<CartNewArrivalsSectionHandle | null>(null);
+  const { show: showToast, ToastHost } = useAppToast(112);
 
   const shippingConfig = useMemo(
     () => parseShippingConfigFromStore(storeShippingAmount, storeFreeShippingLimit, country),
     [country, storeFreeShippingLimit, storeShippingAmount],
   );
 
-  const [manageVisible, setManageVisible] = useState(false);
-  const [priceSheetVisible, setPriceSheetVisible] = useState(false);
-  const [bulkRemoveConfirm, setBulkRemoveConfirm] = useState(false);
+  const [manageVisible, setManageVisible] = React.useState(false);
+  const [priceSheetVisible, setPriceSheetVisible] = React.useState(false);
+  const [bulkRemoveConfirm, setBulkRemoveConfirm] = React.useState(false);
+  const [stockByLineKey, setStockByLineKey] = React.useState<Record<string, number>>({});
+
+  const { available: availableItems, unavailable: unavailableItems, stockLoaded } =
+    useMemo(() => partitionCartLinesByStock(items, stockByLineKey), [items, stockByLineKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const pairs = await Promise.all(
+        items.map(async row => {
+          const available = await fetchAvailableQuantityForCartLine(row, {
+            forceRefresh: true,
+          });
+          return [row.lineKey, available] as const;
+        }),
+      );
+      if (!cancelled) {
+        setStockByLineKey(Object.fromEntries(pairs));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
+
+  useEffect(() => {
+    if (!stockLoaded) return;
+    void deselectUnavailableCartLines(dispatch, country, items, stockByLineKey);
+  }, [country, dispatch, items, stockByLineKey, stockLoaded]);
 
   const onToggleSelect = useCallback(
     (lineKey: string) => {
@@ -76,53 +122,159 @@ export function CartScreen(): React.ReactElement {
   );
 
   const onToggleAll = useCallback(() => {
-    void toggleSelectAllForCheckoutAndPersist(dispatch, country, items);
-  }, [country, dispatch, items]);
+    if (availableItems.length === 0) return;
+    void toggleSelectAllInStockForCheckoutAndPersist(
+      dispatch,
+      country,
+      items,
+      availableItems.map(r => r.lineKey),
+    );
+  }, [availableItems, country, dispatch, items]);
 
   const onRemove = useCallback(
     (lineKey: string) => {
-      void removeCartLineAndPersist(dispatch, country, lineKey, items);
+      void removeCartLineAndPersist(dispatch, country, lineKey, items).then(() => {
+        showToast('Removed from cart');
+      });
     },
-    [country, dispatch, items],
+    [country, dispatch, items, showToast],
+  );
+
+  const onQuantityChange = useCallback(
+    (lineKey: string, quantity: number) => {
+      const prevQty = items.find(r => r.lineKey === lineKey)?.quantity ?? 0;
+      void (async () => {
+        const result = await updateCartLineQuantityWithStockCheck(
+          dispatch,
+          country,
+          lineKey,
+          quantity,
+          items,
+        );
+        if (result.ok) {
+          setStockByLineKey(prev => ({ ...prev, [lineKey]: result.available }));
+          if (result.quantity > prevQty) {
+            showToast(`Quantity increased to ${result.quantity}`);
+          } else if (result.quantity < prevQty) {
+            showToast(`Quantity decreased to ${result.quantity}`);
+          } else {
+            showToast(`Quantity updated to ${result.quantity}`);
+          }
+          return;
+        }
+        if (result.reason === 'out_of_stock') {
+          showToast('This item is out of stock');
+          return;
+        }
+        if (result.reason === 'exceeds_stock') {
+          showToast(
+            result.available === 1
+              ? 'Only 1 item available in stock'
+              : `Only ${result.available} items available in stock`,
+          );
+        }
+      })();
+    },
+    [country, dispatch, items, showToast],
   );
 
   const onRemoveSelected = useCallback(() => {
-    const selectedCount = items.filter(row => row.isSelected).length;
+    const selectedCount = availableItems.filter(row => row.isSelected).length;
     if (selectedCount === 0) {
       Alert.alert('', 'Please select items to remove.');
       return;
     }
     setBulkRemoveConfirm(true);
-  }, [items]);
+  }, [availableItems]);
 
   const confirmBulkRemove = useCallback(() => {
     setBulkRemoveConfirm(false);
     void removeSelectedCartLinesAndPersist(dispatch, country, items).then(() => {
       setManageVisible(false);
+      showToast('Selected items removed from cart');
     });
-  }, [country, dispatch, items]);
+  }, [country, dispatch, items, showToast]);
 
   const onCheckout = useCallback(() => {
+    if (availableItems.length === 0 && unavailableItems.length > 0) {
+      Alert.alert('', 'All items in your cart are out of stock.');
+      return;
+    }
     if (items.length === 0) {
       Alert.alert('', 'Please add items to cart first.');
       return;
     }
-    if (!hasSelectedCartItems(items)) {
+    if (!hasSelectedCartItems(availableItems)) {
       Alert.alert('', 'Please select products to checkout.');
       return;
     }
     setPriceSheetVisible(false);
     analytics.track('cart_native_checkout_tap');
     navigation.navigate('Checkout');
-  }, [items, navigation]);
+  }, [availableItems, items.length, navigation, unavailableItems.length]);
 
-  const selectedSubtotal = selectedTotalPrice(items);
-  const selectedNormalSubtotal = selectedTotalNormalPrice(items);
+  const selectedSubtotal = selectedTotalPrice(availableItems);
+  const selectedNormalSubtotal = selectedTotalNormalPrice(availableItems);
   const checkoutTotal = totalWithShippingCharges(selectedSubtotal, shippingConfig);
-  const selectedCount = items.filter(row => row.isSelected).length;
-  const allSelected = isAllCartSelectedForCheckout(items);
+  const selectedCount = availableItems.filter(row => row.isSelected).length;
+  const allSelected =
+    availableItems.length > 0 && isAllCartSelectedForCheckout(availableItems);
   const showStrike =
     selectedNormalSubtotal > 0 && Math.abs(selectedNormalSubtotal - checkoutTotal) > 0.009;
+
+  const renderAvailableList = (): React.ReactElement => (
+    <>
+      {availableItems.map((row, index) => (
+        <View key={row.lineKey}>
+          <CartLineItemRow
+            row={row}
+            currency={currency}
+            cdnBase={cfg.customerAvatarCdnBaseUrl}
+            onToggleSelect={onToggleSelect}
+            onRemove={onRemove}
+            onQuantityChange={onQuantityChange}
+          />
+          {index < availableItems.length - 1 ? <CartListDivider /> : null}
+        </View>
+      ))}
+    </>
+  );
+
+  const renderUnavailableSection = (): React.ReactElement | null => {
+    if (unavailableItems.length === 0) return null;
+    return (
+      <>
+        <CartSectionDivider />
+        <View
+          style={{
+            paddingHorizontal: spacing.md,
+            paddingTop: spacing.sm,
+            paddingBottom: spacing.xs,
+            backgroundColor: '#FAFAFA',
+          }}
+        >
+          <Text style={{ fontSize: 13, fontWeight: '600', color: colors.textPrimary }}>
+            Unavailable
+          </Text>
+          <Text style={{ marginTop: 2, fontSize: 11, color: colors.textMuted }}>
+            {unavailableItems.length} item{unavailableItems.length === 1 ? '' : 's'} out of stock —
+            remove to continue
+          </Text>
+        </View>
+        {unavailableItems.map((row, index) => (
+          <View key={row.lineKey}>
+            <CartUnavailableLineItemRow
+              row={row}
+              currency={currency}
+              cdnBase={cfg.customerAvatarCdnBaseUrl}
+              onRemove={onRemove}
+            />
+            {index < unavailableItems.length - 1 ? <CartListDivider /> : null}
+          </View>
+        ))}
+      </>
+    );
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top']}>
@@ -157,7 +309,10 @@ export function CartScreen(): React.ReactElement {
           }}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', width: 90 }}>
-            <CartCheckbox checked={allSelected} onPress={onToggleAll} />
+            <CartCheckbox
+              checked={allSelected}
+              onPress={onToggleAll}
+            />
             <Text style={{ marginLeft: 6, fontSize: 13, color: '#555', fontWeight: '500' }}>All</Text>
           </View>
 
@@ -196,22 +351,10 @@ export function CartScreen(): React.ReactElement {
         {items.length === 0 ? (
           <CartEmptyState />
         ) : (
-          items.map((row, index) => (
-            <View key={row.lineKey}>
-              <CartLineItemRow
-                row={row}
-                currency={currency}
-                cdnBase={cfg.customerAvatarCdnBaseUrl}
-                onToggleSelect={onToggleSelect}
-                onRemove={onRemove}
-              />
-              {index < items.length - 1 ? (
-                <View
-                  style={{ height: 1, backgroundColor: '#F0F0F0', marginHorizontal: spacing.md }}
-                />
-              ) : null}
-            </View>
-          ))
+          <>
+            {renderAvailableList()}
+            {renderUnavailableSection()}
+          </>
         )}
 
         <CartSectionDivider />
@@ -240,6 +383,8 @@ export function CartScreen(): React.ReactElement {
         </View>
       ) : null}
 
+      <ToastHost />
+
       <ManageCartSheet
         visible={manageVisible}
         items={items}
@@ -253,7 +398,7 @@ export function CartScreen(): React.ReactElement {
 
       <PriceDetailsCartSheet
         visible={priceSheetVisible}
-        items={items}
+        items={availableItems}
         currency={currency}
         cdnBase={cfg.customerAvatarCdnBaseUrl}
         shippingConfig={shippingConfig}

@@ -1,3 +1,4 @@
+import { availableQuantityFromWebItem } from './cartStock';
 import type { CartLineItem, WebCartRawItem } from './cartTypes';
 
 const asNum = (v: unknown, fallback = 0): number => {
@@ -43,6 +44,11 @@ export function parseWebCartItems(raw: unknown): CartLineItem[] {
           : undefined;
 
     const imageRaw = asStr(w.image) || asStr(w.thumb);
+    const availableFromWeb = availableQuantityFromWebItem(w);
+    const maxQty =
+      availableFromWeb != null && availableFromWeb > 0
+        ? Math.min(quantity, availableFromWeb)
+        : quantity;
 
     out.push({
       lineKey: cartLineKey(sku, productOptionId),
@@ -50,7 +56,8 @@ export function parseWebCartItems(raw: unknown): CartLineItem[] {
       productOptionId,
       sku,
       name,
-      quantity,
+      quantity: maxQty,
+      availableQuantity: availableFromWeb,
       price,
       normalPrice,
       discountPercent: discountPercent && discountPercent > 0 ? discountPercent : undefined,

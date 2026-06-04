@@ -21,7 +21,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
-import { openWebPath } from '@navigation/navigationRef';
+import { navigationRef, openWebPath } from '@navigation/navigationRef';
 import type {
   CategoryStackParamList,
   MainTabParamList,
@@ -199,35 +199,68 @@ export function SearchScreen() {
     }, [query, clearActiveSearch]),
   );
 
-  const runSearch = useCallback(async (term: string) => {
-    const trimmed = term.trim();
-    if (trimmed.length < 2) return;
+  const openProductBySku = useCallback(
+    (sku: string) => {
+      const trimmed = sku.trim();
+      if (trimmed.length === 0) return;
+      if (isCategoryHostedSearch) {
+        categoryStackNavigation(navigation).navigate('CategoryProductWeb', {
+          sku: trimmed,
+        });
+        return;
+      }
+      // Root-stack PDP from the hidden Search tab — navigationRef avoids iOS nested-nav no-ops.
+      if (navigationRef.isReady()) {
+        navigationRef.navigate('StorefrontProductWeb', { sku: trimmed });
+        return;
+      }
+      navigation.navigate('StorefrontProductWeb', { sku: trimmed });
+    },
+    [isCategoryHostedSearch, navigation],
+  );
 
-    setCommittedQuery(trimmed);
-    setResultsStatus('loading');
-    setResultsError(null);
-    setResults([]);
-    setResultsPage(1);
-    setResultsLastPage(1);
+  const runSearch = useCallback(
+    async (term: string, options?: { autoOpenSingleResult?: boolean }) => {
+      const trimmed = term.trim();
+      if (trimmed.length < 2) return;
 
-    try {
-      const { items, lastPage } = await searchProductsLp(trimmed, { page: 1 });
-      setResults(items);
+      setQuery(trimmed);
+      setCommittedQuery(trimmed);
+      setResultsStatus('loading');
+      setResultsError(null);
+      setResults([]);
       setResultsPage(1);
-      setResultsLastPage(lastPage);
-      setResultsStatus('success');
-      analytics.track('search_query_committed', {
-        length: trimmed.length,
-        resultCount: items.length,
-      });
-    } catch (error) {
-      crashReporter.capture(error, {
-        source: 'SearchScreen.searchProductsLp',
-      });
-      setResultsStatus('error');
-      setResultsError('Unable to search right now. Please try again.');
-    }
-  }, []);
+      setResultsLastPage(1);
+
+      try {
+        const { items, lastPage } = await searchProductsLp(trimmed, { page: 1 });
+        setResults(items);
+        setResultsPage(1);
+        setResultsLastPage(lastPage);
+        setResultsStatus('success');
+        analytics.track('search_query_committed', {
+          length: trimmed.length,
+          resultCount: items.length,
+        });
+        if (options?.autoOpenSingleResult && items.length === 1) {
+          const hit = items[0];
+          const sku = hit.sku.trim();
+          if (sku.length > 0) {
+            openProductBySku(sku);
+          } else {
+            openWebPath(hit.href);
+          }
+        }
+      } catch (error) {
+        crashReporter.capture(error, {
+          source: 'SearchScreen.searchProductsLp',
+        });
+        setResultsStatus('error');
+        setResultsError('Unable to search right now. Please try again.');
+      }
+    },
+    [openProductBySku],
+  );
 
   useEffect(() => {
     const trimmed = query.trim();
@@ -328,18 +361,12 @@ export function SearchScreen() {
     (product: SearchProductHit) => {
       const sku = product.sku.trim();
       if (sku.length > 0) {
-        if (isCategoryHostedSearch) {
-          categoryStackNavigation(navigation).navigate('CategoryProductWeb', {
-            sku,
-          });
-        } else {
-          navigation.navigate('StorefrontProductWeb', { sku });
-        }
+        openProductBySku(sku);
         return;
       }
       openWebPath(product.href);
     },
-    [isCategoryHostedSearch, navigation],
+    [openProductBySku],
   );
 
   const onProductPress = useCallback(
@@ -392,13 +419,7 @@ export function SearchScreen() {
         }
         const sku = suggestion.sku.trim();
         if (sku.length > 0) {
-          if (isCategoryHostedSearch) {
-            categoryStackNavigation(navigation).navigate('CategoryProductWeb', {
-              sku,
-            });
-          } else {
-            navigation.navigate('StorefrontProductWeb', { sku });
-          }
+          openProductBySku(sku);
           return;
         }
         const href = productHrefForSku(suggestion.sku, country);
@@ -408,9 +429,14 @@ export function SearchScreen() {
         return;
       }
       analytics.track('search_suggestion_tapped', { kind: 'query' });
-      setQuery(suggestion.title);
+      const term = suggestion.title.trim();
+      if (term.length === 0) return;
+      setQuery(term);
+      Keyboard.dismiss();
+      void persistRecent(term);
+      void runSearch(term, { autoOpenSingleResult: true });
     },
-    [country, isCategoryHostedSearch, navigation, persistRecent, query],
+    [country, openProductBySku, persistRecent, query, runSearch],
   );
 
   const onRecentPress = useCallback((term: string) => {

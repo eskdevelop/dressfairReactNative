@@ -50,4 +50,13 @@ describe('cartSyncUtils', () => {
     const native = parseWebCartItems([web[0]]);
     expect(shouldApplyWebCartSnapshot(native, web, null)).toBe(true);
   });
+
+  it('allows web add-to-cart while native write-back is pending', () => {
+    const web = [
+      { id: 1, product_option_id: 2, sku: 'A', name: 'A', quantity: 1, price: 10 },
+      { id: 2, product_option_id: 3, sku: 'B', name: 'B', quantity: 1, price: 20 },
+    ];
+    const native = parseWebCartItems([web[0]]);
+    expect(shouldApplyWebCartSnapshot(native, web, Date.now())).toBe(true);
+  });
 });

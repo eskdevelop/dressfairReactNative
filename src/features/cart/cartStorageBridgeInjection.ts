@@ -1,6 +1,7 @@
 /**
  * Reads dressfair.com `localStorage` key `cart` and posts snapshots to native.
- * Hooks `localStorage.setItem` so same-tab add-to-cart updates propagate.
+ * Hooks `Storage.prototype.setItem` before page scripts so same-tab add-to-cart
+ * updates propagate (iOS WKWebView loads storefront bundles early).
  */
 export const CART_STORAGE_BRIDGE_INJECTION = `
 (function() {
@@ -9,6 +10,7 @@ export const CART_STORAGE_BRIDGE_INJECTION = `
 
   var CART_KEY = 'cart';
   var lastSig = '';
+  var origSetItem = Storage.prototype.setItem;
 
   function readCartArray() {
     try {
@@ -39,30 +41,33 @@ export const CART_STORAGE_BRIDGE_INJECTION = `
 
   window.__dressfairPostWebCartSnapshot = postSnapshot;
 
-  /** Native-initiated write — updates web storage without echoing back to native. */
+  /** Native-initiated write — bypass hook so we do not echo back to native. */
   window.__dressfairWriteWebCart = function(json) {
     try {
-      localStorage.setItem(CART_KEY, json);
+      origSetItem.call(localStorage, CART_KEY, json);
       lastSig = json;
     } catch (e) {}
   };
 
   try {
-    var orig = localStorage.setItem.bind(localStorage);
-    localStorage.setItem = function(key, value) {
-      orig(key, value);
-      if (key === CART_KEY) postSnapshot();
+    Storage.prototype.setItem = function(key, value) {
+      origSetItem.call(this, key, value);
+      if (this === localStorage && key === CART_KEY) postSnapshot();
     };
   } catch (hookErr) {}
 
   postSnapshot();
 
-  var polls = 0;
-  var iv = setInterval(function() {
+  var fastPolls = 0;
+  var fastIv = setInterval(function() {
     postSnapshot();
-    polls += 1;
-    if (polls >= 24) clearInterval(iv);
+    fastPolls += 1;
+    if (fastPolls >= 24) clearInterval(fastIv);
   }, 500);
+
+  setInterval(function() {
+    postSnapshot();
+  }, 2000);
 })();
 true;
 `;
@@ -71,9 +76,10 @@ true;
 export const CART_WRITE_ONLY_INJECTION = `
 (function() {
   if (window.__dressfairWriteWebCart) return true;
+  var origSetItem = Storage.prototype.setItem;
   window.__dressfairWriteWebCart = function(json) {
     try {
-      localStorage.setItem('cart', json);
+      origSetItem.call(localStorage, 'cart', json);
     } catch (e) {}
   };
 })();

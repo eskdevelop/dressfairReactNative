@@ -61,6 +61,20 @@ describe('searchApi', () => {
       ]);
     });
 
+    it('treats product_sku like sku for product suggestions', async () => {
+      axiosGet.mockReturnValueOnce(
+        ok({
+          success: 1,
+          data: [{ title: 'Medium (1.5 - 6 Centimeters)', product_sku: 'BELT-M' }],
+        }),
+      );
+
+      const result = await fetchSuggestions('medium');
+      expect(result).toEqual([
+        { kind: 'product', title: 'Medium (1.5 - 6 Centimeters)', sku: 'BELT-M' },
+      ]);
+    });
+
     it('returns empty for unsuccessful envelopes (no throw)', async () => {
       axiosGet.mockReturnValueOnce(ok({ success: false, data: [{ title: 'x' }] }));
       await expect(fetchSuggestions('x')).resolves.toEqual([]);

@@ -9,6 +9,7 @@ import { isSupportedRemoteImage } from '@features/categories/categoryImage';
 import { AppDeleteDialog } from '@shared/ui/AppDeleteDialog';
 
 import { CartCheckbox } from './CartCheckbox';
+import { CartQuantitySelector } from './CartQuantitySelector';
 import { CartStarRating } from './CartStarRating';
 
 type Props = {
@@ -17,6 +18,7 @@ type Props = {
   cdnBase: string;
   onToggleSelect: (lineKey: string) => void;
   onRemove: (lineKey: string) => void;
+  onQuantityChange: (lineKey: string, quantity: number) => void;
 };
 
 const IMG = 72;
@@ -27,6 +29,7 @@ export function CartLineItemRow({
   cdnBase,
   onToggleSelect,
   onRemove,
+  onQuantityChange,
 }: Props): React.ReactElement {
   const [removeVisible, setRemoveVisible] = useState(false);
   const uri = cartLineImageUri(row.image, cdnBase);
@@ -156,21 +159,11 @@ export function CartLineItemRow({
                 ) : null}
               </View>
 
-              <View
-                style={{
-                  minWidth: 28,
-                  height: 22,
-                  borderWidth: 1,
-                  borderColor: '#E5E7EB',
-                  borderRadius: 4,
-                  paddingHorizontal: 6,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: '#FAFAFA',
-                }}
-              >
-                <Text style={{ fontSize: 11, color: '#555' }}>{row.quantity}</Text>
-              </View>
+              <CartQuantitySelector
+                quantity={row.quantity}
+                maxQuantity={row.availableQuantity ?? undefined}
+                onQuantityChange={next => onQuantityChange(row.lineKey, next)}
+              />
             </View>
           </View>
         </View>

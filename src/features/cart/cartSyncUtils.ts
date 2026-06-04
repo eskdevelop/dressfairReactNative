@@ -57,6 +57,8 @@ export function shouldApplyWebCartSnapshot(
   const incoming = parseWebCartItems(rawWebItems);
 
   if (pendingWebWriteAt) {
+    // Web add-to-cart while native→web write-back is in flight must still merge.
+    if (incoming.length > nativeItems.length) return true;
     return cartContentsMatchNative(nativeItems, rawWebItems);
   }
 

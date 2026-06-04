@@ -131,7 +131,7 @@ const mapSuggestion = (raw: unknown): SearchSuggestion | null => {
   const row = raw as Record<string, unknown>;
   const title = asString(row.title ?? row.name).trim();
   if (title.length === 0) return null;
-  const sku = asString(row.sku ?? row.model).trim();
+  const sku = asString(row.sku ?? row.model ?? row.product_sku).trim();
   if (sku.length > 0) {
     return { kind: 'product', title, sku };
   }

@@ -23,7 +23,18 @@ import {
   savePersistedCart,
 } from './cartPersistence';
 import { cartContentsMatchNative, filterStaleWebCartRows, shouldApplyWebCartSnapshot } from './cartSyncUtils';
+import {
+  CART_QUANTITY_MAX,
+  clampCartQuantity,
+  evaluateCartQuantityChange,
+  fetchAvailableQuantityForCartLine,
+  withAvailableOnCartLine,
+  type CartQuantityChangeResult,
+} from './cartStock';
 import type { CartLineItem, WebCartRawItem } from './cartTypes';
+
+export type { CartQuantityChangeResult } from './cartStock';
+export type AddToCartResult = 'added' | 'exceeds_stock' | 'out_of_stock' | 'invalid';
 
 function syncBadge(dispatch: AppDispatch, items: CartLineItem[]): void {
   dispatch(setCartBadgeQuantity(cartTotalQuantity(items)));
@@ -107,12 +118,18 @@ export async function addProductToCartAndPersist(
   country: CountryCode,
   web: WebCartRawItem,
   currentItems: CartLineItem[],
-): Promise<boolean> {
+  options?: { availableQuantity?: number },
+): Promise<AddToCartResult> {
   const [incoming] = parseWebCartItems([web]);
-  if (!incoming) return false;
+  if (!incoming) return 'invalid';
 
-  // A native add must clear any recent-delete tombstone for this line so the
-  // write-back is not filtered as a stale re-add.
+  const available =
+    options?.availableQuantity ??
+    incoming.availableQuantity ??
+    (await fetchAvailableQuantityForCartLine(incoming));
+
+  if (available <= 0) return 'out_of_stock';
+
   dispatch(setRecentlyDeletedLines(
     store.getState().cart.recentlyDeletedLines.filter(d => d.lineKey !== incoming.lineKey),
   ));
@@ -121,20 +138,46 @@ export async function addProductToCartAndPersist(
   let next: CartLineItem[];
   if (existingIdx >= 0) {
     const prev = currentItems[existingIdx];
-    const quantity = Math.min(prev.quantity + incoming.quantity, 99);
+    const requested = prev.quantity + incoming.quantity;
+    const quantity = clampCartQuantity(requested, available);
+    if (quantity < requested) return 'exceeds_stock';
     next = currentItems.map((row, i) =>
-      i === existingIdx
-        ? { ...row, quantity, web: { ...row.web, quantity } }
-        : row,
+      i === existingIdx ? withAvailableOnCartLine(row, available, quantity) : row,
     );
   } else {
-    next = [incoming, ...currentItems];
+    const quantity = clampCartQuantity(incoming.quantity, available);
+    if (quantity < incoming.quantity) return 'exceeds_stock';
+    next = [withAvailableOnCartLine(incoming, available, quantity), ...currentItems];
   }
 
   await persistCartItems(dispatch, country, next);
-  return true;
+  return 'added';
 }
 
+export async function updateCartLineQuantityWithStockCheck(
+  dispatch: AppDispatch,
+  country: CountryCode,
+  lineKey: string,
+  quantity: number,
+  currentItems: CartLineItem[],
+): Promise<CartQuantityChangeResult> {
+  const row = currentItems.find(r => r.lineKey === lineKey);
+  if (!row) {
+    return { ok: false, reason: 'not_found', available: 0, requested: quantity };
+  }
+
+  const available = await fetchAvailableQuantityForCartLine(row, { forceRefresh: true });
+  const verdict = evaluateCartQuantityChange(quantity, available);
+  if (!verdict.ok) return verdict;
+
+  const next = currentItems.map(r =>
+    r.lineKey === lineKey ? withAvailableOnCartLine(r, available, verdict.quantity) : r,
+  );
+  await persistCartItems(dispatch, country, next);
+  return verdict;
+}
+
+/** @deprecated Prefer {@link updateCartLineQuantityWithStockCheck} for UI flows. */
 export async function updateCartLineQuantityAndPersist(
   dispatch: AppDispatch,
   country: CountryCode,
@@ -142,11 +185,26 @@ export async function updateCartLineQuantityAndPersist(
   quantity: number,
   currentItems: CartLineItem[],
 ): Promise<void> {
-  const q = Math.min(Math.max(Math.floor(quantity), 1), 99);
+  const q = Math.min(Math.max(Math.floor(quantity), 1), CART_QUANTITY_MAX);
   const next = currentItems.map(row =>
     row.lineKey === lineKey ? { ...row, quantity: q, web: { ...row.web, quantity: q } } : row,
   );
   await persistCartItems(dispatch, country, next);
+}
+
+/** Unselect lines that are out of stock so checkout totals stay correct. */
+export async function deselectUnavailableCartLines(
+  dispatch: AppDispatch,
+  country: CountryCode,
+  currentItems: CartLineItem[],
+  stockByLineKey: Record<string, number>,
+): Promise<void> {
+  const next = currentItems.map(row =>
+    stockByLineKey[row.lineKey] === 0 ? { ...row, isSelected: false } : row,
+  );
+  const changed = next.some((row, i) => row.isSelected !== currentItems[i].isSelected);
+  if (!changed) return;
+  await persistCartItems(dispatch, country, next, { writeToWeb: false });
 }
 
 export async function removeCartLineAndPersist(
@@ -182,6 +240,25 @@ export async function toggleSelectAllForCheckoutAndPersist(
   const nextSelected = !allSelected;
   dispatch(toggleSelectAllForCheckout());
   const next = currentItems.map(row => ({ ...row, isSelected: nextSelected }));
+  await persistCartItems(dispatch, country, next, { writeToWeb: false });
+}
+
+/** Select/deselect only in-stock lines; unavailable lines stay unchecked. */
+export async function toggleSelectAllInStockForCheckoutAndPersist(
+  dispatch: AppDispatch,
+  country: CountryCode,
+  allItems: CartLineItem[],
+  inStockLineKeys: string[],
+): Promise<void> {
+  const keySet = new Set(inStockLineKeys);
+  const inStock = allItems.filter(r => keySet.has(r.lineKey));
+  if (inStock.length === 0) return;
+  const allSelected = inStock.every(r => r.isSelected);
+  const nextSelected = !allSelected;
+  const next = allItems.map(row =>
+    keySet.has(row.lineKey) ? { ...row, isSelected: nextSelected } : { ...row, isSelected: false },
+  );
+  dispatch(setCartItems(next));
   await persistCartItems(dispatch, country, next, { writeToWeb: false });
 }
 

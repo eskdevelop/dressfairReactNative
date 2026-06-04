@@ -18,6 +18,10 @@ export type WebCartRawItem = {
   color?: string;
   option_label?: string;
   option_color?: string;
+  available_quantity?: number | string;
+  availableQuantity?: number | string;
+  available_qty?: number | string;
+  availableQty?: number | string;
   [key: string]: unknown;
 };
 
@@ -38,6 +42,8 @@ export type CartLineItem = {
   image?: string;
   size?: string;
   color?: string;
+  /** Last known in-stock cap for this variant (from API or web cart row). */
+  availableQuantity?: number | null;
   /** Original web payload for checkout write-back. */
   web: WebCartRawItem;
 };

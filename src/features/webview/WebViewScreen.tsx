@@ -706,11 +706,12 @@ export function WebViewScreen({
     s => `${s.app.storefrontCheckoutApiOriginOverride ?? ''}-${s.app.country}`,
   );
   const beforeContentScripts = useMemo(() => {
+    const cartBridgePrefix = syncWebCartToNative ? `${CART_STORAGE_BRIDGE_INJECTION}\n` : '';
     // Guest-capable pages (Settings) must behave like a plain browser: forcing
     // native auth headers onto their own API calls makes the storefront return
     // empty data and render "undefined". Skip the auth/session bridge here.
     if (disableStorefrontAuthBridge) {
-      return `${BEFORE_PAGE_SCRIPTS_INJECTION}${
+      return `${cartBridgePrefix}${BEFORE_PAGE_SCRIPTS_INJECTION}${
         extraBeforeContentScripts ? `\n${extraBeforeContentScripts}` : ''
       }`;
     }
@@ -732,7 +733,7 @@ export function WebViewScreen({
     } catch {
       /* ignore */
     }
-    return `${BEFORE_PAGE_SCRIPTS_INJECTION}\n${buildStorefrontFetchAuthInjection(
+    return `${cartBridgePrefix}${BEFORE_PAGE_SCRIPTS_INJECTION}\n${buildStorefrontFetchAuthInjection(
       JSON.stringify(initialHeaders),
       JSON.stringify([...checkoutHosts]),
     )}\n${buildStorefrontWebSessionHydration(JSON.stringify(customerInfoApiUrl))}${
@@ -748,6 +749,7 @@ export function WebViewScreen({
     disableStorefrontAuthBridge,
     extraBeforeContentScripts,
     storefrontApiKey,
+    syncWebCartToNative,
   ]);
   const webViewRef = useRef<WebView>(null);
   const webWriteGeneration = useAppSelector(selectWebWriteGeneration);
@@ -793,9 +795,14 @@ export function WebViewScreen({
   useFocusEffect(
     useCallback(() => {
       if (!syncWebCartToNative) return undefined;
-      // Home tab is lazy-unmounted; push native cart before the user adds items so
-      // stale web localStorage cannot resurrect deleted lines.
-      const t = setTimeout(() => pushNativeCartToWebView(webViewRef), 120);
+      // Reconcile web localStorage after native deletes — but never push an empty
+      // native cart on focus, which can wipe a web add-to-cart before the bridge
+      // snapshot reaches Redux (seen on iOS tab switches).
+      const t = setTimeout(() => {
+        const { items, pendingWebWriteAt } = store.getState().cart;
+        if (items.length === 0 && !pendingWebWriteAt) return;
+        pushNativeCartToWebView(webViewRef);
+      }, 120);
       return () => clearTimeout(t);
     }, [syncWebCartToNative]),
   );
@@ -920,6 +927,21 @@ export function WebViewScreen({
     [cfg.webBaseUrl, currentUri, openMobileCategoryMenuOnLoad, path, tabReselectMode],
   );
 
+  const navigateWebViewToUri = useCallback((targetUri: string) => {
+    const currentKey = storefrontUrlComparable(currentUri);
+    const targetKey = storefrontUrlComparable(targetUri);
+    lastKnownUrlRef.current = targetUri;
+    if (currentKey !== null && targetKey !== null && currentKey === targetKey) {
+      // SPA in-webview navigation keeps `source.uri` at the landing URL — updating
+      // state to the same URI is a no-op, so force a hard navigation to home.
+      webViewRef.current?.injectJavaScript(
+        `window.location.replace(${JSON.stringify(targetUri)}); true;`,
+      );
+      return;
+    }
+    setCurrentUri(targetUri);
+  }, [currentUri]);
+
   const handleTabReselect = useCallback(() => {
     if (!tabReselectMode) return;
     const live = lastKnownUrlRef.current || currentUri;
@@ -940,7 +962,7 @@ export function WebViewScreen({
     }
 
     if (!atRoot) {
-      setCurrentUri(targetUri);
+      navigateWebViewToUri(targetUri);
       analytics.track('webview_tab_reselect_snap', {
         mode: tabReselectMode,
         reset: true,
@@ -959,6 +981,7 @@ export function WebViewScreen({
     cfg.webBaseUrl,
     currentUri,
     flushCategoryMegaMenuProbe,
+    navigateWebViewToUri,
     openMobileCategoryMenuOnLoad,
     path,
     tabReselectMode,
@@ -1125,20 +1148,37 @@ export function WebViewScreen({
     } catch {
       // Fall through to the normal bridge-message path on parse errors.
     }
+    const payload = parseBridgeMessage(event.nativeEvent.data);
+    if (!payload) {
+      analytics.track('webview_message_invalid_payload');
+      return;
+    }
+
+    const isLowRiskCartBridge =
+      payload.type === 'cart_snapshot' || payload.type === 'cart_count';
+
     // Drop bridge messages that did not originate from a first-party page so
     // a third-party gateway page rendered mid-checkout cannot exfiltrate auth
-    // state or coerce in-app navigation.
+    // state or coerce in-app navigation. Cart snapshots carry no secrets; on iOS
+    // `nativeEvent.url` is occasionally empty for injected `postMessage` calls.
     const messageOriginHost = safeHost(event.nativeEvent.url);
-    if (!messageOriginHost || !allowedHostSet.has(messageOriginHost)) {
+    if (
+      !isLowRiskCartBridge &&
+      (!messageOriginHost || !allowedHostSet.has(messageOriginHost))
+    ) {
       analytics.track('webview_message_dropped_untrusted_origin', {
         host: messageOriginHost ?? 'unknown',
       });
       return;
     }
-
-    const payload = parseBridgeMessage(event.nativeEvent.data);
-    if (!payload) {
-      analytics.track('webview_message_invalid_payload');
+    if (
+      isLowRiskCartBridge &&
+      messageOriginHost &&
+      !allowedHostSet.has(messageOriginHost)
+    ) {
+      analytics.track('webview_message_dropped_untrusted_origin', {
+        host: messageOriginHost,
+      });
       return;
     }
 
