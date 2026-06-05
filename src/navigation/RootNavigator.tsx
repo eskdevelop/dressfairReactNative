@@ -31,6 +31,7 @@ import {
   LazyStorefrontLoginScreen,
   LazyStorefrontProductWebScreen,
   LazyTermsScreen,
+  LazyWishlistScreen,
 } from '@navigation/lazyScreens';
 import type { RootStackParamList } from '@navigation/types';
 
@@ -106,6 +107,11 @@ export function RootNavigator() {
       <Stack.Screen
         name="NotificationsInbox"
         component={LazyNotificationsInboxScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="Wishlist"
+        component={LazyWishlistScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen name="Profile" component={LazyProfileScreen} options={{ presentation: 'card' }} />

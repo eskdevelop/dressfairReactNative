@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { customerAvatarFallbackLetter } from '../parseCustomerProfile';
 import type { CustomerProfile } from '../types';
 
+const AVATAR_SIZE = 56;
+
 type Props = {
   profile: CustomerProfile | null;
   profileLoading?: boolean;
@@ -36,11 +38,25 @@ export function YouLoggedProfileRow({
           disabled={!onPressAvatar}
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
-            <View style={{ width: 56, height: 56, borderRadius: 28, overflow: 'hidden', backgroundColor: '#E5E7EB', justifyContent: 'center', alignItems: 'center' }}>
+            <View
+              style={{
+                width: AVATAR_SIZE,
+                height: AVATAR_SIZE,
+                borderRadius: AVATAR_SIZE / 2,
+                overflow: 'hidden',
+                backgroundColor: '#E5E7EB',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
               {profileLoading ? (
                 <ActivityIndicator color="#111" />
               ) : avatarUri ? (
-                <Image source={{ uri: avatarUri }} style={{ width: 56, height: 56 }} resizeMode="cover" />
+                <Image
+                  source={{ uri: avatarUri }}
+                  style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
+                  resizeMode="cover"
+                />
               ) : (
                 <Text style={{ fontSize: 20, fontWeight: '700', color: '#111' }}>
                   {customerAvatarFallbackLetter(profile)}

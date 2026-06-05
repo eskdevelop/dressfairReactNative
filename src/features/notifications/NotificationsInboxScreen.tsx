@@ -231,55 +231,61 @@ export function NotificationsInboxScreen() {
     >
       <View
         style={{
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
           flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderBottomWidth: 1,
+          borderBottomColor: '#F0F0F0',
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            hitSlop={12}
-            style={{ marginRight: spacing.sm }}
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{
-                fontSize: 22,
-                fontWeight: '700',
-                color: colors.textPrimary,
-              }}
-            >
-              Notifications
-            </Text>
-            <Text style={{ color: colors.textMuted, marginTop: spacing.xs }}>
-              {unreadCount > 0
-                ? `${unreadCount} unread`
-                : 'You are all caught up'}
-            </Text>
-          </View>
-        </View>
-        {items.length > 0 ? (
-          <View style={{ flexDirection: 'row', gap: spacing.md }}>
-            {unreadCount > 0 ? (
-              <TouchableOpacity onPress={onMarkAllRead} accessibilityRole="button">
-                <Text style={{ color: colors.brand, fontWeight: '600' }}>
-                  Mark all read
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-            <TouchableOpacity onPress={onClearAll} accessibilityRole="button">
-              <Text style={{ color: colors.danger }}>Clear</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          hitSlop={12}
+        >
+          <Ionicons name="chevron-back" size={24} color="#000000" />
+        </TouchableOpacity>
+        <Text
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            fontSize: 17,
+            fontWeight: '700',
+            color: '#000000',
+          }}
+        >
+          Notifications
+        </Text>
+        <View style={{ width: 24 }} />
       </View>
+
+      {items.length > 0 ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.sm,
+            gap: spacing.md,
+          }}
+        >
+          <Text style={{ flex: 1, color: colors.textMuted }}>
+            {unreadCount > 0 ? `${unreadCount} unread` : 'You are all caught up'}
+          </Text>
+          {unreadCount > 0 ? (
+            <TouchableOpacity onPress={onMarkAllRead} accessibilityRole="button">
+              <Text style={{ color: colors.brand, fontWeight: '600' }}>
+                Mark all read
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity onPress={onClearAll} accessibilityRole="button">
+            <Text style={{ color: colors.danger }}>Clear</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {items.length === 0 ? (
         <View

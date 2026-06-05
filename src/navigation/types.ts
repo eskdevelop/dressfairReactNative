@@ -23,7 +23,6 @@ export type MainTabParamList = {
   Home: { path?: string } | undefined;
   Category: NavigatorScreenParams<CategoryStackParamList>;
   Search: undefined;
-  Wishlist: undefined;
   Menu: undefined;
   Cart: undefined;
 };
@@ -59,6 +58,8 @@ export type RootStackParamList = {
   SafetyCenter: undefined;
   AppPermissions: undefined;
   NotificationsInbox: undefined;
+  /** Saved items, opened above tabs so back returns to the You tab (not app exit). */
+  Wishlist: undefined;
   Profile: undefined;
   ProfileEdit: { profile: CustomerProfile };
   Addresses: undefined;

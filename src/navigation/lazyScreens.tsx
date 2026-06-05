@@ -110,3 +110,7 @@ export const LazyStorefrontProductWebScreen = lazyScreen(() =>
     default: m.StorefrontProductWebScreen,
   })),
 );
+
+export const LazyWishlistScreen = lazyScreen(() =>
+  import('@features/wishlist/WishlistScreen').then(m => ({ default: m.WishlistScreen })),
+);

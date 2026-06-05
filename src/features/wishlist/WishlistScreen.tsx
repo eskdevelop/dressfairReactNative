@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
@@ -24,6 +24,7 @@ const GRID_HORIZONTAL_PADDING = spacing.lg;
 const GRID_GAP = spacing.md;
 
 export function WishlistScreen() {
+  const navigation = useNavigation();
   const items = useAppSelector(state => state.wishlist.items);
   const [removeTarget, setRemoveTarget] = useState<WishlistItem | null>(null);
   const [clearAllConfirm, setClearAllConfirm] = useState(false);
@@ -191,32 +192,49 @@ export function WishlistScreen() {
     >
       <View
         style={{
-          paddingHorizontal: spacing.lg,
-          paddingVertical: spacing.md,
           flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderBottomWidth: 1,
+          borderBottomColor: '#F0F0F0',
         }}
       >
-        <View>
-          <Text
-            style={{
-              fontSize: 22,
-              fontWeight: '700',
-              color: colors.textPrimary,
-            }}
-          >
-            Wishlist
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          onPress={() => navigation.goBack()}
+          hitSlop={12}
+        >
+          <Ionicons name="chevron-back" size={24} color="#000000" />
+        </TouchableOpacity>
+        <Text
+          style={{
+            flex: 1,
+            textAlign: 'center',
+            fontSize: 17,
+            fontWeight: '700',
+            color: '#000000',
+          }}
+        >
+          Wishlist
+        </Text>
+        <View style={{ width: 24 }} />
+      </View>
+
+      {items.length > 0 ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: spacing.lg,
+            paddingVertical: spacing.sm,
+            gap: spacing.md,
+          }}
+        >
+          <Text style={{ flex: 1, color: colors.textMuted }}>
+            {items.length === 1 ? '1 saved item' : `${items.length} saved items`}
           </Text>
-          <Text style={{ color: colors.textMuted, marginTop: spacing.xs }}>
-            {items.length === 0
-              ? 'Save items to view them offline'
-              : items.length === 1
-                ? '1 saved item'
-                : `${items.length} saved items`}
-          </Text>
-        </View>
-        {items.length > 0 ? (
           <TouchableOpacity
             onPress={onClearAll}
             accessibilityRole="button"
@@ -226,8 +244,8 @@ export function WishlistScreen() {
               Clear all
             </Text>
           </TouchableOpacity>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
 
       {items.length === 0 ? (
         <View

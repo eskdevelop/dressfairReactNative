@@ -17,8 +17,8 @@ import { CartScreen } from '@features/cart/screens/CartScreen';
 import { CartWebWriteBridge } from '@features/cart/CartWebWriteBridge';
 import { hydrateNativeCart } from '@features/cart/cartActions';
 import { WebViewScreen } from '@features/webview/WebViewScreen';
-import { WishlistScreen } from '@features/wishlist/WishlistScreen';
 import { notificationInbox } from '@features/notifications/notificationInbox';
+import { selectUnreadNotificationCount } from '@features/notifications/selectors';
 import { wishlist } from '@features/wishlist/wishlist';
 import { crashReporter } from '@shared/observability/crash';
 
@@ -129,9 +129,6 @@ const hiddenTabBarItemStyle: StyleProp<ViewStyle> = {
   display: 'none',
 };
 
-/** Static Temu-style profile promotions cue (tab bar); inbox unread stays on Menu screen list only. */
-const YOU_TAB_BAR_BADGE = '99+';
-
 /** Matches `@react-navigation/bottom-tabs` TabBarIcon `wrapperUikit` (31×28) so rows align with other tabs. */
 const TAB_BAR_ICON_FRAME = { width: 31, height: 28 } as const;
 
@@ -167,7 +164,8 @@ function TabBarBadgeChip({
   );
 }
 
-function YouTabBarIcon({
+/** You tab badge reflects unread notification count (hidden when zero). */
+function YouTabBarIconWrapper({
   color,
   size,
   focused,
@@ -176,11 +174,27 @@ function YouTabBarIcon({
   size: number;
   focused: boolean;
 }) {
+  const unreadCount = useAppSelector(selectUnreadNotificationCount);
+  const badge = formatTabBadge(unreadCount);
+  return <YouTabBarIcon color={color} size={size} focused={focused} badge={badge} />;
+}
+
+function YouTabBarIcon({
+  color,
+  size,
+  focused,
+  badge,
+}: {
+  color: string;
+  size: number;
+  focused: boolean;
+  badge?: string;
+}) {
   const name = focused ? 'person' : 'person-outline';
   return (
     <View style={[TAB_BAR_ICON_FRAME, { alignItems: 'center', justifyContent: 'center' }]}>
       <Ionicons name={name} color={color} size={size} />
-      <TabBarBadgeChip label={YOU_TAB_BAR_BADGE} />
+      {badge != null ? <TabBarBadgeChip label={badge} /> : null}
     </View>
   );
 }
@@ -334,7 +348,7 @@ export function MainTabs() {
           component={AccountScreen}
           options={{
             tabBarLabel: 'You',
-            tabBarIcon: props => <YouTabBarIcon {...props} />,
+            tabBarIcon: props => <YouTabBarIconWrapper {...props} />,
           }}
         />
         <Tab.Screen
@@ -348,14 +362,6 @@ export function MainTabs() {
         <Tab.Screen
           name="Search"
           component={SearchScreen}
-          options={{
-            tabBarButton: hiddenTabBarButton,
-            tabBarItemStyle: hiddenTabBarItemStyle,
-          }}
-        />
-        <Tab.Screen
-          name="Wishlist"
-          component={WishlistScreen}
           options={{
             tabBarButton: hiddenTabBarButton,
             tabBarItemStyle: hiddenTabBarItemStyle,

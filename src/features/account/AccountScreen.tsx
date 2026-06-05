@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Alert, ScrollView, View } from 'react-native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { CompositeNavigationProp } from '@react-navigation/native';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -13,9 +13,9 @@ import {
   loadCachedProfile,
   saveCachedProfile,
 } from '@features/account/customerProfileCache';
-import { fetchOrderHistory } from '@features/orders/ordersApi';
 import { customerAvatarUri } from '@features/account/parseCustomerProfile';
 import type { CustomerProfile } from '@features/account/types';
+import { selectUnreadNotificationCount } from '@features/notifications/selectors';
 import type { MainTabParamList, RootStackParamList } from '@navigation/types';
 import { getEnvConfig } from '@shared/config/env';
 import type { CountryCode } from '@shared/config/env';
@@ -34,6 +34,7 @@ import {
   type YouNewArrivalsSectionHandle,
 } from './components/YouNewArrivalsSection';
 import { YouOffersPromoBar } from './components/YouOffersPromoBar';
+import { YouQuickActionsGrid } from './components/YouQuickActionsGrid';
 
 type AccountNavigation = CompositeNavigationProp<
   BottomTabNavigationProp<MainTabParamList, 'Menu'>,
@@ -51,6 +52,7 @@ export function AccountScreen() {
   const country = useAppSelector(s => s.app.country);
   const isAuthenticated = useAppSelector(s => s.app.isAuthenticated);
   const storeCurrencyCode = useAppSelector(s => s.app.storeCurrencyCode);
+  const unreadCount = useAppSelector(selectUnreadNotificationCount);
   const cfg = getEnvConfig(country);
 
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
@@ -84,7 +86,6 @@ export function AccountScreen() {
       } else if (!cached) {
         setProfile(null);
       }
-      void fetchOrderHistory().catch(err => crashReporter.capture(err, { source: 'AccountScreen.ordersBg' }));
     } catch (e) {
       crashReporter.capture(e, { source: 'AccountScreen.profile' });
       if (!cached) {
@@ -97,10 +98,11 @@ export function AccountScreen() {
     }
   }, [country, isAuthenticated]);
 
-  /** Profile/orders: refresh when region or auth changes — not on every You refocus (back from PDP). */
-  useEffect(() => {
-    void loadProfileOnly();
-  }, [loadProfileOnly]);
+  useFocusEffect(
+    useCallback(() => {
+      void loadProfileOnly();
+    }, [loadProfileOnly]),
+  );
 
   const couponsDisplay = profile?.couponsOffersLabel?.trim()?.length ? profile.couponsOffersLabel : '0';
 
@@ -124,6 +126,26 @@ export function AccountScreen() {
   const onFlutterAddresses = useCallback(() => {
     analytics.track('account_you_addresses');
     navigation.navigate('Addresses');
+  }, [navigation]);
+
+  const onFlutterMessages = useCallback(() => {
+    analytics.track('account_you_messages');
+    navigation.navigate('NotificationsInbox');
+  }, [navigation]);
+
+  const onFlutterReviews = useCallback(() => {
+    analytics.track('account_you_reviews');
+    navigation.navigate('Profile');
+  }, [navigation]);
+
+  const onQuickHistory = useCallback(() => {
+    analytics.track('account_you_quick_history');
+    navigation.navigate('OrderHistory', undefined);
+  }, [navigation]);
+
+  const onQuickFavourite = useCallback(() => {
+    analytics.track('account_you_quick_favourite');
+    navigation.navigate('Wishlist');
   }, [navigation]);
 
   return (
@@ -161,11 +183,23 @@ export function AccountScreen() {
 
         <YouFlutterListTiles
           isGuest={!isAuthenticated}
+          unreadCount={unreadCount}
           onSettings={() => navigation.navigate('MenuSettings')}
           onYourOrders={onFlutterYourOrders}
-          onAddresses={onFlutterAddresses}
+          onMessages={onFlutterMessages}
+          onReviews={onFlutterReviews}
           onGuestRestriction={onGuestRestrictedRow}
         />
+
+        {isAuthenticated ? (
+          <YouQuickActionsGrid
+            onHistory={onQuickHistory}
+            onAddresses={onFlutterAddresses}
+            onNotifications={onFlutterMessages}
+            onFavourite={onQuickFavourite}
+            unreadCount={unreadCount}
+          />
+        ) : null}
 
         <YouSectionDivider />
 
