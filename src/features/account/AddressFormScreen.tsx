@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { RouteProp } from '@react-navigation/native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -22,6 +22,7 @@ import {
   saveCustomerAddress,
   updateCustomerAddress,
 } from '@features/account/addressApi';
+import { fetchCustomerProfile } from '@features/account/customerApi';
 import type {
   CustomerAddressRecord,
   StoreAreaRecord,
@@ -29,7 +30,7 @@ import type {
 } from '@features/account/types';
 import type { RootStackParamList } from '@navigation/types';
 import { AppButton } from '@shared/ui/AppButton';
-import { FormSelectField } from '@shared/ui/FormSelectField';
+import { InlineFormSelectField } from '@shared/ui/InlineFormSelectField';
 import { crashReporter } from '@shared/observability/crash';
 
 const PROVINCE_PLACEHOLDER = '__province_none__';
@@ -81,6 +82,7 @@ export function AddressFormScreen() {
   const isEdit = mode === 'edit';
 
   const [line1, setLine1] = useState('');
+  const [resolvedMobile, setResolvedMobile] = useState(() => (profileMobile ?? '').trim());
   const [cities, setCities] = useState<StoreCityRecord[]>([]);
   const [areas, setAreas] = useState<StoreAreaRecord[]>([]);
   const [city, setCity] = useState<StoreCityRecord | null>(null);
@@ -197,6 +199,32 @@ export function AddressFormScreen() {
     }
   }, [isEdit, address?.id]);
 
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      void fetchCustomerProfile().then(res => {
+        if (cancelled || !res.ok || !res.profile) return;
+        setResolvedMobile(res.profile.mobile.trim());
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []),
+  );
+
+  const navigateToProfileEdit = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetchCustomerProfile();
+      if (res.ok && res.profile) {
+        navigation.navigate('ProfileEdit', { profile: res.profile });
+        return;
+      }
+    } catch (e) {
+      crashReporter.capture(e, { source: 'AddressFormScreen.navigateToProfileEdit' });
+    }
+    Alert.alert('Profile unavailable', 'Could not open profile. Please try again.');
+  }, [navigation]);
+
   const retryLoadAreas = useCallback(async (): Promise<void> => {
     if (!city) return;
     setLoadingAreas(true);
@@ -241,11 +269,19 @@ export function AddressFormScreen() {
       return;
     }
 
-    const mobile = (profileMobile ?? '').trim();
     const first = (profileFirstname ?? '').trim() || 'Customer';
     const last = (profileLastname ?? '').trim();
+    const mobile = resolvedMobile.trim();
+
     if (!isEdit && mobile.length === 0) {
-      Alert.alert('Mobile required', 'Your profile is missing a mobile number.');
+      Alert.alert(
+        'Mobile required',
+        'Please add your WhatsApp number in Profile before saving an address.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Edit profile', onPress: () => void navigateToProfileEdit() },
+        ],
+      );
       return;
     }
 
@@ -285,17 +321,18 @@ export function AddressFormScreen() {
     }
   };
 
-  /** Picker row shell for loading / error states. */
-  const pickerFieldShell = {
+  /** Bordered shell for loading / error states. */
+  const pickerShellStyle = {
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radii.md,
     backgroundColor: '#FFFFFF' as const,
+    overflow: 'hidden' as const,
   };
 
-  /** Single-line row height for select fields. */
   const compactRowHeight = 48;
   const compactFontSize = 15;
+  const selectFontSize = 13;
 
   if (loadingBoot) {
     return (
@@ -419,12 +456,12 @@ export function AddressFormScreen() {
               </Text>
               {citiesLoading ? (
                 <View
-                  style={[pickerFieldShell, { height: compactRowHeight, justifyContent: 'center' }]}
+                  style={[pickerShellStyle, { height: compactRowHeight, justifyContent: 'center' }]}
                 >
                   <ActivityIndicator color={colors.brand} size="small" />
                 </View>
               ) : provincesFetchFailed || cities.length === 0 ? (
-                <View style={[pickerFieldShell, { padding: spacing.md, alignItems: 'center' }]}>
+                <View style={[pickerShellStyle, { padding: spacing.md, alignItems: 'center' }]}>
                   <Text
                     style={{
                       textAlign: 'center',
@@ -444,7 +481,7 @@ export function AddressFormScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <FormSelectField
+                <InlineFormSelectField
                   placeholder="Select Province"
                   selectedValue={provincePickerSelectedValue}
                   options={cities.map(c => ({
@@ -458,6 +495,7 @@ export function AddressFormScreen() {
                     if (picked) void onPickCity(picked);
                   }}
                   minHeight={compactRowHeight}
+                  fontSize={selectFontSize}
                 />
               )}
             </View>
@@ -472,14 +510,14 @@ export function AddressFormScreen() {
               {loadingAreas && areas.length === 0 ? (
                 <View
                   style={[
-                    pickerFieldShell,
+                    pickerShellStyle,
                     { height: compactRowHeight, justifyContent: 'center', alignItems: 'center' },
                   ]}
                 >
                   <ActivityIndicator color={colors.brand} size="small" />
                 </View>
               ) : areas.length === 0 ? (
-                <View style={[pickerFieldShell, { padding: spacing.md, alignItems: 'center' }]}>
+                <View style={[pickerShellStyle, { padding: spacing.md, alignItems: 'center' }]}>
                   <Text
                     style={{
                       textAlign: 'center',
@@ -497,7 +535,7 @@ export function AddressFormScreen() {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <FormSelectField
+                <InlineFormSelectField
                   placeholder="Select City Or Area"
                   selectedValue={areaPickerSelectedValue}
                   options={areas.map(a => ({
@@ -511,6 +549,7 @@ export function AddressFormScreen() {
                     if (pickedArea) setArea(pickedArea);
                   }}
                   minHeight={compactRowHeight}
+                  fontSize={selectFontSize}
                 />
               )}
             </View>

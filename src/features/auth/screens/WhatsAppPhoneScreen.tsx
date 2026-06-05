@@ -4,13 +4,11 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAppSelector } from '@app/hooks';
 import { spacing } from '@app/theme/tokens';
 import { analytics } from '@shared/observability/analytics';
-import type { CountryCode } from '@shared/config/env';
 
 import { sendWhatsAppOtp } from '../authApi';
-import { fullMobileNumber, mobileCodeForCountry } from '../authTypes';
+import { fullMobileNumber, isValidNationalMobileLength } from '../authTypes';
 import {
   AuthBrandHeader,
   AuthLegalFooter,
@@ -19,13 +17,14 @@ import {
 } from '../components/AuthShell';
 import { AuthPrimaryButton } from '../components/AuthPrimaryButton';
 import { CountryPhoneInput } from '../components/CountryPhoneInput';
+import { useStoreMobileRules } from '../useStoreMobileRules';
 import type { AuthStackParamList } from '../AuthNavigator';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'WhatsAppPhone'>;
 
 export function WhatsAppPhoneScreen(): React.ReactElement {
   const navigation = useNavigation<Nav>();
-  const country = useAppSelector(s => s.app.country) as CountryCode;
+  const { country, dialCode, nationalLength } = useStoreMobileRules();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -34,7 +33,11 @@ export function WhatsAppPhoneScreen(): React.ReactElement {
       Alert.alert('', 'Please enter your WhatsApp number.');
       return;
     }
-    const fullPhone = fullMobileNumber(country, phone);
+    if (!isValidNationalMobileLength(phone, nationalLength)) {
+      Alert.alert('', `Please enter a ${nationalLength}-digit WhatsApp number.`);
+      return;
+    }
+    const fullPhone = fullMobileNumber(country, phone, dialCode);
     setLoading(true);
     try {
       analytics.track('auth_whatsapp_send_tap');
@@ -47,7 +50,7 @@ export function WhatsAppPhoneScreen(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [country, navigation, phone]);
+  }, [country, dialCode, nationalLength, navigation, phone]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top', 'bottom']}>
@@ -56,7 +59,8 @@ export function WhatsAppPhoneScreen(): React.ReactElement {
         <AuthBrandHeader />
         <AuthPromoStrip />
         <CountryPhoneInput
-          countryCode={mobileCodeForCountry(country)}
+          countryCode={dialCode}
+          maxNationalLength={nationalLength}
           value={phone}
           onChangeText={setPhone}
         />

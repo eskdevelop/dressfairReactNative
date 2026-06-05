@@ -79,6 +79,92 @@ export function parseStoreSettingCurrency(data: Record<string, unknown>): StoreC
  * OpenCart `country_id` for `GET /api/rest/store/cities/{id}` (`CountryConfigModel.country_id`).
  * Prefer `allowed_countries[]` row matching active ISO2; else root `country_id`.
  */
+const MOBILE_LENGTH_KEYS = [
+  'mobile_number_length',
+  'mobile_length',
+  'phone_number_length',
+  'mobile_no_length',
+  'number_length',
+  'phone_length',
+] as const;
+
+const MOBILE_DIAL_KEYS = [
+  'mobile_code',
+  'mobileCode',
+  'phone_code',
+  'phoneCode',
+  'dial_code',
+  'dialCode',
+  'country_code',
+  'countryCode',
+] as const;
+
+const readPositiveInt = (raw: unknown): number | null => {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.floor(n);
+};
+
+const readDialCode = (o: Record<string, unknown>): string | null => {
+  for (const k of MOBILE_DIAL_KEYS) {
+    const raw = o[k];
+    if (raw === undefined || raw === null) continue;
+    const digits = String(raw).replace(/\D/g, '').trim();
+    if (digits.length > 0) return digits;
+  }
+  return null;
+};
+
+const readMobileLength = (o: Record<string, unknown>): number | null => {
+  for (const k of MOBILE_LENGTH_KEYS) {
+    const n = readPositiveInt(o[k]);
+    if (n !== null) return n;
+  }
+  return null;
+};
+
+const allowedCountryRowForIso = (
+  data: Record<string, unknown>,
+  country: CountryCode,
+): Record<string, unknown> | null => {
+  const targetIso = countryIsoCode2(country);
+  const raw = data.allowed_countries;
+  if (!Array.isArray(raw)) return null;
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const o = item as Record<string, unknown>;
+    const iso = String(o.iso_code_2 ?? o.isoCode2 ?? '').trim().toUpperCase();
+    if (iso === targetIso) return o;
+  }
+  return null;
+};
+
+/** Flutter store/setting: dial code for active region (`allowed_countries[].mobile_code`). */
+export function parseStoreSettingMobileDialCode(
+  data: Record<string, unknown>,
+  country: CountryCode,
+): string | null {
+  const row = allowedCountryRowForIso(data, country);
+  if (row) {
+    const fromRow = readDialCode(row);
+    if (fromRow) return fromRow;
+  }
+  return readDialCode(data);
+}
+
+/** Flutter store/setting: national mobile digit count for active region. */
+export function parseStoreSettingMobileNationalLength(
+  data: Record<string, unknown>,
+  country: CountryCode,
+): number | null {
+  const row = allowedCountryRowForIso(data, country);
+  if (row) {
+    const fromRow = readMobileLength(row);
+    if (fromRow !== null) return fromRow;
+  }
+  return readMobileLength(data);
+}
+
 export function parseStoreSettingOpenCartCountryId(
   data: Record<string, unknown>,
   country: CountryCode,
@@ -111,6 +197,10 @@ export type StoreSettingsFetchResult = {
   openCartCountryId?: string | null;
   /** When store/setting lists this region in `allowed_countries`, prefer this OC origin. */
   checkoutApiOriginOverride?: string | null;
+  /** National mobile digits (without country code) from store/setting. */
+  mobileNationalLength?: number | null;
+  /** Dial code from store/setting (e.g. `971`). */
+  mobileDialCode?: string | null;
   error?: string;
 };
 
@@ -171,7 +261,16 @@ export async function fetchStoreSettingsFromNetwork(country: CountryCode): Promi
     }
     const checkoutApiOriginOverride = parseCheckoutOriginOverride(row, country);
     const openCartCountryId = parseStoreSettingOpenCartCountryId(row, country);
-    return { ok: true, settings, checkoutApiOriginOverride, openCartCountryId };
+    const mobileNationalLength = parseStoreSettingMobileNationalLength(row, country);
+    const mobileDialCode = parseStoreSettingMobileDialCode(row, country);
+    return {
+      ok: true,
+      settings,
+      checkoutApiOriginOverride,
+      openCartCountryId,
+      mobileNationalLength,
+      mobileDialCode,
+    };
   }
 
   return { ok: false, error: lastError };

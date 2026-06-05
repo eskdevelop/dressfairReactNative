@@ -82,7 +82,13 @@ export function AppRoot() {
       if (!isOffline) {
         void fetchStoreSettingsFromNetwork(country).then(res => {
           if (!mounted || !res.ok || !res.settings) return;
-          dispatch(setStoreCurrencySettings(res.settings));
+          dispatch(
+            setStoreCurrencySettings({
+              ...res.settings,
+              mobileNationalLength: res.mobileNationalLength ?? null,
+              mobileDialCode: res.mobileDialCode ?? null,
+            }),
+          );
           dispatch(setStorefrontCheckoutApiOriginOverride(res.checkoutApiOriginOverride ?? null));
           dispatch(setStoreOpenCartCountryId(res.openCartCountryId ?? null));
         });

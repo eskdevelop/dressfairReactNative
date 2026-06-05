@@ -5,14 +5,12 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAppSelector } from '@app/hooks';
 import { colors, spacing } from '@app/theme/tokens';
 import { analytics } from '@shared/observability/analytics';
 import { AppActionDialog } from '@shared/ui/AppActionDialog';
-import type { CountryCode } from '@shared/config/env';
 
 import { registerAccount } from '../authApi';
-import { fullMobileNumber, mobileCodeForCountry } from '../authTypes';
+import { fullMobileNumber, isValidNationalMobileLength } from '../authTypes';
 import {
   AuthFormCard,
   AuthFormCenterWrap,
@@ -25,6 +23,7 @@ import {
 import { AuthPrimaryButton } from '../components/AuthPrimaryButton';
 import { AuthTextField } from '../components/AuthTextField';
 import { RegisterMobileInput } from '../components/CountryPhoneInput';
+import { useStoreMobileRules } from '../useStoreMobileRules';
 import type { AuthStackParamList } from '../AuthNavigator';
 
 type Nav = NativeStackNavigationProp<AuthStackParamList, 'Register'>;
@@ -40,7 +39,7 @@ type RegisterDialog = {
 
 export function RegisterScreen(): React.ReactElement {
   const navigation = useNavigation<Nav>();
-  const country = useAppSelector(s => s.app.country) as CountryCode;
+  const { country, dialCode, nationalLength } = useStoreMobileRules();
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [mobile, setMobile] = useState('');
@@ -63,6 +62,17 @@ export function RegisterScreen(): React.ReactElement {
       });
       return;
     }
+    if (!isValidNationalMobileLength(mobile, nationalLength)) {
+      setDialog({
+        title: 'Invalid mobile number',
+        message: `Please enter a ${nationalLength}-digit mobile number.`,
+        icon: 'call-outline',
+        confirmLabel: 'Got it',
+        hideCancel: true,
+        onConfirm: closeDialog,
+      });
+      return;
+    }
     setLoading(true);
     try {
       analytics.track('auth_register_tap');
@@ -70,7 +80,7 @@ export function RegisterScreen(): React.ReactElement {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         email: email.trim(),
-        mobile: fullMobileNumber(country, mobile),
+        mobile: fullMobileNumber(country, mobile, dialCode),
         password,
       });
       if (!result.success) {
@@ -98,7 +108,7 @@ export function RegisterScreen(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [closeDialog, country, email, firstName, lastName, mobile, navigation, password]);
+  }, [closeDialog, country, dialCode, email, firstName, lastName, mobile, nationalLength, navigation, password]);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.pageMuted }} edges={['top', 'bottom']}>
@@ -148,7 +158,8 @@ export function RegisterScreen(): React.ReactElement {
               compact
             />
             <RegisterMobileInput
-              countryCode={mobileCodeForCountry(country)}
+              countryCode={dialCode}
+              maxNationalLength={nationalLength}
               value={mobile}
               onChangeText={setMobile}
               compact

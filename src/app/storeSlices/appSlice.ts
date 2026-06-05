@@ -36,6 +36,10 @@ type AppState = {
   storeShippingAmount: string;
   storeFreeShippingLimit: string;
   storeSettingsHydrated: boolean;
+  /** National mobile digits from `/api/rest/store/setting` (region row). */
+  storeMobileNationalLength: number | null;
+  /** Dial code from store/setting (e.g. `971`). */
+  storeMobileDialCode: string | null;
   /**
    * OpenCart `country_id` from store/setting (`CountryConfigModel.countryId`) for
    * `GET /api/rest/store/cities/{id}`. Null until settings hydrate or on region switch.
@@ -61,6 +65,8 @@ const initialState: AppState = {
   storeShippingAmount: '',
   storeFreeShippingLimit: '',
   storeSettingsHydrated: false,
+  storeMobileNationalLength: null,
+  storeMobileDialCode: null,
   storeOpenCartCountryId: null,
 };
 
@@ -99,12 +105,21 @@ const slice = createSlice({
         currencyTitle: string;
         shippingAmount?: string;
         freeShippingLimit?: string;
+        mobileNationalLength?: number | null;
+        mobileDialCode?: string | null;
       }>,
     ) {
       state.storeCurrencyCode = action.payload.currencyCode;
       state.storeCurrencyTitle = action.payload.currencyTitle;
       state.storeShippingAmount = action.payload.shippingAmount ?? state.storeShippingAmount;
       state.storeFreeShippingLimit = action.payload.freeShippingLimit ?? state.storeFreeShippingLimit;
+      if (action.payload.mobileNationalLength !== undefined) {
+        state.storeMobileNationalLength = action.payload.mobileNationalLength;
+      }
+      if (action.payload.mobileDialCode !== undefined) {
+        const digits = action.payload.mobileDialCode?.replace(/\D/g, '').trim();
+        state.storeMobileDialCode = digits && digits.length > 0 ? digits : null;
+      }
       state.storeSettingsHydrated = true;
     },
     setCountry(state, action: PayloadAction<CountryCode>) {

@@ -25,6 +25,7 @@ import type { CustomerAddressRecord, CustomerProfile } from '@features/account/t
 import type { RootStackParamList } from '@navigation/types';
 import { AppButton } from '@shared/ui/AppButton';
 import { AppDeleteDialog } from '@shared/ui/AppDeleteDialog';
+import { useAppToast } from '@shared/ui/AppToast';
 import { crashReporter } from '@shared/observability/crash';
 
 const MUTED_ACTION = 'rgba(0,0,0,0.5)';
@@ -40,6 +41,7 @@ export function AddressListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const { show: showToast, ToastHost } = useAppToast(96);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,6 +122,7 @@ export function AddressListScreen() {
           Alert.alert('Could not update', r.message ?? 'Try again.');
           return;
         }
+        showToast('Default address updated');
         await loadSilent();
       } finally {
         setBusyId(null);
@@ -308,6 +311,7 @@ export function AddressListScreen() {
         onConfirm={confirmDeleteAddress}
         onCancel={() => (busyId === null ? setDeleteTargetId(null) : undefined)}
       />
+      <ToastHost />
     </SafeAreaView>
   );
 }

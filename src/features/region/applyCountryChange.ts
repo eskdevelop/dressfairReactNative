@@ -83,7 +83,13 @@ export function applyCountryChange(params: {
 
     const res = await fetchStoreSettingsFromNetwork(nextCountry);
     if (res.ok && res.settings) {
-      dispatch(setStoreCurrencySettings(res.settings));
+      dispatch(
+        setStoreCurrencySettings({
+          ...res.settings,
+          mobileNationalLength: res.mobileNationalLength ?? null,
+          mobileDialCode: res.mobileDialCode ?? null,
+        }),
+      );
     }
     dispatch(setStorefrontCheckoutApiOriginOverride(res.checkoutApiOriginOverride ?? null));
     dispatch(setStoreOpenCartCountryId(res.openCartCountryId ?? null));
