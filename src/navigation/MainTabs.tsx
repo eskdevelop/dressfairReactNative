@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, AppState, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDispatch, useAppSelector } from '@app/hooks';
@@ -247,6 +247,16 @@ export function MainTabs() {
     void wishlist.hydrateFromStorage().catch(error => {
       crashReporter.capture(error, { source: 'MainTabs.hydrateWishlist' });
     });
+  }, []);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', nextState => {
+      if (nextState !== 'active') return;
+      void notificationInbox.hydrateFromStorage().catch(error => {
+        crashReporter.capture(error, { source: 'MainTabs.hydrateOnForeground' });
+      });
+    });
+    return () => sub.remove();
   }, []);
 
   const country = useAppSelector(s => s.app.country);

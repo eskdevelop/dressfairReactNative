@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import * as Network from 'expo-network';
 
-// PUSH DISABLED: import { startNotificationRuntime } from '@features/notifications/notificationRuntime';
+import { startNotificationRuntime } from '@features/notifications/notificationRuntime';
+import { remountStorefrontWebViewsIfAppUpgraded } from '@features/shell/storefrontWebViewUpgrade';
 import { flushPendingNavigation, navigationRef } from '@navigation/navigationRef';
 import { RootNavigator } from '@navigation/RootNavigator';
 import { useAppDispatch } from './hooks';
@@ -68,6 +69,10 @@ export function AppRoot() {
 
       dispatch(setBootstrapped(true));
 
+      void remountStorefrontWebViewsIfAppUpgraded().catch(error => {
+        crashReporter.capture(error, { source: 'bootstrap.webViewUpgrade' });
+      });
+
       const elapsed = perf.end('app_bootstrap');
       if (elapsed !== null) {
         analytics.track('app_bootstrap_complete', {
@@ -116,10 +121,9 @@ export function AppRoot() {
     };
   }, [dispatch]);
 
-  // PUSH DISABLED
-  // useEffect(() => {
-  //   return startNotificationRuntime();
-  // }, []);
+  useEffect(() => {
+    return startNotificationRuntime();
+  }, []);
 
   // Push permission is intentionally NOT auto-requested at launch. It is
   // user-initiated from the Menu screen ("Enable order updates"). Apple's

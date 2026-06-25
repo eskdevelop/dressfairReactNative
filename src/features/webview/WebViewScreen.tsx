@@ -42,6 +42,8 @@ import {
 import { STOREFRONT_OPEN_LOGIN_MODAL_INJECTION } from './storefrontOpenLoginModalInjection';
 import { buildStorefrontFetchAuthInjection } from './storefrontFetchAuthInjection';
 import { buildStorefrontWebSessionHydration } from './storefrontWebSessionHydration';
+import { STOREFRONT_NEXTJS_ERROR_DETECTION, NEXTJS_ERROR_SENTINEL } from './storefrontNextJsErrorDetection';
+import { CLEAR_STOREFRONT_WEB_STORAGE_INJECTION } from './storefrontWebStorageClearInjection';
 import { storefrontCheckoutUrl } from '@shared/config/storefrontUrls';
 import {
   CART_STORAGE_BRIDGE_INJECTION,
@@ -715,7 +717,28 @@ export function WebViewScreen({
   const storefrontApiKey = useAppSelector(
     s => `${s.app.storefrontCheckoutApiOriginOverride ?? ''}-${s.app.country}`,
   );
+  const webViewRef = useRef<WebView>(null);
+  const webWriteGeneration = useAppSelector(selectWebWriteGeneration);
+  const isFirstCartFocusRef = useRef(true);
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [webViewInstanceKey, setWebViewInstanceKey] = useState(0);
+  const [clearWebStorageOnNextLoad, setClearWebStorageOnNextLoad] = useState(false);
+  const hardResetWebView = useCallback(() => {
+    setError(null);
+    setLoading(true);
+    setInitialLoadDone(false);
+    setClearWebStorageOnNextLoad(true);
+    webViewRef.current?.clearCache?.(true);
+    setWebViewInstanceKey(key => key + 1);
+    analytics.track('webview_hard_reset');
+  }, []);
   const beforeContentScripts = useMemo(() => {
+    const storageClearPrefix = clearWebStorageOnNextLoad
+      ? `${CLEAR_STOREFRONT_WEB_STORAGE_INJECTION}\n`
+      : '';
     const cartBridgePrefix = syncWebCartToNative ? `${CART_STORAGE_BRIDGE_INJECTION}\n` : '';
     const authCapturePrefix = applyWebNavFromStore
       ? `${AUTH_CAPTURE_INJECTION_BEFORE_CONTENT}\n`
@@ -724,7 +747,7 @@ export function WebViewScreen({
     // native auth headers onto their own API calls makes the storefront return
     // empty data and render "undefined". Skip the auth/session bridge here.
     if (disableStorefrontAuthBridge) {
-      return `${cartBridgePrefix}${authCapturePrefix}${
+      return `${storageClearPrefix}${cartBridgePrefix}${authCapturePrefix}${
         extraBeforeContentScripts ? `\n${extraBeforeContentScripts}` : ''
       }`;
     }
@@ -746,7 +769,7 @@ export function WebViewScreen({
     } catch {
       /* ignore */
     }
-    return `${cartBridgePrefix}${authCapturePrefix}${buildStorefrontFetchAuthInjection(
+    return `${storageClearPrefix}${cartBridgePrefix}${authCapturePrefix}${buildStorefrontFetchAuthInjection(
       JSON.stringify(initialHeaders),
       JSON.stringify([...checkoutHosts]),
     )}\n${buildStorefrontWebSessionHydration(JSON.stringify(customerInfoApiUrl))}${
@@ -755,6 +778,7 @@ export function WebViewScreen({
   }, [
     apiSessionToken,
     applyWebNavFromStore,
+    clearWebStorageOnNextLoad,
     cfg.allowedDomains,
     cfg.mobileCategoriesApiBaseUrl,
     cfg.storefrontCheckoutApiBaseUrl,
@@ -765,18 +789,6 @@ export function WebViewScreen({
     storefrontApiKey,
     syncWebCartToNative,
   ]);
-  const webViewRef = useRef<WebView>(null);
-  const webWriteGeneration = useAppSelector(selectWebWriteGeneration);
-  const isFirstCartFocusRef = useRef(true);
-  const [canGoBack, setCanGoBack] = useState(false);
-  // Initial load is masked by the native splash; subsequent loads keep the
-  // previously-painted page visible until the next one finishes (browser-like
-  // behaviour), so the AppLoader overlay is never used during normal
-  // navigation. It is only re-introduced when the user manually retries
-  // after an error (`reload()` flips `loading` true via that code path).
-  const [loading, setLoading] = useState(false);
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const allowedHostSet = useMemo(() => new Set(cfg.allowedDomains), [cfg.allowedDomains]);
   const insets = useSafeAreaInsets();
   const shellBackgroundColor = statusBarOverContent ? 'transparent' : '#FFFFFF';
@@ -823,6 +835,7 @@ export function WebViewScreen({
 
   const injectedJavaScriptBundle = useMemo(() => {
     const parts = applyWebNavFromStore ? [FIRST_PAINT_INJECTION] : [COMBINED_INJECTION];
+    if (applyWebNavFromStore) parts.push(STOREFRONT_NEXTJS_ERROR_DETECTION);
     if (hideStorefrontMobileHeader) parts.push(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
     if (hideStorefrontMobileFooter) {
       parts.push(
@@ -1146,6 +1159,17 @@ export function WebViewScreen({
           return;
         }
       }
+      if (typeof raw === 'string' && raw.indexOf(NEXTJS_ERROR_SENTINEL) !== -1) {
+        const parsed = JSON.parse(raw) as { type?: unknown };
+        if (parsed && parsed.type === NEXTJS_ERROR_SENTINEL) {
+          hideNativeSplashOnce('webview_nextjs_error');
+          setError(prev =>
+            prev ?? 'Storefront needs a refresh. Tap Retry.',
+          );
+          analytics.track('webview_nextjs_error_detected', { path });
+          return;
+        }
+      }
       // Surface the social-login hider's debug pings to the Metro log so we
       // can confirm the injection is firing on each platform during dev.
       // These messages are safe to forward without the host check below
@@ -1254,24 +1278,18 @@ export function WebViewScreen({
         isLoading={loading}
         errorMessage={error}
         overlay
-        onRetry={() => {
-          setError(null);
-          setLoading(true);
-          webViewRef.current?.reload();
-        }}
+        onRetry={hardResetWebView}
       >
         <View />
       </AppAsyncState>
       <View style={{ flex: 1 }}>
         <WebView
+          key={`webview-${webViewInstanceKey}`}
           style={{ flex: 1, backgroundColor: 'transparent' }}
           ref={webViewRef}
           source={{ uri: currentUri }}
           {...(forceMobileStorefrontUserAgent ? { userAgent: STOREFRONT_PDP_MOBILE_USER_AGENT } : {})}
           cacheEnabled
-          {...(Platform.OS === 'android' && applyWebNavFromStore
-            ? { cacheMode: 'LOAD_CACHE_ELSE_NETWORK' as const }
-            : {})}
           domStorageEnabled
           // Session parity with MenuNewInWebView: iOS shares HTTPCookieStorage across
           // WebViews (login modal vs Cart/checkout); Android accepts third-party cookies

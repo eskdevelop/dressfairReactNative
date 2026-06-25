@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { mergeNotificationTextFields } from './notificationPayload';
+
 const STORAGE_KEY = 'dressfair_notifications_v1';
 const MAX_STORED = 200;
 
@@ -46,12 +48,18 @@ export const notificationStore = {
 
   async add(item: StoredNotification): Promise<StoredNotification[]> {
     const current = await notificationStore.list();
-    // De-dupe by id and cap the inbox length so the AsyncStorage payload
-    // can't grow unbounded for long-lived users (200 items ≈ tens of KB).
-    const next = [item, ...current.filter(existing => existing.id !== item.id)].slice(
-      0,
-      MAX_STORED,
-    );
+    const existing = current.find(row => row.id === item.id);
+    const merged: StoredNotification = existing
+      ? {
+          ...existing,
+          ...item,
+          ...mergeNotificationTextFields(existing, item),
+          read: item.read || existing.read,
+          path: item.path ?? existing.path,
+          data: { ...existing.data, ...item.data },
+        }
+      : item;
+    const next = [merged, ...current.filter(row => row.id !== item.id)].slice(0, MAX_STORED);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     return next;
   },
