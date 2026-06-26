@@ -23,6 +23,9 @@ import { useNewArrivalsPage1Query } from '@features/account/useNewArrivalsQuery'
 import { CartNewArrivalProductTile } from '@features/cart/components/CartNewArrivalProductTile';
 import { QuickAddToCartSheet } from '@features/cart/components/QuickAddToCartSheet';
 import type { ListingProductRow } from '@features/categories/categoryModel';
+import { prefetchProductDetailsForSkus } from '@features/categories/productDetailCache';
+import { seedFromListingRow } from '@features/categories/productListingSeed';
+import { openStorefrontProduct } from '@navigation/navigationRef';
 import type { RootStackParamList } from '@navigation/types';
 import type { CountryCode } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
@@ -79,6 +82,12 @@ export const CartNewArrivalsSection = forwardRef<CartNewArrivalsSectionHandle, P
       () => [...(page1?.products ?? []), ...appendItems],
       [appendItems, page1?.products],
     );
+
+    useEffect(() => {
+      if (items.length === 0) return;
+      prefetchProductDetailsForSkus(items.map(row => row.productSku), 8);
+    }, [items]);
+
     const loading = isPending && items.length === 0;
     const error =
       isError && items.length === 0
@@ -139,13 +148,11 @@ export const CartNewArrivalsSection = forwardRef<CartNewArrivalsSectionHandle, P
     }, [items.length, hasMore, loading]);
 
     const openPdp = useCallback(
-      (sku: string) => {
-        const s = sku.trim();
-        if (!s) return;
+      (row: ListingProductRow) => {
         analytics.track('cart_new_arrivals_open_pdp');
-        navigation.navigate('StorefrontProductWeb', { sku: s });
+        openStorefrontProduct(row.productSku, seedFromListingRow(row, storeCurrencyCode));
       },
-      [navigation],
+      [storeCurrencyCode],
     );
 
     const openQuickAdd = useCallback((sku: string) => {

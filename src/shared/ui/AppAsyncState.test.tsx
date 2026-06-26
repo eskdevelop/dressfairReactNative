@@ -20,6 +20,7 @@ describe('AppAsyncState', () => {
         <Text>Child</Text>
       </AppAsyncState>,
     );
+    expect(screen.getByText('Something went wrong')).toBeTruthy();
     expect(screen.getByText('Failed to load')).toBeTruthy();
   });
 

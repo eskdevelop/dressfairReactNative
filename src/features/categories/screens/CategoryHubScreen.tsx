@@ -13,19 +13,19 @@ import { Ionicons } from '@expo/vector-icons';
 type IonName = ComponentProps<typeof Ionicons>['name'];
 
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { StackActions } from '@react-navigation/native';
 import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
 import type { CategoryStackParamList, MainTabParamList } from '@navigation/types';
+import { openStorefrontProduct } from '@navigation/navigationRef';
 import type { CountryCode } from '@shared/config/env';
 
 import {
   cateKeyForCategoryListing,
-  isFeatureHubCategory,
-  listingSlugForViewAll,
+  firstSubcategoryListingSlug,
+  subcategoryListingSlug,
 } from '../categoryBrowseRoutes';
 import { getMemoryCategories } from '../categoryCache';
 import { useCategoryTreeQuery } from '../useCategoryTreeQuery';
@@ -37,6 +37,8 @@ import { CategoryProductAddToCartButton } from '../components/CategoryProductAdd
 import { analytics } from '@shared/observability/analytics';
 import { cdnAssetUrl, isSupportedRemoteImage } from '../categoryImage';
 import { categoryTheme } from '../categoryTheme';
+import { prewarmListingProduct, seedFromListingRow } from '../productListingSeed';
+import { prefetchProductDetailsForSkus } from '../productDetailCache';
 import { CategorySearchBar } from '../components/CategorySearchBar';
 import { CategoryHubSkeleton } from '../components/CategoryHubSkeleton';
 import { DeliveryBanner } from '../components/DeliveryBanner';
@@ -105,13 +107,13 @@ function formatTilePrice(amount: number): string {
 function RelatedProductCard(props: {
   item: HubProductRow;
   country: CountryCode;
-  onPressSku: (sku: string) => void;
+  onPressItem: (item: HubProductRow) => void;
   onQuickAdd: (sku: string) => void;
   cardWidth: number;
   imageHeight: number;
   storeCurrencyFallback: string;
 }) {
-  const { item, country, onPressSku, onQuickAdd, cardWidth, imageHeight, storeCurrencyFallback } =
+  const { item, country, onPressItem, onQuickAdd, cardWidth, imageHeight, storeCurrencyFallback } =
     props;
 
   const first = item.images[0]?.image ?? '';
@@ -120,11 +122,16 @@ function RelatedProductCard(props: {
   const currency = (storeCurrencyFallback || item.currencyCode || '').trim();
   const displayAmt = formatTilePrice(displayPriceFor(item.price));
   const strikeAmt = strikePriceIfAny(item.price);
+  const onPressIn = () => prewarmListingProduct(item, country);
 
   return (
     <View style={{ backgroundColor: '#FFF', width: cardWidth, marginHorizontal: 3, overflow: 'hidden' }}>
       <View style={{ position: 'relative' }}>
-        <Pressable accessibilityRole="button" onPress={() => onPressSku(item.productSku)}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => onPressItem(item)}
+          onPressIn={onPressIn}
+        >
           {showImg ? (
             <Image
               source={{ uri }}
@@ -140,7 +147,7 @@ function RelatedProductCard(props: {
         <CategoryProductAddToCartButton onPress={() => onQuickAdd(item.productSku)} />
       </View>
       <View style={{ gap: 4, paddingHorizontal: 4, paddingVertical: 6 }}>
-        <Pressable onPress={() => onPressSku(item.productSku)}>
+        <Pressable onPress={() => onPressItem(item)} onPressIn={onPressIn}>
           <Text style={{ fontSize: 11, fontWeight: '500' }} numberOfLines={1}>
             {item.name}
           </Text>
@@ -150,7 +157,7 @@ function RelatedProductCard(props: {
           <Text style={{ fontSize: 10 }}>{FAKE_DISPLAY_RATING.toFixed(1)}</Text>
           <Text style={{ fontSize: 10 }}>({FAKE_REVIEWS})</Text>
         </View>
-        <Pressable onPress={() => onPressSku(item.productSku)}>
+        <Pressable onPress={() => onPressItem(item)} onPressIn={onPressIn}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 4 }}>
             <Text style={{ fontWeight: '700', color: categoryTheme.primary, fontSize: 11 }}>
               {currency.length > 0 ? `${currency} ${displayAmt}` : hubPriceLine(item, storeCurrencyFallback)}
@@ -250,60 +257,58 @@ export function CategoryHubScreen({ navigation }: Props) {
     [categories, selectedId],
   );
 
-  const openCategoryWeb = useCallback(
-    (listingSlug: string, titleHint: string | undefined, hubCategory: CategoryRow | null) => {
-      const s = listingSlug.trim();
+  useEffect(() => {
+    if (!selected?.products.length) return;
+    prefetchProductDetailsForSkus(
+      selected.products.map(p => p.productSku),
+      8,
+    );
+  }, [selected?.id, selected?.products]);
+
+  const openNativeListing = useCallback(
+    (
+      slug: string,
+      opts?: { titleHint?: string; hubCategory?: CategoryRow | null },
+    ) => {
+      const s = slug.trim();
       if (!s) return;
-      navigation.navigate('CategoryWebListing', {
-        slug: s,
-        titleHint,
-        searchPlaceholder: hubCategory?.name,
+      const hub = opts?.hubCategory ?? selected;
+      navigation.navigate('CategoryListing', {
+        cateSlug: s,
+        titleHint: opts?.titleHint,
+        searchPlaceholder: hub?.name,
+        hubCategoryId: hub?.id,
       });
     },
-    [navigation],
-  );
-
-  const openListing = useCallback(
-    (cateKey: string | null | undefined, titleHint?: string) => {
-      if (!cateKey) return;
-      navigation.navigate('CategoryListing', { cateKey, titleHint });
-    },
-    [navigation],
+    [navigation, selected],
   );
 
   const onViewAllPress = useCallback(() => {
     if (!selected) return;
-    const slug = listingSlugForViewAll(selected);
+    const slug = firstSubcategoryListingSlug(selected);
     if (slug) {
-      openCategoryWeb(slug, 'View All', selected);
+      openNativeListing(slug, { titleHint: 'View All', hubCategory: selected });
       return;
     }
     const key = cateKeyForCategoryListing(selected);
-    if (key) openListing(key, 'View All');
-  }, [openCategoryWeb, selected, openListing]);
+    if (key) openNativeListing(key, { titleHint: 'View All', hubCategory: selected });
+  }, [openNativeListing, selected]);
 
   const onSubcategoryPress = useCallback(
     (sub: SubCategoryRow) => {
-      const s = sub.slug?.trim();
-      if (s) {
-        openCategoryWeb(s, sub.name, selected);
-      } else {
-        openListing(sub.name, sub.name);
-      }
+      openNativeListing(subcategoryListingSlug(sub), {
+        titleHint: sub.name,
+        hubCategory: selected,
+      });
     },
-    [openCategoryWeb, openListing, selected],
+    [openNativeListing, selected],
   );
 
   const openPdp = useCallback(
-    (sku: string) => {
-      const s = sku.trim();
-      if (!s) return;
-      // CategoryHub uses a tab + stack composite `navigation`; `navigate` can
-      // target the tab navigator and miss `CategoryProductWeb`. Push targets
-      // the native stack that hosts this screen.
-      navigation.dispatch(StackActions.push('CategoryProductWeb', { sku: s }));
+    (item: HubProductRow) => {
+      openStorefrontProduct(item.productSku, seedFromListingRow(item, storeCurrencyCode));
     },
-    [navigation],
+    [storeCurrencyCode],
   );
 
   const openQuickAdd = useCallback((sku: string) => {
@@ -414,7 +419,7 @@ export function CategoryHubScreen({ navigation }: Props) {
                   accessibilityRole="button"
                   accessibilityLabel="View All"
                   onPress={onViewAllPress}
-                  disabled={!selected || (listingSlugForViewAll(selected) == null && cateKeyForCategoryListing(selected) == null)}
+                  disabled={!selected || (firstSubcategoryListingSlug(selected) == null && cateKeyForCategoryListing(selected) == null)}
                 >
                   <View
                     style={{
@@ -464,7 +469,7 @@ export function CategoryHubScreen({ navigation }: Props) {
                   <RelatedProductCard
                     item={pair[0]!}
                     country={country as CountryCode}
-                    onPressSku={openPdp}
+                    onPressItem={openPdp}
                     onQuickAdd={openQuickAdd}
                     cardWidth={relatedCardW}
                     imageHeight={relatedImgH}
@@ -474,7 +479,7 @@ export function CategoryHubScreen({ navigation }: Props) {
                     <RelatedProductCard
                       item={pair[1]}
                       country={country as CountryCode}
-                      onPressSku={openPdp}
+                      onPressItem={openPdp}
                       onQuickAdd={openQuickAdd}
                       cardWidth={relatedCardW}
                       imageHeight={relatedImgH}

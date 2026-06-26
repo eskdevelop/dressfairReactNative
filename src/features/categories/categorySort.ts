@@ -1,6 +1,21 @@
 /** Mirrors Flutter `SubCategoryController.applySort` mapping. */
 
-export type SortChoice = 'Default' | 'New Arrival' | 'Popular' | 'Price: Low to High' | 'Price: High to Low';
+export type SortChoice =
+  | 'Default'
+  | 'New Arrival'
+  | 'Popular'
+  | 'Best Seller'
+  | 'Price: Low to High'
+  | 'Price: High to Low';
+
+export const SORT_MENU_OPTIONS = [
+  'Clear',
+  'New Arrival',
+  'Popular',
+  'Best Seller',
+  'Price: Low to High',
+  'Price: High to Low',
+] as const;
 
 export function apiSortFieldsForChoice(choice: SortChoice): { sort: string; order: string } {
   switch (choice) {
@@ -8,6 +23,8 @@ export function apiSortFieldsForChoice(choice: SortChoice): { sort: string; orde
       return { sort: 'new', order: 'desc' };
     case 'Popular':
       return { sort: 'popular', order: 'desc' };
+    case 'Best Seller':
+      return { sort: 'best_seller', order: 'desc' };
     case 'Price: Low to High':
       return { sort: 'price', order: 'asc' };
     case 'Price: High to Low':

@@ -1,19 +1,23 @@
-import React, { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  Text,
+  View,
+  useWindowDimensions,
+  type ViewToken,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-
-type IonName = ComponentProps<typeof Ionicons>['name'];
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
 import type { CategoryStackParamList, MainTabParamList } from '@navigation/types';
 import { QuickAddToCartSheet } from '@features/cart/components/QuickAddToCartSheet';
 import { analytics } from '@shared/observability/analytics';
-import { openWebPath } from '@navigation/navigationRef';
-import { productHrefForSku } from '@shared/config/env';
+import { openStorefrontProduct } from '@navigation/navigationRef';
 import type { CountryCode } from '@shared/config/env';
 
 import { fetchProductsBySlug } from '../categoryApi';
@@ -22,45 +26,87 @@ import {
   getMemoryListingPage1,
   loadCachedListingPage1,
   saveCachedListingPage1,
+  type ListingCacheFingerprint,
 } from '../listingCache';
 import { categoryTheme } from '../categoryTheme';
 import { ListingProductTile } from '../components/ListingProductTile';
 import { CategorySearchBar } from '../components/CategorySearchBar';
-import { DeliveryBanner } from '../components/DeliveryBanner';
-import { OffersModal } from '../components/OffersModal';
-import { apiSortFieldsForChoice, labelForStoredSort, type SortChoice } from '../categorySort';
+import {
+  CategoryListingFilters,
+  type FilterPanelKind,
+} from '../components/CategoryListingFilters';
+import { CategorySubcategoryStrip } from '../components/CategorySubcategoryStrip';
+import { apiSortFieldsForChoice, type SortChoice } from '../categorySort';
+import { prefetchProductDetailsForSkus } from '../productDetailCache';
+import { seedFromListingRow } from '../productListingSeed';
+import { useCategoryTreeQuery } from '../useCategoryTreeQuery';
 import { ProductGridSkeleton } from '@shared/ui/ProductGridSkeleton';
 
-/** Flutter `SubCategoryProductScreen` + filter bar parity (stubs for filter/color/size). */
+/** Native category PLP — dressfair.com `/c/{slug}` parity with filters. */
 export function CategoryProductListingScreen({
   navigation,
   route,
 }: NativeStackScreenProps<CategoryStackParamList, 'CategoryListing'>) {
-  const { cateKey, titleHint } = route.params;
+  const { cateSlug, titleHint, searchPlaceholder, hubCategoryId } = route.params;
   const country = useAppSelector(s => s.app.country);
   const storeCurrencyCode = useAppSelector(s => s.app.storeCurrencyCode);
-  const [offersOpen, setOffersOpen] = useState(false);
+
   const [quickAddSku, setQuickAddSku] = useState<string | null>(null);
-  const [sortModal, setSortModal] = useState(false);
+  const [openPanel, setOpenPanel] = useState<FilterPanelKind>('none');
   const [sortChoice, setSortChoice] = useState<SortChoice>('Default');
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+
   const { sort, order } = useMemo(() => apiSortFieldsForChoice(sortChoice), [sortChoice]);
 
+  const cacheFingerprint = useMemo<ListingCacheFingerprint>(
+    () => ({
+      sort,
+      order,
+      color: selectedColor ?? '',
+      size: selectedSize ?? '',
+    }),
+    [sort, order, selectedColor, selectedSize],
+  );
+
   const listingSeed = useMemo(
-    () => getMemoryListingPage1(country as CountryCode, cateKey, sort, order),
-    [country, cateKey, sort, order],
+    () => getMemoryListingPage1(country as CountryCode, cateSlug, cacheFingerprint),
+    [country, cateSlug, cacheFingerprint],
   );
 
   const [items, setItems] = useState<ListingProductRow[]>(() => listingSeed?.products ?? []);
   const [loading, setLoading] = useState(() => !listingSeed);
+  const [refreshing, setRefreshing] = useState(false);
   const [moreLoading, setMoreLoading] = useState(false);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(() => listingSeed?.pagination.currentPage ?? 1);
   const [lastPage, setLastPage] = useState(() => listingSeed?.pagination.lastPage ?? 1);
 
+  const { data: categories = [] } = useCategoryTreeQuery(country as CountryCode);
+  const hubCategory = useMemo(
+    () => (hubCategoryId != null ? categories.find(c => c.id === hubCategoryId) ?? null : null),
+    [categories, hubCategoryId],
+  );
+
   const { width: ww } = useWindowDimensions();
-  const cardGap = 4;
-  const cardW = Math.floor((ww - cardGap) / 2) - 10;
-  const cardH = ww * 0.29;
+  const gridPad = 8;
+  const cardGap = 8;
+  const cardW = Math.floor((ww - gridPad * 2 - cardGap) / 2);
+  /** dressfair.com PLP portrait image ratio */
+  const cardH = Math.round(cardW * 1.32);
+
+  const fetchOpts = useMemo(
+    () => ({
+      sort,
+      order,
+      color: selectedColor ?? undefined,
+      size: selectedSize ?? undefined,
+      country: country as CountryCode,
+    }),
+    [country, order, selectedColor, selectedSize, sort],
+  );
 
   const applyListingResult = useCallback(
     (products: ListingProductRow[], pagination: { currentPage: number; lastPage: number }, append: boolean) => {
@@ -76,79 +122,85 @@ export function CategoryProductListingScreen({
   );
 
   const refreshPage1InBackground = useCallback(async () => {
-    const res = await fetchProductsBySlug(cateKey, 1, { sort, order, country: country as CountryCode });
+    const res = await fetchProductsBySlug(cateSlug, 1, fetchOpts);
     if (!res.ok) return;
     applyListingResult(res.products, res.pagination, false);
     void saveCachedListingPage1(
       country as CountryCode,
-      cateKey,
-      sort,
-      order,
+      cateSlug,
+      cacheFingerprint,
       res.products,
       res.pagination,
     );
-  }, [applyListingResult, cateKey, country, order, sort]);
+  }, [applyListingResult, cacheFingerprint, cateSlug, country, fetchOpts]);
 
   const loadPage = useCallback(
     async (nextPage: number, append: boolean) => {
       if (append) {
         setMoreLoading(true);
       } else if (nextPage === 1) {
-        const memoryHit = getMemoryListingPage1(country as CountryCode, cateKey, sort, order);
+        const memoryHit = getMemoryListingPage1(country as CountryCode, cateSlug, cacheFingerprint);
         if (memoryHit) {
           applyListingResult(memoryHit.products, memoryHit.pagination, false);
           setLoading(false);
+          setRefreshing(false);
           setError(null);
           void refreshPage1InBackground();
           return;
         }
 
-        const diskHit = await loadCachedListingPage1(country as CountryCode, cateKey, sort, order);
+        const diskHit = await loadCachedListingPage1(country as CountryCode, cateSlug, cacheFingerprint);
         if (diskHit) {
           applyListingResult(diskHit.products, diskHit.pagination, false);
           setLoading(false);
+          setRefreshing(false);
           setError(null);
           void refreshPage1InBackground();
           return;
         }
 
-        setLoading(true);
+        if (itemsRef.current.length === 0) {
+          setLoading(true);
+        } else {
+          setRefreshing(true);
+        }
       } else {
         setLoading(true);
       }
 
       setError(null);
-      const res = await fetchProductsBySlug(cateKey, nextPage, { sort, order, country: country as CountryCode });
+      const res = await fetchProductsBySlug(cateSlug, nextPage, fetchOpts);
       if (!res.ok) {
         setError(res.error ?? 'Failed to load');
-        if (!append) setItems([]);
+        if (!append && itemsRef.current.length === 0) setItems([]);
       } else {
         applyListingResult(res.products, res.pagination, append);
         if (nextPage === 1 && !append) {
+          prefetchProductDetailsForSkus(
+            res.products.map(p => p.productSku),
+            8,
+          );
           void saveCachedListingPage1(
             country as CountryCode,
-            cateKey,
-            sort,
-            order,
+            cateSlug,
+            cacheFingerprint,
             res.products,
             res.pagination,
           );
         }
       }
       if (append) setMoreLoading(false);
-      else setLoading(false);
+      else {
+        setLoading(false);
+        setRefreshing(false);
+      }
     },
-    [applyListingResult, cateKey, country, order, refreshPage1InBackground, sort],
+    [applyListingResult, cacheFingerprint, cateSlug, country, fetchOpts, refreshPage1InBackground],
   );
 
   useEffect(() => {
-    const seed = getMemoryListingPage1(country as CountryCode, cateKey, sort, order);
-    if (!seed) {
-      setItems([]);
-      setLoading(true);
-    }
     void loadPage(1, false);
-  }, [loadPage, sortChoice, cateKey, country, sort, order]);
+  }, [loadPage, cateSlug, country, cacheFingerprint]);
 
   const canLoadMore = page < lastPage;
 
@@ -157,20 +209,27 @@ export function CategoryProductListingScreen({
     void loadPage(page + 1, true);
   }, [canLoadMore, loadPage, loading, moreLoading, page]);
 
-  const sortOptions = useMemo(() => ['Clear', 'New Arrival', 'Popular', 'Price: Low to High', 'Price: High to Low'] as const satisfies readonly (SortChoice | 'Clear')[], []);
+  const searchLabel = searchPlaceholder?.trim() || titleHint?.trim() || cateSlug;
 
-  const onPickSort = (opt: string) => {
-    setSortModal(false);
-    if (opt === 'Clear') setSortChoice('Default');
-    else setSortChoice(opt as SortChoice);
-  };
+  const openPdp = useCallback(
+    (row: ListingProductRow) => {
+      openStorefrontProduct(row.productSku, seedFromListingRow(row, storeCurrencyCode));
+    },
+    [storeCurrencyCode],
+  );
 
-  const pickTitle = titleHint ?? cateKey;
-
-  const openPdp = (sku: string) => {
-    const href = productHrefForSku(sku, country as CountryCode);
-    if (href) openWebPath(href);
-  };
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 35 }).current;
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      prefetchProductDetailsForSkus(
+        viewableItems
+          .map(token => token.item as ListingProductRow | undefined)
+          .filter((row): row is ListingProductRow => row != null && typeof row.productSku === 'string')
+          .map(row => row.productSku),
+        6,
+      );
+    },
+  ).current;
 
   const openQuickAdd = useCallback((sku: string) => {
     const s = sku.trim();
@@ -184,65 +243,94 @@ export function CategoryProductListingScreen({
     navigation.getParent<BottomTabNavigationProp<MainTabParamList>>()?.navigate('Cart');
   }, [navigation]);
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top']}>
-      <OffersModal visible={offersOpen} onClose={() => setOffersOpen(false)} />
-      <QuickAddToCartSheet
-        visible={quickAddSku != null}
-        sku={quickAddSku}
-        country={country as CountryCode}
-        storeCurrencyCode={storeCurrencyCode}
-        onClose={() => setQuickAddSku(null)}
-        onGoToCart={goToCartTab}
-      />
+  const onSubcategorySelect = useCallback(
+    (slug: string, title: string) => {
+      if (slug === cateSlug) return;
+      navigation.replace('CategoryListing', {
+        cateSlug: slug,
+        titleHint: title,
+        searchPlaceholder: searchPlaceholder ?? hubCategory?.name,
+        hubCategoryId,
+      });
+    },
+    [cateSlug, hubCategory?.name, hubCategoryId, navigation, searchPlaceholder],
+  );
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 8, gap: 8 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Go back" hitSlop={10} onPress={() => navigation.goBack()}>
-          <Ionicons name="chevron-back" size={28} color="#111" />
-        </Pressable>
-        <Text style={{ flex: 1, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>
-          {pickTitle}
-        </Text>
-      </View>
+  const onResetAllFilters = useCallback(() => {
+    setSortChoice('Default');
+    setSelectedColor(null);
+    setSelectedSize(null);
+  }, []);
 
-      <CategorySearchBar onOpenSearch={() => navigation.navigate('CategorySearch')} />
-      <View style={{ height: 10 }} />
-      <DeliveryBanner onPressDetails={() => setOffersOpen(true)} />
-      <View style={{ height: 10 }} />
-
-      <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginBottom: 6 }}>
-        <View style={{ flexDirection: 'row', paddingHorizontal: 8, gap: 10, alignItems: 'center' }}>
-          <FilterChip label="Filters" icon="options-outline" onPress={() => undefined} />
-          <FilterChip label={labelForStoredSort(sortChoice)} showChevron onPress={() => setSortModal(true)} />
-          <FilterChip label="Color" onPress={() => undefined} />
-          <FilterChip label="Size" onPress={() => undefined} />
-        </View>
-      </ScrollView>
-
-      <Modal transparent visible={sortModal} animationType="fade" onRequestClose={() => setSortModal(false)}>
-        <Pressable style={{ flex: 1, justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.25)' }} onPress={() => setSortModal(false)}>
-          <Pressable onPress={e => e.stopPropagation()} style={{ marginHorizontal: 36, backgroundColor: '#FFF', borderRadius: 12, overflow: 'hidden' }}>
-            <Text style={{ padding: 14, fontWeight: '600', fontSize: 15 }}>Sort by</Text>
-            <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />
-            {sortOptions.map(opt => (
-              <Pressable
-                key={opt}
-                accessibilityRole="button"
-                onPress={() => onPickSort(opt)}
-                style={{ paddingHorizontal: 14, paddingVertical: 12 }}
-              >
-                <Text style={{ fontSize: 14 }}>{opt}</Text>
-              </Pressable>
-            ))}
+  const listHeader = useMemo(
+    () => (
+      <View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingTop: 2, paddingBottom: 6, paddingLeft: 2 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            onPress={() => navigation.goBack()}
+            style={{ paddingVertical: 6, paddingHorizontal: 6 }}
+          >
+            <Ionicons name="chevron-back" size={26} color="#111" />
           </Pressable>
-        </Pressable>
-      </Modal>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <CategorySearchBar
+              placeholder={searchLabel}
+              showCameraIcon
+              style={{ marginHorizontal: 0, marginRight: 10 }}
+              onOpenSearch={() => navigation.navigate('CategorySearch')}
+            />
+          </View>
+        </View>
 
-      {loading && items.length === 0 ? (
-        <View style={{ flex: 1, paddingTop: 12 }}>
+        {hubCategory && hubCategory.subCategories.length > 0 ? (
+          <CategorySubcategoryStrip
+            subCategories={hubCategory.subCategories}
+            activeSlug={cateSlug}
+            country={country as CountryCode}
+            onSelect={onSubcategorySelect}
+          />
+        ) : null}
+
+        <CategoryListingFilters
+          sortChoice={sortChoice}
+          selectedColor={selectedColor}
+          selectedSize={selectedSize}
+          openPanel={openPanel}
+          onOpenPanel={setOpenPanel}
+          onSortChange={setSortChoice}
+          onColorChange={setSelectedColor}
+          onSizeChange={setSelectedSize}
+          onResetAll={onResetAllFilters}
+        />
+      </View>
+    ),
+    [
+      cateSlug,
+      country,
+      hubCategory,
+      navigation,
+      onResetAllFilters,
+      onSubcategorySelect,
+      openPanel,
+      searchLabel,
+      selectedColor,
+      selectedSize,
+      sortChoice,
+    ],
+  );
+
+  const listEmpty = useMemo(() => {
+    if (loading && items.length === 0) {
+      return (
+        <View style={{ paddingTop: 8, paddingHorizontal: gridPad }}>
           <ProductGridSkeleton cardW={cardW} cardH={cardH} />
         </View>
-      ) : error && items.length === 0 ? (
+      );
+    }
+    if (error && items.length === 0) {
+      return (
         <View style={{ padding: 32, alignItems: 'center', gap: 12 }}>
           <Text style={{ textAlign: 'center' }}>{error}</Text>
           <Pressable
@@ -252,69 +340,56 @@ export function CategoryProductListingScreen({
             <Text style={{ color: '#FFF', fontWeight: '600' }}>Retry</Text>
           </Pressable>
         </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(it, i) => `${String(it.productId)}-${String(i)}`}
-          numColumns={2}
-          columnWrapperStyle={{ gap: cardGap }}
-          contentContainerStyle={{ paddingBottom: 72, paddingHorizontal: 4 }}
-          keyboardShouldPersistTaps="handled"
-          onEndReachedThreshold={0.2}
-          onEndReached={() => fetchNext()}
-          ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 60 }}>No data found</Text>}
-          ListFooterComponent={
-            moreLoading ? (
-              <View style={{ paddingVertical: 20 }}>
-                <ActivityIndicator color={categoryTheme.primary} />
-              </View>
-            ) : null
-          }
-          renderItem={({ item }) => (
-            <ListingProductTile
-              row={item}
-              country={country as CountryCode}
-              width={cardW}
-              imgH={cardH}
-              onOpen={openPdp}
-              onQuickAdd={openQuickAdd}
-              storeCurrencyFallback={storeCurrencyCode}
-            />
-          )}
-        />
-      )}
-    </SafeAreaView>
-  );
-}
+      );
+    }
+    if (refreshing) return null;
+    return <Text style={{ textAlign: 'center', marginTop: 60 }}>No data found</Text>;
+  }, [cardH, cardW, error, gridPad, items.length, loadPage, loading, refreshing]);
 
-function FilterChip({
-  label,
-  icon,
-  showChevron,
-  onPress,
-}: {
-  label: string;
-  icon?: IonName;
-  showChevron?: boolean;
-  onPress: () => void;
-}) {
   return (
-    <Pressable accessibilityRole="button" onPress={onPress}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 6,
-          paddingHorizontal: 12,
-          paddingVertical: 7,
-          borderRadius: 999,
-          backgroundColor: '#F3F4F6',
-        }}
-      >
-        {icon ? <Ionicons name={icon} size={16} /> : null}
-        <Text style={{ fontSize: 11, color: '#111' }}>{label}</Text>
-        {showChevron ? <Ionicons name="chevron-down" size={14} /> : null}
-      </View>
-    </Pressable>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top']}>
+      <QuickAddToCartSheet
+        visible={quickAddSku != null}
+        sku={quickAddSku}
+        country={country as CountryCode}
+        storeCurrencyCode={storeCurrencyCode}
+        onClose={() => setQuickAddSku(null)}
+        onGoToCart={goToCartTab}
+      />
+
+      <FlatList
+        style={{ flex: 1 }}
+        data={items}
+        keyExtractor={(it, i) => `${String(it.productId)}-${String(i)}`}
+        numColumns={2}
+        ListHeaderComponent={listHeader}
+        columnWrapperStyle={{ gap: cardGap, paddingHorizontal: gridPad }}
+        contentContainerStyle={{ paddingBottom: 72, flexGrow: items.length === 0 ? 1 : undefined }}
+        keyboardShouldPersistTaps="handled"
+        onEndReachedThreshold={0.2}
+        onEndReached={() => fetchNext()}
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
+        ListEmptyComponent={listEmpty}
+        ListFooterComponent={
+          refreshing || moreLoading ? (
+            <View style={{ paddingVertical: 20 }}>
+              <ActivityIndicator color={categoryTheme.primary} />
+            </View>
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <ListingProductTile
+            row={item}
+            country={country as CountryCode}
+            width={cardW}
+            imgH={cardH}
+            onOpen={openPdp}
+            onQuickAdd={openQuickAdd}
+            storeCurrencyFallback={storeCurrencyCode}
+          />
+        )}
+      />
+    </SafeAreaView>
   );
 }

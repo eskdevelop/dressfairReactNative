@@ -210,32 +210,50 @@ export type ProductListingResult = {
   error?: string;
 };
 
+export type ProductListingQueryOpts = {
+  /** API `sort` param (e.g. `new`, `popular`, `price`) */
+  sort?: string;
+  /** API `order` param (`asc` / `desc`) */
+  order?: string;
+  /** dressfair.com `color=` query (human-readable, e.g. `Green`) */
+  color?: string;
+  /** dressfair.com `size=` query (e.g. `XL`) */
+  size?: string;
+  country?: CountryCode;
+};
+
 /**
- * Flutter `GET {productApi}/{cateSlug}?page=` + optional sort/order.
- * `cateSlug` is **`name`** parity with Flutter navigation (often URL-encoded).
+ * Build store REST listing URL — dressfair.com `/api/rest/store/products/{slug}` parity.
+ */
+export function buildProductsListingUrl(
+  cateSlug: string,
+  page: number,
+  opts?: ProductListingQueryOpts,
+): string {
+  const basePath = `products/${encodeURIComponent(cateSlug)}`;
+  const baseUrl = storefrontStoreUrl(basePath);
+  const qs = new URLSearchParams();
+  qs.set('page', String(page));
+  const sort = opts?.sort?.trim();
+  const order = opts?.order?.trim();
+  const color = opts?.color?.trim();
+  const size = opts?.size?.trim();
+  if (sort) qs.set('sort', sort);
+  if (order) qs.set('order', order);
+  if (color) qs.set('color', color);
+  if (size) qs.set('size', size);
+  return `${baseUrl}?${qs.toString()}`;
+}
+
+/**
+ * GET `/api/rest/store/products/{cateSlug}` + optional sort/order/color/size filters.
  */
 export async function fetchProductsBySlug(
-  cateKey: string,
+  cateSlug: string,
   page: number,
-  opts?: {
-    /** API `sort` param (e.g. `new`, `popular`, `price`) */
-    sort?: string;
-    /** API `order` param (`asc` / `desc`) */
-    order?: string;
-    country?: CountryCode;
-  },
+  opts?: ProductListingQueryOpts,
 ): Promise<ProductListingResult> {
-  const url = (() => {
-    const basePath = `products/${encodeURIComponent(cateKey)}`;
-    const baseUrl = storefrontStoreUrl(basePath);
-    const qs = new URLSearchParams();
-    qs.set('page', String(page));
-    const sort = opts?.sort?.trim();
-    const order = opts?.order?.trim();
-    if (sort && sort !== 'Default') qs.set('sort', sort);
-    if (order && order !== 'Default') qs.set('order', order);
-    return `${baseUrl}?${qs.toString()}`;
-  })();
+  const url = buildProductsListingUrl(cateSlug, page, opts);
 
   try {
     const headers = await buildStorefrontAuthHeaders();

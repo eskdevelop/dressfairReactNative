@@ -27,3 +27,18 @@ export function cateKeyForCategoryListing(cat: CategoryRow | null): string | nul
   if (subs.length === 1) return subs[0].name;
   return subs[1].name;
 }
+
+/** View All on category hub — first subcategory slug (dressfair.com parity). */
+export function firstSubcategoryListingSlug(cat: CategoryRow | null): string | null {
+  if (!cat?.subCategories.length) return null;
+  const first = cat.subCategories[0];
+  const slug = first?.slug?.trim();
+  if (slug) return slug;
+  return first?.name?.trim() || null;
+}
+
+/** Resolve listing slug for a subcategory row. */
+export function subcategoryListingSlug(sub: { slug?: string | null; name: string }): string {
+  const s = sub.slug?.trim();
+  return s || sub.name;
+}

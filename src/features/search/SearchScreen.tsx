@@ -20,7 +20,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAppSelector } from '@app/hooks';
 import { colors, radii, spacing } from '@app/theme/tokens';
-import { navigationRef, openWebPath } from '@navigation/navigationRef';
+import { navigationRef, openStorefrontProduct, openWebPath } from '@navigation/navigationRef';
 import type {
   CategoryStackParamList,
   MainTabParamList,
@@ -31,7 +31,7 @@ import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import {
   cateKeyForCategoryListing,
-  listingSlugForViewAll,
+  firstSubcategoryListingSlug,
 } from '@features/categories/categoryBrowseRoutes';
 import { useCategoryTreeQuery } from '@features/categories/useCategoryTreeQuery';
 import type { CategoryRow } from '@features/categories/categoryModel';
@@ -173,25 +173,11 @@ export function SearchScreen() {
     }, [query, clearActiveSearch]),
   );
 
-  const openProductBySku = useCallback(
-    (sku: string) => {
-      const trimmed = sku.trim();
-      if (trimmed.length === 0) return;
-      if (isCategoryHostedSearch) {
-        categoryStackNavigation(navigation).navigate('CategoryProductWeb', {
-          sku: trimmed,
-        });
-        return;
-      }
-      // Root-stack PDP from the hidden Search tab — navigationRef avoids iOS nested-nav no-ops.
-      if (navigationRef.isReady()) {
-        navigationRef.navigate('StorefrontProductWeb', { sku: trimmed });
-        return;
-      }
-      navigation.navigate('StorefrontProductWeb', { sku: trimmed });
-    },
-    [isCategoryHostedSearch, navigation],
-  );
+  const openProductBySku = useCallback((sku: string) => {
+    const trimmed = sku.trim();
+    if (trimmed.length === 0) return;
+    openStorefrontProduct(trimmed);
+  }, []);
 
   const runSearch = useCallback(
     async (term: string, options?: { autoOpenSingleResult?: boolean }) => {
@@ -422,22 +408,32 @@ export function SearchScreen() {
         categoryId: cat.id,
         slug: cat.slug ?? null,
       });
-      const slug = listingSlugForViewAll(cat);
+      const slug = firstSubcategoryListingSlug(cat);
       if (slug) {
-        const params = { slug, titleHint: cat.name, searchPlaceholder: cat.name };
+        const params = {
+          cateSlug: slug,
+          titleHint: cat.name,
+          searchPlaceholder: cat.name,
+          hubCategoryId: cat.id,
+        };
         if (isCategoryHostedSearch) {
-          categoryStackNavigation(navigation).navigate('CategoryWebListing', params);
+          categoryStackNavigation(navigation).navigate('CategoryListing', params);
         } else {
           navigation.navigate('Category', {
-            screen: 'CategoryWebListing',
+            screen: 'CategoryListing',
             params,
           });
         }
         return;
       }
-      const cateKey = cateKeyForCategoryListing(cat);
-      if (cateKey) {
-        const params = { cateKey, titleHint: cat.name };
+      const fallbackKey = cateKeyForCategoryListing(cat);
+      if (fallbackKey) {
+        const params = {
+          cateSlug: fallbackKey,
+          titleHint: cat.name,
+          searchPlaceholder: cat.name,
+          hubCategoryId: cat.id,
+        };
         if (isCategoryHostedSearch) {
           categoryStackNavigation(navigation).navigate('CategoryListing', params);
         } else {

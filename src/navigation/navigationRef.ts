@@ -3,7 +3,7 @@ import { createNavigationContainerRef, CommonActions } from '@react-navigation/n
 import { store } from '@app/store';
 import { requestWebNav } from '@app/storeSlices/webNavSlice';
 
-import type { RootStackParamList } from './types';
+import type { RootStackParamList, StorefrontProductSeed } from './types';
 
 export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
@@ -48,6 +48,13 @@ export const openWebPath = (path: string): void => {
     return;
   }
   pendingPath = path;
+};
+
+/** Full-screen root-stack PDP — keeps the current tab selected underneath; back returns to native browse context. */
+export const openStorefrontProduct = (sku: string, seed?: StorefrontProductSeed): void => {
+  const trimmed = sku.trim();
+  if (!trimmed || !navigationRef.isReady()) return;
+  navigationRef.navigate('StorefrontProductWeb', { sku: trimmed, seed });
 };
 
 // Settings used to live in a root-stack modal. It is now the Menu tab.

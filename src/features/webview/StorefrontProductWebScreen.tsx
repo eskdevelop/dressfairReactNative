@@ -1,25 +1,31 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { Platform, Pressable, StatusBar, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useAppSelector } from '@app/hooks';
+import { prefetchProductDetail } from '@features/categories/productDetailCache';
 import { WebViewScreen } from '@features/webview/WebViewScreen';
 import type { RootStackParamList } from '@navigation/types';
+import type { CountryCode } from '@shared/config/env';
 import { productHrefForSku } from '@shared/config/env';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'StorefrontProductWeb'>;
 
 /**
- * Root-stack storefront PDP (dynamic `sku`). Keeps the underlying tab (e.g. You)
- * selected; native back pops this screen instead of walking Category stack or SPA home.
+ * Root-stack storefront PDP (dynamic `sku`). Slides above all tabs as its own
+ * screen; native back returns to the tab the user came from (Category, You, etc.).
  */
 export function StorefrontProductWebScreen({ navigation, route }: Props) {
-  const country = useAppSelector(s => s.app.country);
+  const country = useAppSelector(s => s.app.country) as CountryCode;
   const storefrontSurfaceGeneration = useAppSelector(s => s.app.storefrontSurfaceGeneration);
   const { sku } = route.params;
 
   const path = useMemo(() => productHrefForSku(sku.trim(), country), [sku, country]);
+
+  useEffect(() => {
+    void prefetchProductDetail(sku);
+  }, [sku]);
 
   useFocusEffect(
     useCallback(() => {
@@ -47,7 +53,7 @@ export function StorefrontProductWebScreen({ navigation, route }: Props) {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <WebViewScreen
         key={`storefront-product-web-${sku.trim()}-${country}-${storefrontSurfaceGeneration}`}
         path={path}
@@ -58,6 +64,9 @@ export function StorefrontProductWebScreen({ navigation, route }: Props) {
         hardwareBackOffloadsToNavigation
         forceMobileStorefrontUserAgent
         syncWebCartToNative
+        showLoaderUntilFirstPaint
+        waitForStorefrontPdpReady
+        loaderShowLogo={false}
       />
     </View>
   );

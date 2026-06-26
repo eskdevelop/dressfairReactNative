@@ -8,13 +8,15 @@ import type { ListingProductRow } from '@features/categories/categoryModel';
 import { displayPriceFor, strikePriceIfAny } from '@features/categories/categoryModel';
 import { categoryTheme } from '@features/categories/categoryTheme';
 import { cdnAssetUrl, isSupportedRemoteImage } from '@features/categories/categoryImage';
+import { ProductTileQuickAddButton } from '@features/categories/components/ProductTileQuickAddButton';
+import { prewarmListingProduct } from '@features/categories/productListingSeed';
 
 type Props = {
   row: ListingProductRow;
   country: CountryCode;
   width: number;
   imgH: number;
-  onOpen: (sku: string) => void;
+  onOpen: (row: ListingProductRow) => void;
   /** Cart button tap — opens the native quick-add sheet. Falls back to onOpen. */
   onQuickAdd?: (sku: string) => void;
   storeCurrencyFallback: string;
@@ -22,7 +24,6 @@ type Props = {
 
 const STAR_COLOR = '#F59E0B';
 const STAR_EMPTY = '#D1D5DB';
-const CART_BTN_HEIGHT = 26;
 
 function formatCartTilePrice(amount: number): string {
   if (!Number.isFinite(amount)) return '0.00';
@@ -49,10 +50,11 @@ export function CartNewArrivalProductTile({
   const currency = (storeCurrencyFallback || row.currencyCode || '').trim();
   const displayAmt = formatCartTilePrice(displayPriceFor(row.price));
   const strikeAmt = strikePriceIfAny(row.price);
+  const onPressIn = () => prewarmListingProduct(row, country);
 
   return (
     <View style={{ flex: 1, maxWidth: width, backgroundColor: '#FFF' }}>
-      <Pressable onPress={() => onOpen(row.productSku)}>
+      <Pressable onPress={() => onOpen(row)} onPressIn={onPressIn}>
         <View style={{ overflow: 'hidden', borderRadius: 6 }}>
           {ok ? (
             <Image style={{ width: '100%', height: imgH }} source={{ uri }} resizeMode="cover" />
@@ -71,7 +73,7 @@ export function CartNewArrivalProductTile({
         </View>
       </Pressable>
 
-      <Pressable onPress={() => onOpen(row.productSku)}>
+      <Pressable onPress={() => onOpen(row)} onPressIn={onPressIn}>
         <Text
           style={{ fontSize: 11, lineHeight: 15, marginTop: 4, paddingHorizontal: 3, color: '#111' }}
           numberOfLines={2}
@@ -106,8 +108,10 @@ export function CartNewArrivalProductTile({
           alignItems: 'center',
           justifyContent: 'space-between',
           paddingHorizontal: 3,
-          paddingTop: 4,
+          paddingTop: 5,
           paddingBottom: 2,
+          minHeight: 24,
+          gap: 10,
         }}
       >
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', gap: 5 }}>
@@ -126,27 +130,7 @@ export function CartNewArrivalProductTile({
             </Text>
           ) : null}
         </View>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add to cart"
-          hitSlop={6}
-          onPress={() => (onQuickAdd ?? onOpen)(row.productSku)}
-          style={({ pressed }) => ({
-            height: CART_BTN_HEIGHT,
-            paddingHorizontal: 10,
-            borderRadius: CART_BTN_HEIGHT / 2,
-            borderWidth: 1,
-            borderColor: '#222222',
-            backgroundColor: '#FFFFFF',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            marginLeft: 4,
-            opacity: pressed ? 0.75 : 1,
-          })}
-        >
-          <Ionicons name="cart-outline" size={15} color="#111" />
-        </Pressable>
+        <ProductTileQuickAddButton onPress={() => (onQuickAdd ?? (() => onOpen(row)))(row.productSku)} />
       </View>
     </View>
   );

@@ -13,6 +13,8 @@ type Props = {
   emptySubtitle?: string;
   onRetry?: () => void;
   overlay?: boolean;
+  /** Passed to {@link AppLoader} — false hides the logo (spinner-only overlay). */
+  loaderShowLogo?: boolean;
   children: React.ReactNode;
 };
 
@@ -24,6 +26,7 @@ export function AppAsyncState({
   emptySubtitle,
   onRetry,
   overlay = false,
+  loaderShowLogo = true,
   children,
 }: Props) {
   const containerStyle = overlay
@@ -41,7 +44,7 @@ export function AppAsyncState({
   if (isLoading) {
     return (
       <View style={containerStyle}>
-        <AppLoader />
+        <AppLoader showLogo={loaderShowLogo} />
       </View>
     );
   }

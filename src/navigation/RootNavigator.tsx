@@ -1,10 +1,13 @@
 import React from 'react';
+import { View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { MaintenanceScreen } from '@features/shell/screens/MaintenanceScreen';
 import { OfflineScreen } from '@features/shell/screens/OfflineScreen';
 import { SplashScreen } from '@features/shell/screens/SplashScreen';
 import { MainTabs } from '@navigation/MainTabs';
+import { StorefrontProductWebScreen } from '@features/webview/StorefrontProductWebScreen';
+import { PdpWebPrewarmHost } from '@features/webview/PdpWebPrewarmHost';
 import {
   LazyAboutScreen,
   LazyAccountSettingScreen,
@@ -29,7 +32,6 @@ import {
   LazySafetyCenterScreen,
   LazyStorefrontCheckoutWebScreen,
   LazyStorefrontLoginScreen,
-  LazyStorefrontProductWebScreen,
   LazyTermsScreen,
   LazyWishlistScreen,
 } from '@navigation/lazyScreens';
@@ -39,7 +41,8 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <View style={{ flex: 1 }}>
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Splash" component={SplashScreen} />
       <Stack.Screen
         name="MainTabs"
@@ -169,13 +172,15 @@ export function RootNavigator() {
       />
       <Stack.Screen
         name="StorefrontProductWeb"
-        component={LazyStorefrontProductWebScreen}
+        component={StorefrontProductWebScreen}
         options={{
           presentation: 'card',
           headerShown: false,
           gestureEnabled: true,
         }}
       />
-    </Stack.Navigator>
+      </Stack.Navigator>
+      <PdpWebPrewarmHost />
+    </View>
   );
 }

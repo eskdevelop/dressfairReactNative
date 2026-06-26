@@ -3,9 +3,24 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { CustomerProfile, CustomerAddressRecord } from '@features/account/types';
 import type { OrderHistoryShortcut } from '@features/orders/orderShortcutFilter';
 
+/** Instant PDP shell data from a listing tile — shown while the WebView hydrates. */
+export type StorefrontProductSeed = {
+  name: string;
+  image?: string;
+  priceText?: string;
+};
+
 export type CategoryStackParamList = {
   CategoryHub: undefined;
-  CategoryListing: { cateKey: string; titleHint?: string };
+  CategoryListing: {
+    /** Store REST path key, e.g. `w-cloth`. */
+    cateSlug: string;
+    titleHint?: string;
+    /** Shown in the native search pill (e.g. main category title). */
+    searchPlaceholder?: string;
+    /** Parent hub category id — renders subcategory icon strip. */
+    hubCategoryId?: number;
+  };
   CategoryWebListing: {
     /** Initial `/c/{slug}` segment (category slug for View All; feature hub uses first sub). */
     slug: string;
@@ -45,7 +60,7 @@ export type RootStackParamList = {
   Contact: undefined;
   OrderHistory: { shortcut?: OrderHistoryShortcut } | undefined;
   /** Storefront PDP opened above tabs (e.g. You → new arrivals) so back returns to the same tab. */
-  StorefrontProductWeb: { sku: string };
+  StorefrontProductWeb: { sku: string; seed?: StorefrontProductSeed };
   /** Native checkout — selected cart lines from Redux. */
   Checkout: undefined;
   OrderSuccess: { orderId: string };

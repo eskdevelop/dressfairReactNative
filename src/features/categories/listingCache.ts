@@ -6,7 +6,7 @@ import type { ProductListingPagination } from './categoryApi';
 import type { ListingProductRow } from './categoryModel';
 import { parseListingProductRow } from './categoryModel';
 
-const VERSION = 'v1';
+const VERSION = 'v2';
 /** Page-1 listing cache TTL — short enough to stay fresh, long enough to skip repeat spinners. */
 const TTL_MS = 10 * 60 * 1000;
 
@@ -14,6 +14,13 @@ export type ListingPage1Cache = {
   products: ListingProductRow[];
   pagination: ProductListingPagination;
   savedAt: number;
+};
+
+export type ListingCacheFingerprint = {
+  sort: string;
+  order: string;
+  color: string;
+  size: string;
 };
 
 const memoryByKey = new Map<string, ListingPage1Cache>();
@@ -24,15 +31,15 @@ function resolveCountry(country: CountryCode): CountryCode {
 
 export function listingPage1CacheKey(
   country: CountryCode,
-  cateKey: string,
-  sort: string,
-  order: string,
+  cateSlug: string,
+  fingerprint: ListingCacheFingerprint,
 ): string {
-  return `${VERSION}:${country}:${cateKey}:${sort}:${order}`;
+  const { sort, order, color, size } = fingerprint;
+  return `${VERSION}:${country}:${cateSlug}:${sort}:${order}:${color}:${size}`;
 }
 
-function storageKey(country: CountryCode, cateKey: string, sort: string, order: string): string {
-  return `@dressfair/listing_page1_${listingPage1CacheKey(country, cateKey, sort, order)}`;
+function storageKey(country: CountryCode, cateSlug: string, fingerprint: ListingCacheFingerprint): string {
+  return `@dressfair/listing_page1_${listingPage1CacheKey(country, cateSlug, fingerprint)}`;
 }
 
 function isFresh(entry: ListingPage1Cache): boolean {
@@ -41,11 +48,10 @@ function isFresh(entry: ListingPage1Cache): boolean {
 
 export function getMemoryListingPage1(
   country: CountryCode,
-  cateKey: string,
-  sort: string,
-  order: string,
+  cateSlug: string,
+  fingerprint: ListingCacheFingerprint,
 ): ListingPage1Cache | null {
-  const key = listingPage1CacheKey(country, cateKey, sort, order);
+  const key = listingPage1CacheKey(country, cateSlug, fingerprint);
   const entry = memoryByKey.get(key) ?? null;
   if (!entry || !isFresh(entry)) return null;
   return entry;
@@ -53,14 +59,13 @@ export function getMemoryListingPage1(
 
 export async function loadCachedListingPage1(
   country: CountryCode,
-  cateKey: string,
-  sort: string,
-  order: string,
+  cateSlug: string,
+  fingerprint: ListingCacheFingerprint,
 ): Promise<ListingPage1Cache | null> {
-  const mem = getMemoryListingPage1(country, cateKey, sort, order);
+  const mem = getMemoryListingPage1(country, cateSlug, fingerprint);
   if (mem) return mem;
 
-  const raw = await AsyncStorage.getItem(storageKey(country, cateKey, sort, order));
+  const raw = await AsyncStorage.getItem(storageKey(country, cateSlug, fingerprint));
   if (!raw) return null;
 
   try {
@@ -77,7 +82,7 @@ export async function loadCachedListingPage1(
       : [];
     const pagination = decoded.pagination ?? { currentPage: 1, lastPage: 1 };
     const entry: ListingPage1Cache = { products, pagination, savedAt: decoded.savedAt };
-    memoryByKey.set(listingPage1CacheKey(country, cateKey, sort, order), entry);
+    memoryByKey.set(listingPage1CacheKey(country, cateSlug, fingerprint), entry);
     return entry;
   } catch {
     return null;
@@ -86,9 +91,8 @@ export async function loadCachedListingPage1(
 
 export async function saveCachedListingPage1(
   country: CountryCode,
-  cateKey: string,
-  sort: string,
-  order: string,
+  cateSlug: string,
+  fingerprint: ListingCacheFingerprint,
   products: ListingProductRow[],
   pagination: ProductListingPagination,
 ): Promise<void> {
@@ -98,9 +102,9 @@ export async function saveCachedListingPage1(
     pagination,
     savedAt: Date.now(),
   };
-  const key = listingPage1CacheKey(c, cateKey, sort, order);
+  const key = listingPage1CacheKey(c, cateSlug, fingerprint);
   memoryByKey.set(key, entry);
-  await AsyncStorage.setItem(storageKey(c, cateKey, sort, order), JSON.stringify(entry));
+  await AsyncStorage.setItem(storageKey(c, cateSlug, fingerprint), JSON.stringify(entry));
 }
 
 export function clearMemoryListingCache(): void {

@@ -6,6 +6,7 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
   View,
 } from 'react-native';
@@ -30,6 +31,7 @@ import { cdnAssetUrl, isSupportedRemoteImage } from '@features/categories/catego
 import { displayPriceFor, strikePriceIfAny } from '@features/categories/categoryModel';
 import type { ProductDetail, ProductSizeOption } from '@features/categories/productDetailApi';
 import { fetchProductDetail } from '@features/categories/productDetailApi';
+import { getCachedProductDetail, rememberProductDetail } from '@features/categories/productDetailCache';
 import type { CountryCode } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 
@@ -90,14 +92,25 @@ export function QuickAddToCartSheet({
 
   const loadDetail = useCallback(
     async (targetSku: string, mode: 'initial' | 'switch') => {
-      if (mode === 'initial') setLoading(true);
-      else setSwitching(true);
+      const cached = mode === 'initial' ? getCachedProductDetail(targetSku) : null;
+      if (mode === 'initial') {
+        if (cached) {
+          setDetail(cached);
+          setSelectedSizeId(firstInStockSizeId(cached));
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+      } else {
+        setSwitching(true);
+      }
       setError(null);
       const res = await fetchProductDetail(targetSku);
       if (res.ok) {
+        rememberProductDetail(res.detail);
         setDetail(res.detail);
         setSelectedSizeId(firstInStockSizeId(res.detail));
-      } else if (mode === 'initial') {
+      } else if (mode === 'initial' && !cached) {
         setDetail(null);
         setError(res.error || 'Could not load product');
       }
@@ -259,20 +272,19 @@ export function QuickAddToCartSheet({
   const footerPadBottom = Math.max(insets.bottom + 16, 24);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}
-        onPress={onClose}
-      >
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={styles.overlay} pointerEvents="box-none">
         <Pressable
-          style={{
-            maxHeight: '85%',
-            backgroundColor: '#FFF',
-            borderTopLeftRadius: 16,
-            borderTopRightRadius: 16,
-          }}
-          onPress={e => e.stopPropagation()}
-        >
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss"
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+        />
+        <View style={[styles.sheet, { maxHeight: '85%' }]}>
+          <View style={styles.grabberWrap}>
+            <View style={styles.grabber} />
+          </View>
+
           {loading ? (
             <View style={{ paddingVertical: 48, alignItems: 'center' }}>
               <ActivityIndicator color={colors.brand} />
@@ -571,8 +583,33 @@ export function QuickAddToCartSheet({
               </View>
             </>
           ) : null}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.32)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    overflow: 'hidden',
+  },
+  grabberWrap: {
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  grabber: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#D1D5DB',
+  },
+});

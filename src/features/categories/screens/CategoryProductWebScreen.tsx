@@ -53,6 +53,9 @@ export function CategoryProductWebScreen({ navigation, route }: Props) {
         hideStorefrontMobileHeader
         forceMobileStorefrontUserAgent
         syncWebCartToNative
+        showLoaderUntilFirstPaint
+        waitForStorefrontPdpReady
+        loaderShowLogo={false}
       />
     </View>
   );

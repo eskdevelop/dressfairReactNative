@@ -264,31 +264,6 @@ export function MenuSettingsScreen(): React.ReactElement {
     [country, dispatch],
   );
 
-  const onPaymentMethods = useCallback(() => {
-    analytics.track('settings_payment_methods_tap');
-    Alert.alert(
-      'Payment methods',
-      'Manage saved payment methods on the DressFair website in Safari.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Open website',
-          onPress: () => {
-            const locale = cfg.webCategoriesPath.replace(/\/$/, '');
-            const url = `${cfg.webBaseUrl}${locale}/account`;
-            analytics.track('settings_payment_methods_open_web', { url });
-            Linking.openURL(url).catch(() =>
-              Alert.alert(
-                'Unable to open link',
-                'Please check your connection and try again.',
-              ),
-            );
-          },
-        },
-      ],
-    );
-  }, [cfg.webBaseUrl, cfg.webCategoriesPath]);
-
   const onLegalTerms = useCallback(() => {
     Alert.alert('Legal terms & policies', 'Choose a document to view.', [
       { text: 'Cancel', style: 'cancel' },
@@ -414,9 +389,6 @@ export function MenuSettingsScreen(): React.ReactElement {
 
         <View style={{ height: spacing.md }} />
         <SectionGap />
-
-        <SettingsChevronRow title="Your payment methods" onPress={onPaymentMethods} />
-        <ThinDivider />
 
         <FormSelectField
           placeholder="Select country"

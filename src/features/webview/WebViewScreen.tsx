@@ -43,6 +43,7 @@ import { STOREFRONT_OPEN_LOGIN_MODAL_INJECTION } from './storefrontOpenLoginModa
 import { buildStorefrontFetchAuthInjection } from './storefrontFetchAuthInjection';
 import { buildStorefrontWebSessionHydration } from './storefrontWebSessionHydration';
 import { STOREFRONT_NEXTJS_ERROR_DETECTION, NEXTJS_ERROR_SENTINEL } from './storefrontNextJsErrorDetection';
+import { STOREFRONT_PDP_READY_DETECTION } from './storefrontPdpReadyDetection';
 import { CLEAR_STOREFRONT_WEB_STORAGE_INJECTION } from './storefrontWebStorageClearInjection';
 import { storefrontCheckoutUrl } from '@shared/config/storefrontUrls';
 import {
@@ -149,12 +150,28 @@ type Props = {
    * so parents (e.g. Search tab) can hide chrome when the page has no hits.
    */
   onBrowsingHistoryLayout?: (hasItems: boolean) => void;
+  /** Fires once when embedded page posts the first-paint sentinel (PDP instant shell handoff). */
+  onFirstPaint?: () => void;
   /**
    * Product-detail WebViews only: use a phone User-Agent so responsive (`md:` / width)
    * rules keep a single mobile layout. Otherwise some embedded WebViews surface both
    * the sticky mobile buy bar and desktop buy CTAs.
    */
   forceMobileStorefrontUserAgent?: boolean;
+  /**
+   * Standalone embeds (root-stack PDP, category PDP) have no native splash — show
+   * {@link AppLoader} until the first-paint sentinel fires so users never stare at
+   * a blank WebView while Next.js hydrates.
+   */
+  showLoaderUntilFirstPaint?: boolean;
+  /**
+   * PDP-only: defer the first-paint sentinel until buy UI is in the DOM (Add to cart /
+   * Buy it now). Avoids revealing a half-hydrated Next.js page between loader and
+   * the final interactive PDP.
+   */
+  waitForStorefrontPdpReady?: boolean;
+  /** Spinner-only overlay (no logo) for faster-feeling embed loads like PDP. */
+  loaderShowLogo?: boolean;
 };
 
 const CHECKOUT_PATH_HINT =
@@ -664,8 +681,6 @@ const MOBILE_CATEGORY_MENU_CLICK_JS = `
 true;
 `;
 
-const COMBINED_INJECTION = `${FIRST_PAINT_INJECTION}\n${HIDE_THIRD_PARTY_LOGIN_INJECTION}`;
-
 // Patches fetch/XHR before page scripts load so storefront login POSTs can
 // tunnel `token` into native SecureStore via the bridge.
 const BEFORE_PAGE_SCRIPTS_INJECTION = `${AUTH_CAPTURE_INJECTION_BEFORE_CONTENT}\n${HIDE_THIRD_PARTY_LOGIN_INJECTION}`;
@@ -700,8 +715,12 @@ export function WebViewScreen({
   syncAppCountryFromStorefrontLocale = false,
   hardwareBackOffloadsToNavigation = false,
   forceMobileStorefrontUserAgent = false,
+  showLoaderUntilFirstPaint = false,
+  waitForStorefrontPdpReady = false,
+  loaderShowLogo = true,
   extraBeforeContentScripts,
   onBrowsingHistoryLayout,
+  onFirstPaint,
 }: Props) {
   const navigation = useNavigation();
   const isFocused = useIsFocused();
@@ -721,20 +740,20 @@ export function WebViewScreen({
   const webWriteGeneration = useAppSelector(selectWebWriteGeneration);
   const isFirstCartFocusRef = useRef(true);
   const [canGoBack, setCanGoBack] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(showLoaderUntilFirstPaint);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [webViewInstanceKey, setWebViewInstanceKey] = useState(0);
   const [clearWebStorageOnNextLoad, setClearWebStorageOnNextLoad] = useState(false);
   const hardResetWebView = useCallback(() => {
     setError(null);
-    setLoading(true);
+    setLoading(showLoaderUntilFirstPaint);
     setInitialLoadDone(false);
     setClearWebStorageOnNextLoad(true);
     webViewRef.current?.clearCache?.(true);
     setWebViewInstanceKey(key => key + 1);
     analytics.track('webview_hard_reset');
-  }, []);
+  }, [showLoaderUntilFirstPaint]);
   const beforeContentScripts = useMemo(() => {
     const storageClearPrefix = clearWebStorageOnNextLoad
       ? `${CLEAR_STOREFRONT_WEB_STORAGE_INJECTION}\n`
@@ -834,7 +853,13 @@ export function WebViewScreen({
   );
 
   const injectedJavaScriptBundle = useMemo(() => {
-    const parts = applyWebNavFromStore ? [FIRST_PAINT_INJECTION] : [COMBINED_INJECTION];
+    const paintInjection = waitForStorefrontPdpReady
+      ? STOREFRONT_PDP_READY_DETECTION
+      : FIRST_PAINT_INJECTION;
+    const baseInjection = applyWebNavFromStore
+      ? paintInjection
+      : `${paintInjection}\n${HIDE_THIRD_PARTY_LOGIN_INJECTION}`;
+    const parts = [baseInjection];
     if (applyWebNavFromStore) parts.push(STOREFRONT_NEXTJS_ERROR_DETECTION);
     if (hideStorefrontMobileHeader) parts.push(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
     if (hideStorefrontMobileFooter) {
@@ -860,6 +885,7 @@ export function WebViewScreen({
     openStorefrontLoginModal,
     reportCartCountToNative,
     syncWebCartToNative,
+    waitForStorefrontPdpReady,
   ]);
 
   // Cross-tab navigation channel: when native Search or the Inbox screen asks
@@ -1131,11 +1157,23 @@ export function WebViewScreen({
     const timer = setTimeout(() => {
       if (!initialLoadDone) {
         hideNativeSplashOnce('safety_timeout_15s');
+        if (showLoaderUntilFirstPaint) setLoading(false);
         setError(prev => prev ?? 'Page load is taking too long. Tap Retry.');
       }
     }, 15000);
     return () => clearTimeout(timer);
-  }, [initialLoadDone, isFocused]);
+  }, [initialLoadDone, isFocused, showLoaderUntilFirstPaint]);
+
+  // PDP embeds: never block longer than ~2s on the native overlay — reveal the
+  // WebView as soon as the document is mostly loaded even if the sentinel lags.
+  React.useEffect(() => {
+    if (!showLoaderUntilFirstPaint || !waitForStorefrontPdpReady || !loading) return;
+    const timer = setTimeout(() => {
+      setLoading(false);
+      setInitialLoadDone(true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [showLoaderUntilFirstPaint, waitForStorefrontPdpReady, loading]);
 
   const handleWebMessage = async (event: WebViewMessageEvent) => {
     // Handle the first-paint sentinel BEFORE the host filter so a redirect
@@ -1156,6 +1194,10 @@ export function WebViewScreen({
               scheduleHomeTabWarmPrefetch();
             }
           }
+          if (showLoaderUntilFirstPaint) {
+            setLoading(false);
+          }
+          onFirstPaint?.();
           return;
         }
       }
@@ -1163,6 +1205,7 @@ export function WebViewScreen({
         const parsed = JSON.parse(raw) as { type?: unknown };
         if (parsed && parsed.type === NEXTJS_ERROR_SENTINEL) {
           hideNativeSplashOnce('webview_nextjs_error');
+          if (showLoaderUntilFirstPaint) setLoading(false);
           setError(prev =>
             prev ?? 'Storefront needs a refresh. Tap Retry.',
           );
@@ -1278,6 +1321,7 @@ export function WebViewScreen({
         isLoading={loading}
         errorMessage={error}
         overlay
+        loaderShowLogo={loaderShowLogo}
         onRetry={hardResetWebView}
       >
         <View />
@@ -1312,12 +1356,23 @@ export function WebViewScreen({
             analytics.track('webview_load_start', { path });
           }}
           onLoadProgress={event => {
-            if (loading && event.nativeEvent.progress > 0.25) {
+            if (loading && !showLoaderUntilFirstPaint && event.nativeEvent.progress > 0.25) {
               setLoading(false);
+            }
+            if (
+              loading &&
+              showLoaderUntilFirstPaint &&
+              waitForStorefrontPdpReady &&
+              event.nativeEvent.progress >= 0.82
+            ) {
+              setLoading(false);
+              setInitialLoadDone(true);
             }
           }}
           onLoadEnd={() => {
-            setLoading(false);
+            if (!showLoaderUntilFirstPaint || initialLoadDone) {
+              setLoading(false);
+            }
             if (!disableStorefrontAuthBridge) {
               injectStorefrontBridgeHeaders();
             }
@@ -1390,6 +1445,7 @@ export function WebViewScreen({
             // If the very first load fails, the native splash must still be
             // dropped so the user can see the error UI and retry.
             hideNativeSplashOnce('webview_onError');
+            if (showLoaderUntilFirstPaint) setLoading(false);
             setError('Unable to load page. Please retry.');
           }}
           onShouldStartLoadWithRequest={request => {
