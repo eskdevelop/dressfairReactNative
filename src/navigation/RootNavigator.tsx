@@ -15,6 +15,7 @@ import {
   LazyAddressListScreen,
   LazyAppPermissionsScreen,
   LazyAuthNavigator,
+  LazyCardPaymentWebScreen,
   LazyCheckoutScreen,
   LazyContactScreen,
   LazyDeliveryGuaranteeScreen,
@@ -136,6 +137,15 @@ export function RootNavigator() {
       <Stack.Screen
         name="Checkout"
         component={LazyCheckoutScreen}
+        options={{
+          presentation: 'card',
+          headerShown: false,
+          gestureEnabled: true,
+        }}
+      />
+      <Stack.Screen
+        name="CardPaymentWeb"
+        component={LazyCardPaymentWebScreen}
         options={{
           presentation: 'card',
           headerShown: false,

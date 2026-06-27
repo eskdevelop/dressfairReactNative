@@ -83,6 +83,12 @@ export const LazyCheckoutScreen = lazyScreen(() =>
   import('@features/checkout/screens/CheckoutScreen').then(m => ({ default: m.CheckoutScreen })),
 );
 
+export const LazyCardPaymentWebScreen = lazyScreen(() =>
+  import('@features/checkout/screens/CardPaymentWebScreen').then(m => ({
+    default: m.CardPaymentWebScreen,
+  })),
+);
+
 export const LazyOrderSuccessScreen = lazyScreen(() =>
   import('@features/checkout/screens/OrderSuccessScreen').then(m => ({ default: m.OrderSuccessScreen })),
 );

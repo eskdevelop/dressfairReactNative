@@ -17,6 +17,21 @@ export function getDefaultAddress(
   return profile.addresses[0] ?? null;
 }
 
+/**
+ * Cash on Delivery is final the moment the order is placed — it must always use
+ * the native success flow, never the hosted payment WebView, even if the
+ * backend happens to include a `checkout_url` in the response.
+ */
+export function isCashOnDeliveryMethod(method: CheckoutPaymentMethod): boolean {
+  const className = (method.className ?? '').toLowerCase();
+  const name = method.name.toLowerCase();
+  return (
+    className.includes('cod') ||
+    className.includes('cash') ||
+    /\bcod\b|cash on delivery|cash|delivery/.test(name)
+  );
+}
+
 export function isProfileCompleteForCheckout(profile: CustomerProfile): boolean {
   return (
     profile.firstname.trim().length > 0 &&

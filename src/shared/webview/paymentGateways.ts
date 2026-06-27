@@ -18,6 +18,9 @@ export const PAYMENT_GATEWAY_HOST_SUFFIXES: readonly string[] = [
   'tabby.ai',
   // Tamara
   'tamara.co',
+  // Stripe (hosted Checkout + supporting asset/3DS hosts).
+  'stripe.com',
+  'stripe.network',
   // Card scheme directory servers (3DS) — public, well-known endpoints.
   '3dsecure.io',
   // Common bank issuer ACS hosts that frequently terminate 3DS challenges.

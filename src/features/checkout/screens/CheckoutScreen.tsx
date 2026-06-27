@@ -16,6 +16,7 @@ import { selectCartItems } from '@features/cart/cartSlice';
 import {
   buildPlaceOrderBody,
   getDefaultAddress,
+  isCashOnDeliveryMethod,
   isProfileCompleteForCheckout,
 } from '@features/checkout/buildPlaceOrderBody';
 import { fetchPaymentMethods, placeOrder } from '@features/checkout/checkoutApi';
@@ -227,10 +228,26 @@ export function CheckoutScreen(): React.ReactElement {
       return;
     }
 
-    await removeSelectedCartLinesAfterOrder(dispatch, country, allItems);
-    analytics.track('checkout_native_order_success', { order_id: result.orderId });
     setPriceSheetVisible(false);
     setItemDetailsSheetVisible(false);
+
+    // Card / online methods return a hosted Stripe Checkout URL: the order is
+    // not paid yet, so keep the cart and send the user to the payment WebView.
+    // The cart is cleared and OrderSuccess shown only after payment completes.
+    // COD is always final on placement and uses the native success flow below,
+    // even if the backend includes a checkout_url in its response.
+    if (result.checkoutUrl && !isCashOnDeliveryMethod(selectedPayment)) {
+      analytics.track('checkout_card_payment_open', { order_id: result.orderId });
+      navigation.replace('CardPaymentWeb', {
+        checkoutUrl: result.checkoutUrl,
+        orderId: result.orderId,
+      });
+      return;
+    }
+
+    // Cash on Delivery (and any method without a payment URL): order is final.
+    await removeSelectedCartLinesAfterOrder(dispatch, country, allItems);
+    analytics.track('checkout_native_order_success', { order_id: result.orderId });
     navigation.replace('OrderSuccess', { orderId: result.orderId });
   }, [
     allItems,

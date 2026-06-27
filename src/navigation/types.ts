@@ -63,6 +63,8 @@ export type RootStackParamList = {
   StorefrontProductWeb: { sku: string; seed?: StorefrontProductSeed };
   /** Native checkout — selected cart lines from Redux. */
   Checkout: undefined;
+  /** Hosted Stripe Checkout for card orders; returns to OrderSuccess on payment. */
+  CardPaymentWeb: { checkoutUrl: string; orderId: string };
   OrderSuccess: { orderId: string };
   DeliveryGuarantee: undefined;
   PurchaseProtection: undefined;

@@ -20,7 +20,9 @@ import { cartTotalQuantity, parseWebCartItems } from './parseWebCartItems';
 import {
   clearPersistedCart,
   loadPersistedCart,
+  loadPersistedDeletedLines,
   savePersistedCart,
+  savePersistedDeletedLines,
 } from './cartPersistence';
 import { cartContentsMatchNative, filterStaleWebCartRows, shouldApplyWebCartSnapshot } from './cartSyncUtils';
 import {
@@ -40,11 +42,22 @@ function syncBadge(dispatch: AppDispatch, items: CartLineItem[]): void {
   dispatch(setCartBadgeQuantity(cartTotalQuantity(items)));
 }
 
+/** Persist the current deleted-lines guard so it survives a reload / cold start. */
+function persistDeletedLines(country: CountryCode): void {
+  void savePersistedDeletedLines(country, store.getState().cart.recentlyDeletedLines);
+}
+
 export async function hydrateNativeCart(
   dispatch: AppDispatch,
   country: CountryCode,
 ): Promise<void> {
-  const items = await loadPersistedCart(country);
+  const [items, deletedLines] = await Promise.all([
+    loadPersistedCart(country),
+    loadPersistedDeletedLines(country),
+  ]);
+  if (deletedLines.length > 0) {
+    dispatch(setRecentlyDeletedLines(deletedLines));
+  }
   dispatch(setCartItems(items));
   syncBadge(dispatch, items);
   dispatch(setCartHydrated(true));
@@ -133,6 +146,7 @@ export async function addProductToCartAndPersist(
   dispatch(setRecentlyDeletedLines(
     store.getState().cart.recentlyDeletedLines.filter(d => d.lineKey !== incoming.lineKey),
   ));
+  persistDeletedLines(country);
 
   const existingIdx = currentItems.findIndex(r => r.lineKey === incoming.lineKey);
   let next: CartLineItem[];
@@ -214,6 +228,7 @@ export async function removeCartLineAndPersist(
   currentItems: CartLineItem[],
 ): Promise<void> {
   dispatch(markDeletedLineKeys([lineKey]));
+  persistDeletedLines(country);
   const next = currentItems.filter(r => r.lineKey !== lineKey);
   await persistCartItems(dispatch, country, next);
 }
@@ -268,7 +283,10 @@ export async function removeSelectedCartLinesAndPersist(
   currentItems: CartLineItem[],
 ): Promise<void> {
   const removedKeys = currentItems.filter(row => row.isSelected).map(row => row.lineKey);
-  if (removedKeys.length > 0) dispatch(markDeletedLineKeys(removedKeys));
+  if (removedKeys.length > 0) {
+    dispatch(markDeletedLineKeys(removedKeys));
+    persistDeletedLines(country);
+  }
   const next = currentItems.filter(row => !row.isSelected);
   await persistCartItems(dispatch, country, next);
 }

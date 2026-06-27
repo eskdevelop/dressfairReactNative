@@ -36,7 +36,17 @@ export type PlaceOrderBody = {
 };
 
 export type PlaceOrderResult =
-  | { ok: true; orderId: string }
+  | {
+      ok: true;
+      orderId: string;
+      /**
+       * Present for card / online payment methods: the hosted payment page
+       * (e.g. Stripe Checkout) the user must complete before the order is paid.
+       * Absent for Cash on Delivery, where the order is final immediately.
+       */
+      checkoutUrl?: string;
+      sessionId?: string;
+    }
   | { ok: false; message: string };
 
 export type OrderSuccessProduct = {

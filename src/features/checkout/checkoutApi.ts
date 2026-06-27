@@ -135,14 +135,25 @@ function parsePlaceOrderResponse(raw: unknown): PlaceOrderResult {
             : 'Failed to place order';
     return { ok: false, message };
   }
+  const inner = asRecord(data.data);
   const orderId =
     data.order_id != null
       ? String(data.order_id)
-      : asRecord(data.data)?.order_id != null
-        ? String(asRecord(data.data)!.order_id)
+      : inner?.order_id != null
+        ? String(inner.order_id)
         : '';
   if (!orderId) return { ok: false, message: 'Order placed but no order id returned' };
-  return { ok: true, orderId };
+
+  // Card / online payment methods return a hosted payment URL (Stripe Checkout)
+  // that the user must complete; COD omits it and the order is final.
+  const checkoutUrlRaw = data.checkout_url ?? inner?.checkout_url;
+  const sessionIdRaw = data.session_id ?? inner?.session_id;
+  const checkoutUrl =
+    typeof checkoutUrlRaw === 'string' && checkoutUrlRaw.trim() ? checkoutUrlRaw.trim() : undefined;
+  const sessionId =
+    typeof sessionIdRaw === 'string' && sessionIdRaw.trim() ? sessionIdRaw.trim() : undefined;
+
+  return { ok: true, orderId, checkoutUrl, sessionId };
 }
 
 export async function placeOrder(body: PlaceOrderBody): Promise<PlaceOrderResult> {
