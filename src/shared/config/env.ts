@@ -151,13 +151,17 @@ const configs: Record<CountryCode, EnvConfig> = {
       'https://backend.dressfair.om/index.php?route=extension/opencart',
     apiHost: 'https://backend.dressfair.om',
     apiRoutePrefix: '/index.php?route=extension/opencart',
-    webBaseUrl: 'https://www.dressfair.om',
-    // Oman locale may load on dressfair.com/om before we re-base to dressfair.om; keep apex allowlisted.
+    // Oman is served by the same Next.js/React storefront as UAE/KSA via the
+    // path-locale `/om` (mirrors KSA's `/sa`). The standalone `dressfair.om`
+    // host is a separate Angular SPA where none of the app's React-targeted
+    // WebView injections (.mobile-header hide, footer/social hiders, PDP-ready
+    // detection, cart bridge) match, so the storefront header overlaps the PDP.
+    webBaseUrl: 'https://www.dressfair.com',
     allowedDomains: [
-      'dressfair.om',
-      'www.dressfair.om',
       'dressfair.com',
       'www.dressfair.com',
+      'dressfair.om',
+      'www.dressfair.om',
       'backend.dressfair.om',
     ],
     webLoginPath: '/login',
@@ -167,14 +171,12 @@ const configs: Record<CountryCode, EnvConfig> = {
     helpSupportPath: '/contact',
     accountDeletionPath: '/account/delete',
     supportEmail: 'support@dressfair.om',
-    // CONFIRM: Oman storefront locale prefix. `/om/p/<sku>` is the assumed
-    // mirror of the UAE pattern. Update once verified on the live site.
     productPathPrefix: '/om/p',
     storefrontCheckoutApiBaseUrl: 'https://9681695.ecomplug.com',
     mobileCategoriesApiBaseUrl: 'https://9681695.ecomplug.com',
     webNewInPath: '/om/new-in',
     webCategoriesPath: '/om',
-    webCartUrl: 'https://www.dressfair.om/om/cart',
+    webCartUrl: 'https://www.dressfair.com/om/cart',
     storefrontCitiesCountryId: '162',
     customerAvatarCdnBaseUrl:
       'https://ecomdoor-images.s3.ap-southeast-1.amazonaws.com',

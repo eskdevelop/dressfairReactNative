@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@app/theme/tokens';
 import {
@@ -37,6 +38,7 @@ export function CheckoutAddressSheet({
   onRefreshProfile,
   navigation,
 }: Props): React.ReactElement {
+  const insets = useSafeAreaInsets();
   const [busyId, setBusyId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CustomerAddressRecord | null>(null);
 
@@ -116,7 +118,7 @@ export function CheckoutAddressSheet({
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             maxHeight: '85%',
-            paddingBottom: spacing.lg,
+            paddingBottom: insets.bottom + spacing.lg,
           }}
         >
           <View

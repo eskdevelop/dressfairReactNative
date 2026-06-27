@@ -209,7 +209,7 @@ export function CategoryProductListingScreen({
     void loadPage(page + 1, true);
   }, [canLoadMore, loadPage, loading, moreLoading, page]);
 
-  const searchLabel = searchPlaceholder?.trim() || titleHint?.trim() || cateSlug;
+  const searchLabel = titleHint?.trim() || searchPlaceholder?.trim() || cateSlug;
 
   const openPdp = useCallback(
     (row: ListingProductRow) => {

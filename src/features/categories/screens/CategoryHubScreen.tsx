@@ -287,11 +287,11 @@ export function CategoryHubScreen({ navigation }: Props) {
     if (!selected) return;
     const slug = firstSubcategoryListingSlug(selected);
     if (slug) {
-      openNativeListing(slug, { titleHint: 'View All', hubCategory: selected });
+      openNativeListing(slug, { titleHint: 'All', hubCategory: selected });
       return;
     }
     const key = cateKeyForCategoryListing(selected);
-    if (key) openNativeListing(key, { titleHint: 'View All', hubCategory: selected });
+    if (key) openNativeListing(key, { titleHint: 'All', hubCategory: selected });
   }, [openNativeListing, selected]);
 
   const onSubcategoryPress = useCallback(
