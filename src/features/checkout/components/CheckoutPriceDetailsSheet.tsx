@@ -24,6 +24,9 @@ type Props = {
   onSubmit: () => void;
 };
 
+const TILE_W = 56;
+const TILE_H = 72;
+
 function thumbUri(cdnBase: string, image?: string): string | null {
   if (!image?.trim()) return null;
   const path = image.trim();
@@ -46,8 +49,6 @@ export function CheckoutPriceDetailsSheet({
   onSubmit,
 }: Props): React.ReactElement {
   const bottomInset = useTabBarBottomInset();
-  const first = items[0];
-  const uri = first ? thumbUri(cdnBase, first.image) : null;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -99,26 +100,55 @@ export function CheckoutPriceDetailsSheet({
               Cart ({items.length})
             </Text>
 
-            {first ? (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  paddingHorizontal: spacing.md,
-                  paddingVertical: spacing.sm,
-                  alignItems: 'center',
-                  gap: spacing.sm,
-                }}
-              >
-                {uri ? (
-                  <Image source={{ uri }} style={{ width: 56, height: 72 }} resizeMode="cover" />
-                ) : (
-                  <View style={{ width: 56, height: 72, backgroundColor: '#F3F4F6' }} />
-                )}
-                <Text style={{ fontSize: 14, fontWeight: '700' }}>
-                  {currency} {(first.price * first.quantity).toFixed(2)}
-                </Text>
-              </View>
-            ) : null}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{
+                paddingHorizontal: spacing.md,
+                paddingVertical: spacing.sm,
+              }}
+            >
+              {items.map(row => {
+                const uri = thumbUri(cdnBase, row.image);
+                return (
+                  <View
+                    key={row.lineKey}
+                    style={{ width: TILE_W, alignItems: 'center', marginRight: 10 }}
+                  >
+                    {uri ? (
+                      <Image
+                        source={{ uri }}
+                        style={{ width: TILE_W, height: TILE_H, backgroundColor: '#F3F4F6' }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          width: TILE_W,
+                          height: TILE_H,
+                          backgroundColor: '#F3F4F6',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <Ionicons name="image-outline" size={18} color="#9CA3AF" />
+                      </View>
+                    )}
+                    <Text
+                      style={{
+                        marginTop: 5,
+                        fontSize: 12,
+                        fontWeight: '700',
+                        color: '#111',
+                        textAlign: 'center',
+                      }}
+                    >
+                      {currency} {row.price.toFixed(2)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
 
             <CheckoutOrderSummary
               currency={currency}

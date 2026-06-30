@@ -1,7 +1,7 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, BackHandler, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
@@ -12,10 +12,13 @@ import { removeSelectedCartLinesAfterOrder } from '@features/cart/cartActions';
 import { selectCartItems } from '@features/cart/cartSlice';
 import type { CountryCode } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
+import { AppActionDialog } from '@shared/ui/AppActionDialog';
 import { safeOpenExternalUrl } from '@shared/webview/externalLinks';
 import type { RootStackParamList } from '@navigation/types';
 
 import { classifyStripeReturn, isStripeHost } from '../stripeReturnPolicy';
+
+type CancelDialog = 'none' | 'confirm' | 'cancelled';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'CardPaymentWeb'>;
 type Rt = RouteProp<RootStackParamList, 'CardPaymentWeb'>;
@@ -35,8 +38,12 @@ export function CardPaymentWebScreen(): React.ReactElement {
   const country = useAppSelector(s => s.app.country) as CountryCode;
   const items = useAppSelector(selectCartItems);
   const [loading, setLoading] = useState(true);
+  const [dialog, setDialog] = useState<CancelDialog>('none');
   // Guards the one-shot transition so duplicate nav events don't double-fire.
   const resolvedRef = useRef(false);
+  // Mirror of `dialog` for the hardware-back handler (avoids stale closures).
+  const dialogRef = useRef<CancelDialog>('none');
+  dialogRef.current = dialog;
 
   const onSuccess = useCallback(() => {
     if (resolvedRef.current) return;
@@ -46,11 +53,24 @@ export function CardPaymentWebScreen(): React.ReactElement {
     navigation.replace('OrderSuccess', { orderId });
   }, [country, dispatch, items, navigation, orderId]);
 
-  const onCancel = useCallback(() => {
+  // User-initiated back (header arrow / hardware back): confirm before cancelling.
+  const requestCancel = useCallback(() => {
+    if (resolvedRef.current) return;
+    setDialog('confirm');
+  }, []);
+
+  // Stripe redirected to its cancel_url, or the user confirmed cancel.
+  const showCancelled = useCallback(() => {
+    if (resolvedRef.current) return;
+    setDialog('cancelled');
+  }, []);
+
+  // Final cancel action: leave the payment flow and return to the cart.
+  const onCancelConfirmed = useCallback(() => {
     if (resolvedRef.current) return;
     resolvedRef.current = true;
     analytics.track('checkout_card_payment_cancel', { order_id: orderId });
-    navigation.goBack();
+    navigation.navigate('MainTabs', { screen: 'Cart' });
   }, [navigation, orderId]);
 
   // Classify top-level navigations: stay on Stripe, or hand back to native on
@@ -64,9 +84,22 @@ export function CardPaymentWebScreen(): React.ReactElement {
       console.log('[card-discovery] stripe nav url=%s kind=%s', url, classifyStripeReturn(url));
       const kind = classifyStripeReturn(url);
       if (kind === 'success') onSuccess();
-      else if (kind === 'cancel') onCancel();
+      else if (kind === 'cancel') showCancelled();
     },
-    [onCancel, onSuccess],
+    [onSuccess, showCancelled],
+  );
+
+  // Android hardware back: intercept so it triggers the cancel confirm rather
+  // than silently popping the screen mid-payment.
+  useFocusEffect(
+    useCallback(() => {
+      const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (resolvedRef.current) return false;
+        if (dialogRef.current === 'none') requestCancel();
+        return true;
+      });
+      return () => sub.remove();
+    }, [requestCancel]),
   );
 
   return (
@@ -81,7 +114,7 @@ export function CardPaymentWebScreen(): React.ReactElement {
           borderBottomColor: '#EEEEEE',
         }}
       >
-        <Pressable accessibilityRole="button" onPress={onCancel} hitSlop={12}>
+        <Pressable accessibilityRole="button" onPress={requestCancel} hitSlop={12}>
           <Ionicons name="chevron-back" size={28} color="#111" />
         </Pressable>
         <Text style={{ marginLeft: 8, fontSize: 16, fontWeight: '600', color: '#111' }}>
@@ -117,7 +150,7 @@ export function CardPaymentWebScreen(): React.ReactElement {
               return false;
             }
             if (kind === 'cancel') {
-              onCancel();
+              showCancelled();
               return false;
             }
             // Unknown cross-origin (e.g. bank 3DS we don't recognise): keep it
@@ -144,6 +177,28 @@ export function CardPaymentWebScreen(): React.ReactElement {
           </View>
         ) : null}
       </View>
+
+      <AppActionDialog
+        visible={dialog === 'confirm'}
+        title="Cancel payment?"
+        message={`Your order #${orderId} hasn't been paid yet. Do you want to cancel the payment?`}
+        icon="card-outline"
+        confirmLabel="Cancel payment"
+        cancelLabel="Keep paying"
+        onConfirm={() => setDialog('cancelled')}
+        onCancel={() => setDialog('none')}
+      />
+
+      <AppActionDialog
+        visible={dialog === 'cancelled'}
+        title="Payment not completed"
+        message={`Order #${orderId} was not purchased because the payment was cancelled.`}
+        icon="close-circle-outline"
+        confirmLabel="Back to cart"
+        hideCancel
+        onConfirm={onCancelConfirmed}
+        onCancel={onCancelConfirmed}
+      />
     </SafeAreaView>
   );
 }

@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { MaintenanceScreen } from '@features/shell/screens/MaintenanceScreen';
 import { OfflineScreen } from '@features/shell/screens/OfflineScreen';
 import { SplashScreen } from '@features/shell/screens/SplashScreen';
+import { OrderDetailScreen } from '@features/orders/OrderDetailScreen';
 import { MainTabs } from '@navigation/MainTabs';
 import { StorefrontProductWebScreen } from '@features/webview/StorefrontProductWebScreen';
 import { PdpWebPrewarmHost } from '@features/webview/PdpWebPrewarmHost';
@@ -86,6 +87,11 @@ export function RootNavigator() {
       <Stack.Screen
         name="OrderHistory"
         component={LazyOrderHistoryScreen}
+        options={{ presentation: 'card' }}
+      />
+      <Stack.Screen
+        name="OrderDetail"
+        component={OrderDetailScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen

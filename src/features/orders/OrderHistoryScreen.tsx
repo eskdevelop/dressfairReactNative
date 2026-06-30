@@ -153,10 +153,10 @@ export function OrderHistoryScreen() {
       showsHorizontalScrollIndicator={false}
       bounces={false}
       contentContainerStyle={{
-        paddingHorizontal: 10,
-        paddingTop: 6,
-        paddingBottom: 0,
-        alignItems: 'flex-end',
+        paddingHorizontal: spacing.sm,
+        paddingTop: spacing.md,
+        paddingBottom: spacing.sm,
+        alignItems: 'center',
       }}
     >
       {TRACK_TABS.map(tab => {
@@ -168,10 +168,12 @@ export function OrderHistoryScreen() {
             accessibilityState={{ selected: active }}
             onPress={() => onTabPress(tab.id)}
             style={{
-              marginHorizontal: 8,
-              paddingBottom: 10,
-              borderBottomWidth: active ? 3 : 0,
-              borderBottomColor: active ? colors.brand : 'transparent',
+              marginHorizontal: 6,
+              paddingHorizontal: 4,
+              paddingTop: spacing.xs,
+              paddingBottom: spacing.sm,
+              alignItems: 'center',
+              minWidth: 72,
             }}
           >
             <Text
@@ -179,10 +181,20 @@ export function OrderHistoryScreen() {
                 fontSize: 13,
                 fontWeight: '600',
                 color: active ? colors.brand : colors.textSecondary,
+                lineHeight: 18,
               }}
             >
               {tab.label}
             </Text>
+            <View
+              style={{
+                marginTop: spacing.sm,
+                height: 3,
+                width: '100%',
+                borderRadius: 2,
+                backgroundColor: active ? colors.brand : 'transparent',
+              }}
+            />
           </TouchableOpacity>
         );
       })}
@@ -196,7 +208,8 @@ export function OrderHistoryScreen() {
         alignItems: 'center',
         paddingHorizontal: spacing.md,
         paddingVertical: spacing.sm,
-        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: colors.border,
       }}
     >
       <TouchableOpacity
@@ -254,7 +267,7 @@ export function OrderHistoryScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.pageMuted }} edges={['top']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }} edges={['top']}>
       {renderHeaderBar()}
       {!isAuthenticated ? (
         <View
@@ -263,6 +276,7 @@ export function OrderHistoryScreen() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: spacing.xl,
+            backgroundColor: colors.pageMuted,
           }}
         >
           <Ionicons name="bag-handle-outline" size={48} color={colors.textMuted} />
@@ -308,7 +322,14 @@ export function OrderHistoryScreen() {
       ) : isAuthenticated &&
         orders.length === 0 &&
         (fetchStatus === 'idle' || fetchStatus === 'loading') ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.pageMuted,
+          }}
+        >
           <ActivityIndicator color={colors.brand} />
         </View>
       ) : fetchStatus === 'error' && orders.length === 0 ? (
@@ -318,6 +339,7 @@ export function OrderHistoryScreen() {
             alignItems: 'center',
             justifyContent: 'center',
             padding: spacing.xl,
+            backgroundColor: colors.pageMuted,
           }}
         >
           <Ionicons name="alert-circle-outline" size={36} color={colors.danger} />
@@ -348,8 +370,16 @@ export function OrderHistoryScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        <View style={{ flex: 1 }}>
-          <View style={{ backgroundColor: '#FFFFFF' }}>{renderTrackTabs()}</View>
+        <View style={{ flex: 1, backgroundColor: colors.pageMuted }}>
+          <View
+            style={{
+              backgroundColor: colors.background,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+            }}
+          >
+            {renderTrackTabs()}
+          </View>
           <ScrollView
             ref={pagerRef}
             horizontal

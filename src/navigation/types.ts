@@ -2,6 +2,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 
 import type { CustomerProfile, CustomerAddressRecord } from '@features/account/types';
 import type { OrderHistoryShortcut } from '@features/orders/orderShortcutFilter';
+import type { Order, OrderCustomer } from '@features/orders/types';
 
 /** Instant PDP shell data from a listing tile — shown while the WebView hydrates. */
 export type StorefrontProductSeed = {
@@ -59,6 +60,7 @@ export type RootStackParamList = {
   Faq: undefined;
   Contact: undefined;
   OrderHistory: { shortcut?: OrderHistoryShortcut } | undefined;
+  OrderDetail: { order: Order; customer?: OrderCustomer };
   /** Storefront PDP opened above tabs (e.g. You → new arrivals) so back returns to the same tab. */
   StorefrontProductWeb: { sku: string; seed?: StorefrontProductSeed };
   /** Native checkout — selected cart lines from Redux. */

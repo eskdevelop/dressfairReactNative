@@ -4,10 +4,13 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, spacing } from '@app/theme/tokens';
 import type { CartLineItem } from '@features/cart/cartTypes';
@@ -116,22 +119,29 @@ export function ManageCartSheet({
   onToggleAll,
   onRemoveSelected,
 }: Props): React.ReactElement {
+  const insets = useSafeAreaInsets();
   const allSelected = isAllCartSelectedForCheckout(items);
+  const selectedCount = items.filter(row => row.isSelected).length;
+  const canRemove = selectedCount > 0;
+  const footerPadBottom = Math.max(insets.bottom + spacing.md, spacing.lg);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }}
-        onPress={onClose}
-      >
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close manage cart"
+          onPress={onClose}
+          style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.45)' }]}
+        />
+        <View
           style={{
             maxHeight: '85%',
             backgroundColor: '#FFF',
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
+            zIndex: 1,
           }}
-          onPress={e => e.stopPropagation()}
         >
           <View
             style={{
@@ -176,30 +186,45 @@ export function ManageCartSheet({
                   flexDirection: 'row',
                   alignItems: 'center',
                   paddingHorizontal: spacing.lg,
-                  paddingVertical: spacing.md,
+                  paddingTop: spacing.md,
+                  paddingBottom: footerPadBottom,
+                  backgroundColor: '#FFFFFF',
                 }}
               >
                 <CartCheckbox checked={allSelected} onPress={onToggleAll} />
                 <Text style={{ marginLeft: 4, fontSize: 14, color: '#111' }}>All</Text>
                 <View style={{ flex: 1 }} />
-                <Pressable
+                <TouchableOpacity
                   accessibilityRole="button"
+                  accessibilityLabel="Remove selected items"
+                  accessibilityState={{ disabled: !canRemove }}
+                  activeOpacity={0.75}
+                  disabled={!canRemove}
                   onPress={onRemoveSelected}
                   style={{
                     paddingHorizontal: 22,
                     paddingVertical: 12,
                     borderRadius: 24,
                     borderWidth: 1,
-                    borderColor: colors.brand,
+                    borderColor: canRemove ? colors.brand : colors.border,
+                    opacity: canRemove ? 1 : 0.45,
                   }}
                 >
-                  <Text style={{ color: colors.brand, fontSize: 14, fontWeight: '500' }}>Remove</Text>
-                </Pressable>
+                  <Text
+                    style={{
+                      color: canRemove ? colors.brand : colors.textMuted,
+                      fontSize: 14,
+                      fontWeight: '500',
+                    }}
+                  >
+                    Remove
+                  </Text>
+                </TouchableOpacity>
               </View>
             </>
           ) : null}
-        </Pressable>
-      </Pressable>
+        </View>
+      </View>
     </Modal>
   );
 }

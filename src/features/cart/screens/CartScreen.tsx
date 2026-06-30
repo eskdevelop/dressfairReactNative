@@ -179,13 +179,14 @@ export function CartScreen(): React.ReactElement {
   );
 
   const onRemoveSelected = useCallback(() => {
-    const selectedCount = availableItems.filter(row => row.isSelected).length;
+    const selectedCount = items.filter(row => row.isSelected).length;
     if (selectedCount === 0) {
       Alert.alert('', 'Please select items to remove.');
       return;
     }
+    setManageVisible(false);
     setBulkRemoveConfirm(true);
-  }, [availableItems]);
+  }, [items]);
 
   const confirmBulkRemove = useCallback(() => {
     setBulkRemoveConfirm(false);
@@ -217,6 +218,7 @@ export function CartScreen(): React.ReactElement {
   const selectedNormalSubtotal = selectedTotalNormalPrice(availableItems);
   const checkoutTotal = totalWithShippingCharges(selectedSubtotal, shippingConfig);
   const selectedCount = availableItems.filter(row => row.isSelected).length;
+  const bulkRemoveCount = items.filter(row => row.isSelected).length;
   const allSelected =
     availableItems.length > 0 && isAllCartSelectedForCheckout(availableItems);
   const showStrike =
@@ -408,7 +410,7 @@ export function CartScreen(): React.ReactElement {
 
       <AppDeleteDialog
         visible={bulkRemoveConfirm}
-        message={`Remove ${selectedCount} selected item${selectedCount === 1 ? '' : 's'} from your cart?`}
+        message={`Remove ${bulkRemoveCount} selected item${bulkRemoveCount === 1 ? '' : 's'} from your cart?`}
         confirmLabel="Remove items"
         onConfirm={confirmBulkRemove}
         onCancel={() => setBulkRemoveConfirm(false)}

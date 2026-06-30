@@ -9,13 +9,17 @@ import {
   View,
 } from 'react-native';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { colors, radii } from '@app/theme/tokens';
-import { openWebPath } from '@navigation/navigationRef';
+import type { RootStackParamList } from '@navigation/types';
 import { analytics } from '@shared/observability/analytics';
 
 import { statusDisplayUpper } from './orderStatusPartition';
 import type { Order, OrderCustomer, OrderProduct } from './types';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 type Props = {
   order: Order;
@@ -112,6 +116,7 @@ function ProductBlock({
 }
 
 export function OrderTrackCard({ order, customer }: Props): React.ReactElement {
+  const navigation = useNavigation<Nav>();
   const [expanded, setExpanded] = useState(false);
   const customerName = customer?.customerName?.trim() || '-';
   const area = customer?.customerArea?.trim() || '-';
@@ -122,9 +127,9 @@ export function OrderTrackCard({ order, customer }: Props): React.ReactElement {
   }, []);
 
   const openDetails = useCallback(() => {
-    analytics.track('orders_item_opened', { orderId: order.orderId });
-    openWebPath(`/account/order-info/${order.orderId}`);
-  }, [order.orderId]);
+    analytics.track('orders_detail_opened', { orderId: order.orderId });
+    navigation.navigate('OrderDetail', { order, customer });
+  }, [customer, navigation, order]);
 
   const products = order.products;
   const textTrim =
@@ -203,40 +208,37 @@ export function OrderTrackCard({ order, customer }: Props): React.ReactElement {
               order={order}
             />
           ))}
-          <Pressable onPress={openDetails} hitSlop={8}>
-            <Text
-              style={{
-                fontSize: 11,
-                fontWeight: '600',
-                color: colors.brand,
-                textAlign: 'center',
-                paddingVertical: 8,
-              }}
-            >
-              View order on website
-            </Text>
-          </Pressable>
         </View>
       ) : null}
 
       {expanded && products.length === 0 ? (
         <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
           <Text style={{ fontSize: 11, color: colors.textMuted }}>No line items for this order.</Text>
-          <Pressable onPress={openDetails} hitSlop={8}>
-            <Text
-              style={{
-                marginTop: 8,
-                fontSize: 11,
-                fontWeight: '600',
-                color: colors.brand,
-                textAlign: 'center',
-              }}
-            >
-              View order on website
-            </Text>
-          </Pressable>
         </View>
       ) : null}
+
+      <Pressable
+        onPress={openDetails}
+        accessibilityRole="button"
+        accessibilityLabel="Show order details"
+        style={{
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          paddingVertical: 10,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: 11,
+            fontWeight: '600',
+            color: colors.brand,
+            textAlign: 'center',
+            ...textTrim,
+          }}
+        >
+          Show details
+        </Text>
+      </Pressable>
     </View>
   );
 }

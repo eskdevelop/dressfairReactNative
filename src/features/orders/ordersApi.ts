@@ -2,6 +2,7 @@ import axios from 'axios';
 
 import { store } from '@app/store';
 import { clearStoredUserSession } from '@features/auth/authSync';
+import { cartLineImageUri } from '@features/cart/cartUtils';
 import { getEnvConfig } from '@shared/config/env';
 import { storefrontCheckoutUrl } from '@shared/config/storefrontUrls';
 import { buildStorefrontAuthHeaders } from '@shared/network/storefrontAuthHeaders';
@@ -22,14 +23,10 @@ const buildOrdersUrl = (): string => storefrontCheckoutUrl('orders');
 
 const resolveImageUrl = (raw: unknown): string => {
   if (typeof raw !== 'string' || raw.length === 0) return '';
-  if (raw.startsWith('https://') || raw.startsWith('http://')) return raw;
   const country = store.getState().app.country;
-  const { apiHost } = getEnvConfig(country);
-  // OpenCart serves catalogue product images out of `/image/<relativePath>`
-  // off the same host that exposes the REST plugin. The API returns
-  // `productimages/foo.jpg`, which we prefix to a fully-qualified URL.
-  const trimmed = raw.replace(/^\/+/, '');
-  return `${apiHost}/image/${trimmed}`;
+  const cdnBase = getEnvConfig(country).customerAvatarCdnBaseUrl;
+  // Order line items use the same `productimages/...` paths as cart and PLP.
+  return cartLineImageUri(raw, cdnBase) ?? '';
 };
 
 const asString = (value: unknown): string =>
@@ -45,9 +42,14 @@ const asNumber = (value: unknown, fallback = 0): number => {
 };
 
 const mapImage = (raw: unknown): OrderProductImage | null => {
+  if (typeof raw === 'string') {
+    const url = resolveImageUrl(raw);
+    if (url.length === 0) return null;
+    return { url };
+  }
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  const url = resolveImageUrl(r.url);
+  const url = resolveImageUrl(r.url ?? r.image);
   if (url.length === 0) return null;
   const id =
     typeof r.id === 'number' && Number.isFinite(r.id) ? r.id : undefined;
