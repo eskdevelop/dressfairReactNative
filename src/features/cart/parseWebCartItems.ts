@@ -16,19 +16,78 @@ export function cartLineKey(sku: string, productOptionId: number): string {
   return `${sku}::${productOptionId}`;
 }
 
+/** Unwrap `localStorage.cart` payloads that are not a bare array. */
+export function normalizeWebCartPayload(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (!raw || typeof raw !== 'object') return [];
+  const o = raw as Record<string, unknown>;
+  for (const key of ['items', 'data', 'products', 'cart', 'lines']) {
+    const nested = o[key];
+    if (Array.isArray(nested)) return nested;
+  }
+  const values = Object.values(o);
+  if (
+    values.length > 0 &&
+    values.every(v => v != null && typeof v === 'object' && !Array.isArray(v))
+  ) {
+    return values;
+  }
+  return [];
+}
+
+function coerceWebCartRow(row: unknown): WebCartRawItem | null {
+  if (!row || typeof row !== 'object') return null;
+  const r = row as Record<string, unknown>;
+  const sv = (...keys: string[]): string | number | undefined => {
+    for (const k of keys) {
+      const v = r[k];
+      if (v != null && (typeof v === 'string' || typeof v === 'number')) return v;
+    }
+    return undefined;
+  };
+  const str = (...keys: string[]): string | undefined => {
+    const v = sv(...keys);
+    return v == null ? undefined : String(v);
+  };
+  return {
+    ...(r as WebCartRawItem),
+    id: sv('id', 'product_id', 'productId'),
+    sku: str('sku', 'model', 'product_sku', 'productSku'),
+    name: str('name', 'product_name', 'productName', 'title'),
+    product_option_id: sv(
+      'product_option_id',
+      'productOptionId',
+      'option_id',
+      'optionId',
+      'variant_id',
+      'variantId',
+    ),
+    quantity: sv('quantity', 'qty'),
+    price: sv('price', 'unit_price', 'unitPrice', 'special_price', 'specialPrice'),
+    normal_price: sv('normal_price', 'normalPrice', 'compare_at_price', 'compareAtPrice'),
+    image: str('image', 'thumb', 'thumbnail'),
+    size: str('size', 'option_label', 'optionLabel'),
+    color: str('color', 'option_color', 'optionColor'),
+  };
+}
+
 /** Maps `localStorage.cart` JSON array → native cart lines. */
 export function parseWebCartItems(raw: unknown): CartLineItem[] {
-  if (!Array.isArray(raw)) return [];
+  const rows = normalizeWebCartPayload(raw);
 
   const out: CartLineItem[] = [];
-  for (const row of raw) {
-    if (!row || typeof row !== 'object') continue;
-    const w = row as WebCartRawItem;
-    const sku = asStr(w.sku);
-    const name = asStr(w.name);
-    const productId = asNum(w.id);
-    const productOptionId = asNum(w.product_option_id ?? w.productOptionId);
-    if (!sku || !name || productId <= 0) continue;
+  for (const row of rows) {
+    const w = coerceWebCartRow(row);
+    if (!w) continue;
+    const sku = asStr(w.sku) || asStr(w.model);
+    const name = asStr(w.name) || asStr(w.product_name) || asStr(w.title);
+    const productOptionId = asNum(
+      w.product_option_id ?? w.productOptionId ?? w.option_id ?? w.optionId,
+    );
+    let productId = asNum(w.id ?? w.product_id ?? w.productId);
+    if (productId <= 0 && productOptionId > 0) productId = productOptionId;
+    const displayName = name || sku;
+    if (!sku || !displayName || productId <= 0) continue;
 
     const qtyRaw = asNum(w.quantity ?? w.qty, 1);
     const quantity = qtyRaw > 0 ? Math.min(Math.floor(qtyRaw), 99) : 1;
@@ -55,7 +114,7 @@ export function parseWebCartItems(raw: unknown): CartLineItem[] {
       productId,
       productOptionId,
       sku,
-      name,
+      name: displayName,
       quantity: maxQty,
       availableQuantity: availableFromWeb,
       price,

@@ -51,34 +51,73 @@ export async function hydrateNativeCart(
   dispatch: AppDispatch,
   country: CountryCode,
 ): Promise<void> {
-  const [items, deletedLines] = await Promise.all([
+  const [persistedItems, deletedLines] = await Promise.all([
     loadPersistedCart(country),
     loadPersistedDeletedLines(country),
   ]);
   if (deletedLines.length > 0) {
     dispatch(setRecentlyDeletedLines(deletedLines));
   }
-  dispatch(setCartItems(items));
-  syncBadge(dispatch, items);
+
+  // User may add to cart before this async hydrate finishes on cold start — do not
+  // overwrite in-memory lines with a stale empty read from AsyncStorage.
+  const memoryItems = store.getState().cart.items;
+  if (memoryItems.length > 0 && persistedItems.length === 0) {
+    await savePersistedCart(country, memoryItems);
+    syncBadge(dispatch, memoryItems);
+  } else {
+    dispatch(setCartItems(persistedItems));
+    syncBadge(dispatch, persistedItems);
+  }
   dispatch(setCartHydrated(true));
 }
+
+export type ApplyWebCartSnapshotResult = {
+  /** Why the snapshot was or wasn't merged into the native cart. */
+  outcome: 'matched' | 'blocked' | 'merged';
+  /** Rows posted by the web bridge. */
+  rawCount: number;
+  /** Rows surviving the recently-deleted guard. */
+  filteredCount: number;
+  /** Native cart line count after handling. */
+  nativeCount: number;
+};
 
 /** Replace native cart with a web `localStorage.cart` snapshot. */
 export async function applyWebCartSnapshot(
   dispatch: AppDispatch,
   country: CountryCode,
   rawItems: unknown[],
-): Promise<void> {
-  const { items: nativeItems, pendingWebWriteAt, recentlyDeletedLines } = store.getState().cart;
+): Promise<ApplyWebCartSnapshotResult> {
+  let { recentlyDeletedLines } = store.getState().cart;
+
+  // Self-clear the deleted-line guard once the web cart has actually dropped a
+  // line: any deleted key NOT present in the live snapshot means the storefront
+  // honoured the delete, so a later deliberate re-add must be allowed through.
+  if (recentlyDeletedLines.length > 0 && Array.isArray(rawItems)) {
+    const presentKeys = new Set(parseWebCartItems(rawItems).map(r => r.lineKey));
+    const survivingGuard = recentlyDeletedLines.filter(d => presentKeys.has(d.lineKey));
+    if (survivingGuard.length !== recentlyDeletedLines.length) {
+      dispatch(setRecentlyDeletedLines(survivingGuard));
+      void savePersistedDeletedLines(country, survivingGuard);
+      recentlyDeletedLines = survivingGuard;
+    }
+  }
+
+  const { items: nativeItems, pendingWebWriteAt } = store.getState().cart;
   const filteredRaw = filterStaleWebCartRows(rawItems, recentlyDeletedLines);
+  const rawCount = Array.isArray(rawItems) ? rawItems.length : 0;
+  const filteredCount = Array.isArray(filteredRaw) ? filteredRaw.length : 0;
 
   if (cartContentsMatchNative(nativeItems, filteredRaw)) {
     if (pendingWebWriteAt) dispatch(ackPendingWebWrite());
-    return;
+    syncBadge(dispatch, nativeItems);
+    return { outcome: 'matched', rawCount, filteredCount, nativeCount: nativeItems.length };
   }
 
   if (!shouldApplyWebCartSnapshot(nativeItems, filteredRaw, pendingWebWriteAt)) {
-    return;
+    syncBadge(dispatch, nativeItems);
+    return { outcome: 'blocked', rawCount, filteredCount, nativeCount: nativeItems.length };
   }
 
   const hadStaleRows = webSnapshotHasStaleDeletedLines(rawItems, recentlyDeletedLines);
@@ -93,6 +132,7 @@ export async function applyWebCartSnapshot(
   if (hadStaleRows || !cartContentsMatchNative(items, rawItems)) {
     dispatch(notifyNativeCartMutation());
   }
+  return { outcome: 'merged', rawCount, filteredCount, nativeCount: items.length };
 }
 
 export async function persistCartItems(

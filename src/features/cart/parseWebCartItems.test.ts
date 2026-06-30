@@ -40,6 +40,32 @@ describe('parseWebCartItems', () => {
     expect(items[0].discountPercent).toBe(47);
   });
 
+  it('unwraps nested cart payloads', () => {
+    const items = parseWebCartItems({
+      items: [
+        { id: 1, product_option_id: 2, sku: 'A', name: 'Dress', quantity: 1, price: 10 },
+      ],
+    });
+    expect(items).toHaveLength(1);
+  });
+
+  it('maps alternate storefront field names', () => {
+    const items = parseWebCartItems([
+      {
+        product_id: 2919,
+        option_id: 10096,
+        model: 'C-1166-Pink',
+        title: 'Women Two Piece Suit',
+        qty: 1,
+        price: 79,
+      },
+    ]);
+    expect(items).toHaveLength(1);
+    expect(items[0].lineKey).toBe(cartLineKey('C-1166-Pink', 10096));
+    expect(items[0].productId).toBe(2919);
+    expect(items[0].name).toBe('Women Two Piece Suit');
+  });
+
   it('returns empty for invalid input', () => {
     expect(parseWebCartItems(null)).toEqual([]);
     expect(parseWebCartItems([{ sku: '' }])).toEqual([]);

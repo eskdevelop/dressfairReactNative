@@ -12,11 +12,19 @@ function toSigRows(items: CartLineItem[]): CartSigRow[] {
 }
 
 function rawRowLineKey(row: Record<string, unknown>): string | null {
-  const sku = typeof row.sku === 'string' ? row.sku.trim() : '';
-  const optionRaw = row.product_option_id ?? row.productOptionId;
+  const sku =
+    (typeof row.sku === 'string' ? row.sku.trim() : '') ||
+    (typeof row.model === 'string' ? row.model.trim() : '');
+  const optionRaw =
+    row.product_option_id ??
+    row.productOptionId ??
+    row.option_id ??
+    row.optionId ??
+    row.variant_id ??
+    row.variantId;
   const optionId = typeof optionRaw === 'number' ? optionRaw : Number(optionRaw);
-  if (!sku || !Number.isFinite(optionId) || optionId <= 0) return null;
-  return cartLineKey(sku, optionId);
+  if (!sku || !Number.isFinite(optionId)) return null;
+  return cartLineKey(sku, optionId > 0 ? optionId : 0);
 }
 
 /** Drop rows web is trying to re-add after a native delete. */
@@ -39,6 +47,11 @@ export function cartContentsMatchNative(
   nativeItems: CartLineItem[],
   rawWebItems: unknown[],
 ): boolean {
+  if (Array.isArray(rawWebItems) && rawWebItems.length > 0) {
+    const incoming = parseWebCartItems(rawWebItems);
+    if (incoming.length === 0) return false;
+    return JSON.stringify(toSigRows(nativeItems)) === JSON.stringify(toSigRows(incoming));
+  }
   const incoming = parseWebCartItems(rawWebItems);
   return JSON.stringify(toSigRows(nativeItems)) === JSON.stringify(toSigRows(incoming));
 }

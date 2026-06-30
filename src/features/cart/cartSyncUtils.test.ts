@@ -7,6 +7,12 @@ import {
 import type { DeletedCartLine } from './cartDeletedKeys';
 
 describe('cartSyncUtils', () => {
+  it('does not treat unparseable web rows as matching an empty native cart', () => {
+    const native: ReturnType<typeof parseWebCartItems> = [];
+    const raw = [{ foo: 'bar', quantity: 2 }];
+    expect(cartContentsMatchNative(native, raw)).toBe(false);
+  });
+
   it('detects matching native and web carts', () => {
     const raw = [
       { id: 1, product_option_id: 2, sku: 'A', name: 'A', quantity: 2, price: 10 },

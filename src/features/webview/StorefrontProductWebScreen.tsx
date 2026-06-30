@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { Platform, Pressable, StatusBar, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppSelector } from '@app/hooks';
 import { prefetchProductDetail } from '@features/categories/productDetailCache';
+import { ProductDetailHeader } from '@features/webview/components/ProductDetailHeader';
 import { WebViewScreen } from '@features/webview/WebViewScreen';
 import type { RootStackParamList } from '@navigation/types';
 import type { CountryCode } from '@shared/config/env';
@@ -20,22 +21,15 @@ export function StorefrontProductWebScreen({ navigation, route }: Props) {
   const country = useAppSelector(s => s.app.country) as CountryCode;
   const storefrontSurfaceGeneration = useAppSelector(s => s.app.storefrontSurfaceGeneration);
   const { sku } = route.params;
-
   const path = useMemo(() => productHrefForSku(sku.trim(), country), [sku, country]);
 
   useEffect(() => {
     void prefetchProductDetail(sku);
   }, [sku]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (Platform.OS !== 'android') return undefined;
-      StatusBar.setTranslucent(true);
-      StatusBar.setBackgroundColor('transparent');
-      StatusBar.setBarStyle('dark-content');
-      return undefined;
-    }, []),
-  );
+  const onBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
 
   if (!path) {
     return (
@@ -43,7 +37,7 @@ export function StorefrontProductWebScreen({ navigation, route }: Props) {
         <Text style={{ textAlign: 'center', color: '#111' }}>Could not open this product.</Text>
         <Pressable
           accessibilityRole="button"
-          onPress={() => navigation.goBack()}
+          onPress={onBack}
           style={{ paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8, backgroundColor: '#E56B2A' }}
         >
           <Text style={{ color: '#FFF', fontWeight: '600' }}>Go back</Text>
@@ -53,21 +47,23 @@ export function StorefrontProductWebScreen({ navigation, route }: Props) {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
-      <WebViewScreen
-        key={`storefront-product-web-${sku.trim()}-${country}-${storefrontSurfaceGeneration}`}
-        path={path}
-        applyWebNavFromStore={false}
-        applyTopSafeArea={false}
-        statusBarOverContent
-        hideStorefrontMobileHeader
-        hardwareBackOffloadsToNavigation
-        forceMobileStorefrontUserAgent
-        syncWebCartToNative
-        showLoaderUntilFirstPaint
-        waitForStorefrontPdpReady
-        loaderShowLogo={false}
-      />
-    </View>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }} edges={['top']}>
+      <ProductDetailHeader onBack={onBack} />
+      <View style={{ flex: 1 }}>
+        <WebViewScreen
+          key={`storefront-product-web-${sku.trim()}-${country}-${storefrontSurfaceGeneration}`}
+          path={path}
+          applyWebNavFromStore={false}
+          applyTopSafeArea={false}
+          hideStorefrontMobileHeader
+          hardwareBackOffloadsToNavigation
+          forceMobileStorefrontUserAgent
+          syncWebCartToNative
+          showLoaderUntilFirstPaint
+          waitForStorefrontPdpReady
+          loaderShowLogo={false}
+        />
+      </View>
+    </SafeAreaView>
   );
 }

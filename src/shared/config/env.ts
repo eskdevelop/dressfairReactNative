@@ -102,8 +102,8 @@ export type EnvConfig = {
   // the locale root toggled via the `.menu-icons-mobile` header button — see
   // WebViewScreen `openMobileCategoryMenuOnLoad`.
   webCategoriesPath: string;
-  // Storefront cart URL for the Cart tab WebView (`https://…`). UAE uses apex
-  // `dressfair.com` so `/ae/cart` matches the live storefront.
+  // Storefront cart URL for the hidden cart-write WebView. Must share the same
+  // origin as `webBaseUrl` so `localStorage.cart` is one bucket (www vs apex).
   webCartUrl: string;
   // Path param for `GET /api/rest/store/cities/{id}` (OpenCart **country** id for province/zone list).
   // Should match Flutter `sessionController.countryConfig.countryId` from store config for this region.
@@ -141,7 +141,7 @@ const configs: Record<CountryCode, EnvConfig> = {
     mobileCategoriesApiBaseUrl: 'https://9711694.ecomplug.com',
     webNewInPath: '/ae/new-in',
     webCategoriesPath: '/ae',
-    webCartUrl: 'https://dressfair.com/ae/cart',
+    webCartUrl: 'https://www.dressfair.com/ae/cart',
     storefrontCitiesCountryId: '223',
     customerAvatarCdnBaseUrl:
       'https://ecomdoor-images.s3.ap-southeast-1.amazonaws.com',
@@ -213,6 +213,17 @@ const configs: Record<CountryCode, EnvConfig> = {
 
 export const getEnvConfig = (country: CountryCode): EnvConfig => configs[country];
 
+/**
+ * Locale-pinned storefront home path (`/ae`, `/om`, `/sa`). Loading the bare
+ * root `/` lets the storefront's own geo/locale detection pick a store, which
+ * can land on the wrong locale (wrong currency, `undefined` product names).
+ * Always open the region root so product data renders for the active country.
+ */
+export const storefrontHomePath = (country: CountryCode): string => {
+  const locale = getEnvConfig(country).webCategoriesPath.replace(/\/+$/, '');
+  return locale.length > 0 ? locale : '/';
+};
+
 /** Canonical marketing-site privacy policy URL per region (e.g. UAE → …/ae/privacy-policy). */
 export const privacyPolicyUrl = (country: CountryCode): string => {
   const { webBaseUrl, webCategoriesPath } = getEnvConfig(country);
@@ -238,6 +249,22 @@ export const productHrefForSku = (
   const { productPathPrefix } = getEnvConfig(country);
   return `${productPathPrefix}/${encodeURIComponent(trimmed)}`;
 };
+
+/** Storefront PDP URL: `/{ae|om|sa}/p/{sku}` (absolute or relative path). */
+export function isStorefrontProductDetailUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  const pathOnly = (trimmed.startsWith('/') ? trimmed : (() => {
+    try {
+      return new URL(trimmed).pathname;
+    } catch {
+      return '';
+    }
+  })()).split('?')[0]?.split('#')[0] ?? '';
+  if (/^\/(ae|om|sa)\/p\/[^/]+/i.test(pathOnly)) return true;
+  if (/^\/p\/[^/]+/i.test(pathOnly)) return true;
+  return false;
+}
 
 /** Next.js category PLP path: `{webCategoriesPath}/c/{slug}` (e.g. `/ae/c/m-tops-blouses`). */
 export const categoryCollectionPath=(

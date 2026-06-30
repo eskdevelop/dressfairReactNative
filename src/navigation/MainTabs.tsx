@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import type { RouteProp } from '@react-navigation/native';
@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDispatch, useAppSelector } from '@app/hooks';
 import { colors } from '@app/theme/tokens';
-import { selectWebWriteGeneration } from '@features/cart/cartSlice';
+import { selectCartBadgeQuantity, selectWebWriteGeneration } from '@features/cart/cartSlice';
 import { CategorySearchBar } from '@features/categories/components/CategorySearchBar';
 import { CategoryNavigator } from '@features/categories/CategoryNavigator';
 import { AccountScreen } from '@features/account/AccountScreen';
@@ -16,11 +16,13 @@ import { SearchScreen } from '@features/search/SearchScreen';
 import { CartScreen } from '@features/cart/screens/CartScreen';
 import { CartWebWriteBridge } from '@features/cart/CartWebWriteBridge';
 import { hydrateNativeCart } from '@features/cart/cartActions';
-import { WebViewScreen } from '@features/webview/WebViewScreen';
+import { WebViewScreen, type WebViewScreenController } from '@features/webview/WebViewScreen';
+import { ProductDetailHeader } from '@features/webview/components/ProductDetailHeader';
 import { notificationInbox } from '@features/notifications/notificationInbox';
 import { selectUnreadNotificationCount } from '@features/notifications/selectors';
 import { wishlist } from '@features/wishlist/wishlist';
 import { crashReporter } from '@shared/observability/crash';
+import { isStorefrontProductDetailUrl, storefrontHomePath } from '@shared/config/env';
 
 import { CenteredTabBarButton } from './CenteredTabBarButton';
 import { MAIN_TAB_BAR_CONTENT_HEIGHT } from './tabBarMetrics';
@@ -40,25 +42,55 @@ function formatTabBadge(count: number): string | undefined {
 // `path` route param (set by `openWebPath`); the WebView itself watches the
 // `webNav` slice for in-session cross-tab navigation requests.
 function HomeTab({ route }: { route: RouteProp<MainTabParamList, 'Home'> }) {
-  const initialPath = route.params?.path ?? '/';
   const country = useAppSelector(s => s.app.country);
+  // Deep links may pass an explicit path; otherwise pin the locale root (`/ae`,
+  // `/om`, `/sa`) so the storefront renders the correct store. The bare root `/`
+  // relies on the site's geo detection and can load a wrong locale.
+  const initialPath = route.params?.path ?? storefrontHomePath(country);
   const storefrontSurfaceGeneration = useAppSelector(s => s.app.storefrontSurfaceGeneration);
+  const webControllerRef = useRef<WebViewScreenController | null>(null);
+  const webCanGoBackRef = useRef(false);
+  const [onProductDetail, setOnProductDetail] = useState(
+    () => isStorefrontProductDetailUrl(initialPath),
+  );
+
+  const onStorefrontUrlChange = useCallback((state: { url: string; canGoBack: boolean; isProductPage: boolean }) => {
+    webCanGoBackRef.current = state.canGoBack;
+    setOnProductDetail(state.isProductPage);
+  }, []);
+
+  const onProductBackPress = useCallback(() => {
+    if (webCanGoBackRef.current) {
+      webControllerRef.current?.goBack();
+      return;
+    }
+    webControllerRef.current?.navigateToRegionalHome();
+  }, []);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top']}>
-      <View style={{ paddingTop: 6 }}>
-        <CategorySearchBar />
-      </View>
-      <View style={{ height: 8 }} />
+      {onProductDetail ? (
+        <ProductDetailHeader onBack={onProductBackPress} />
+      ) : (
+        <>
+          <View style={{ paddingTop: 6 }}>
+            <CategorySearchBar />
+          </View>
+          <View style={{ height: 8 }} />
+        </>
+      )}
       <View style={{ flex: 1 }}>
         <WebViewScreen
           key={`home-tab-wv-${country}-${storefrontSurfaceGeneration}`}
           path={initialPath}
           applyWebNavFromStore
           tabReselectMode="home"
-          reportCartCountToNative={false}
+          reportCartCountToNative
           syncWebCartToNative
           hideStorefrontMobileHeader
           applyTopSafeArea={false}
+          onStorefrontUrlChange={onStorefrontUrlChange}
+          controllerRef={webControllerRef}
         />
       </View>
     </SafeAreaView>
@@ -229,7 +261,7 @@ function CartTabBarIconWrapper({
   size: number;
   focused: boolean;
 }) {
-  const quantity = useAppSelector(state => state.cartBadge.quantity);
+  const quantity = useAppSelector(selectCartBadgeQuantity);
   return <CartTabBarIcon color={color} size={size} focused={focused} quantity={quantity} />;
 }
 

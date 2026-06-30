@@ -17,7 +17,19 @@ export const CART_STORAGE_BRIDGE_INJECTION = `
       var raw = localStorage.getItem(CART_KEY);
       if (!raw) return [];
       var parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === 'object') {
+        var keys = ['items', 'data', 'products', 'cart', 'lines'];
+        for (var ki = 0; ki < keys.length; ki++) {
+          var nested = parsed[keys[ki]];
+          if (Array.isArray(nested)) return nested;
+        }
+        var vals = Object.values(parsed);
+        if (vals.length && vals.every(function(v) { return v && typeof v === 'object'; })) {
+          return vals;
+        }
+      }
+      return [];
     } catch (e) {
       return [];
     }
