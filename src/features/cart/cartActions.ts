@@ -3,13 +3,13 @@ import { store } from '@app/store';
 import { setCartBadgeQuantity } from '@app/storeSlices/cartBadgeSlice';
 import type { CountryCode } from '@shared/config/env';
 
-import { deletedLineKeySet } from './cartDeletedKeys';
 import {
   ackPendingWebWrite,
   clearCart,
   markDeletedLineKeys,
-  mergeWebCartSnapshot,
   notifyNativeCartMutation,
+  recordWebSnapshot,
+  requestWebCartReload,
   setCartHydrated,
   setCartItems,
   setRecentlyDeletedLines,
@@ -24,7 +24,8 @@ import {
   savePersistedCart,
   savePersistedDeletedLines,
 } from './cartPersistence';
-import { cartContentsMatchNative, filterStaleWebCartRows, shouldApplyWebCartSnapshot } from './cartSyncUtils';
+import { pruneDeletedLines } from './cartDeletedKeys';
+import { reconcileWebCartSnapshot } from './cartSyncUtils';
 import {
   CART_QUANTITY_MAX,
   clampCartQuantity,
@@ -83,56 +84,58 @@ export type ApplyWebCartSnapshotResult = {
   nativeCount: number;
 };
 
-/** Replace native cart with a web `localStorage.cart` snapshot. */
+/** Reconcile the native cart with a web `localStorage.cart` snapshot. */
 export async function applyWebCartSnapshot(
   dispatch: AppDispatch,
   country: CountryCode,
   rawItems: unknown[],
 ): Promise<ApplyWebCartSnapshotResult> {
-  let { recentlyDeletedLines } = store.getState().cart;
-
-  // Self-clear the deleted-line guard once the web cart has actually dropped a
-  // line: any deleted key NOT present in the live snapshot means the storefront
-  // honoured the delete, so a later deliberate re-add must be allowed through.
-  if (recentlyDeletedLines.length > 0 && Array.isArray(rawItems)) {
-    const presentKeys = new Set(parseWebCartItems(rawItems).map(r => r.lineKey));
-    const survivingGuard = recentlyDeletedLines.filter(d => presentKeys.has(d.lineKey));
-    if (survivingGuard.length !== recentlyDeletedLines.length) {
-      dispatch(setRecentlyDeletedLines(survivingGuard));
-      void savePersistedDeletedLines(country, survivingGuard);
-      recentlyDeletedLines = survivingGuard;
-    }
-  }
-
-  const { items: nativeItems, pendingWebWriteAt } = store.getState().cart;
-  const filteredRaw = filterStaleWebCartRows(rawItems, recentlyDeletedLines);
+  const state = store.getState().cart;
   const rawCount = Array.isArray(rawItems) ? rawItems.length : 0;
-  const filteredCount = Array.isArray(filteredRaw) ? filteredRaw.length : 0;
 
-  if (cartContentsMatchNative(nativeItems, filteredRaw)) {
-    if (pendingWebWriteAt) dispatch(ackPendingWebWrite());
-    syncBadge(dispatch, nativeItems);
-    return { outcome: 'matched', rawCount, filteredCount, nativeCount: nativeItems.length };
+  const result = reconcileWebCartSnapshot({
+    nativeItems: state.items,
+    rawWebItems: rawItems,
+    recentlyDeletedLines: state.recentlyDeletedLines,
+    lastWebCartByKey: state.lastWebCartByKey,
+    hasWebBaseline: state.webBaselineReady,
+  });
+
+  // Remember this snapshot so the next diff can spot deliberate re-adds.
+  dispatch(recordWebSnapshot(result.nextWebCartByKey));
+
+  // Persist any guard entries lifted by a deliberate re-add.
+  const prunedPrevGuard = pruneDeletedLines(state.recentlyDeletedLines);
+  if (result.nextDeletedLines.length !== prunedPrevGuard.length) {
+    dispatch(setRecentlyDeletedLines(result.nextDeletedLines));
+    void savePersistedDeletedLines(country, result.nextDeletedLines);
   }
 
-  if (!shouldApplyWebCartSnapshot(nativeItems, filteredRaw, pendingWebWriteAt)) {
-    syncBadge(dispatch, nativeItems);
-    return { outcome: 'blocked', rawCount, filteredCount, nativeCount: nativeItems.length };
+  const filteredCount = result.items.length;
+
+  if (result.isEmptyWeb) {
+    if (state.pendingWebWriteAt) dispatch(ackPendingWebWrite());
+    syncBadge(dispatch, state.items);
+    return { outcome: 'blocked', rawCount, filteredCount: 0, nativeCount: state.items.length };
   }
 
-  const hadStaleRows = webSnapshotHasStaleDeletedLines(rawItems, recentlyDeletedLines);
+  if (!result.changed) {
+    if (state.pendingWebWriteAt) dispatch(ackPendingWebWrite());
+    syncBadge(dispatch, result.items);
+    return { outcome: 'matched', rawCount, filteredCount, nativeCount: result.items.length };
+  }
 
-  dispatch(mergeWebCartSnapshot(filteredRaw));
-  const items = store.getState().cart.items;
-  await savePersistedCart(country, items);
-  syncBadge(dispatch, items);
-  dispatch(ackPendingWebWrite());
+  dispatch(setCartItems(result.items));
+  await savePersistedCart(country, result.items);
+  syncBadge(dispatch, result.items);
+  if (state.pendingWebWriteAt) dispatch(ackPendingWebWrite());
 
-  // Reconcile Home WebView localStorage with native truth (drops ghost lines).
-  if (hadStaleRows || !cartContentsMatchNative(items, rawItems)) {
+  // Web still holds guarded ghosts — rewrite web localStorage from native truth.
+  if (result.webHasGhosts) {
     dispatch(notifyNativeCartMutation());
   }
-  return { outcome: 'merged', rawCount, filteredCount, nativeCount: items.length };
+
+  return { outcome: 'merged', rawCount, filteredCount, nativeCount: result.items.length };
 }
 
 export async function persistCartItems(
@@ -154,10 +157,17 @@ export async function clearNativeCart(
   dispatch: AppDispatch,
   country: CountryCode,
 ): Promise<void> {
+  const removedKeys = store.getState().cart.items.map(row => row.lineKey);
+  if (removedKeys.length > 0) {
+    dispatch(markDeletedLineKeys(removedKeys));
+    persistDeletedLines(country);
+  }
   dispatch(notifyNativeCartMutation());
   dispatch(clearCart());
   await clearPersistedCart(country);
   dispatch(setCartBadgeQuantity(0));
+  // Reload the Home WebView so its SPA drops the just-cleared lines from memory.
+  dispatch(requestWebCartReload());
 }
 
 /**
@@ -271,6 +281,8 @@ export async function removeCartLineAndPersist(
   persistDeletedLines(country);
   const next = currentItems.filter(r => r.lineKey !== lineKey);
   await persistCartItems(dispatch, country, next);
+  // Reload the Home WebView so its SPA drops the removed line from memory.
+  dispatch(requestWebCartReload());
 }
 
 export async function toggleCartLineSelectedAndPersist(
@@ -329,6 +341,8 @@ export async function removeSelectedCartLinesAndPersist(
   }
   const next = currentItems.filter(row => !row.isSelected);
   await persistCartItems(dispatch, country, next);
+  // Reload the Home WebView so its SPA drops the removed lines from memory.
+  dispatch(requestWebCartReload());
 }
 
 /** Flutter `removeCheckoutSelectedItems` — after successful native checkout. */
@@ -338,15 +352,4 @@ export async function removeSelectedCartLinesAfterOrder(
   currentItems: CartLineItem[],
 ): Promise<void> {
   await removeSelectedCartLinesAndPersist(dispatch, country, currentItems);
-}
-
-/** True when web snapshot still contains lines native recently deleted. */
-export function webSnapshotHasStaleDeletedLines(
-  rawItems: unknown[],
-  recentlyDeletedLines: { lineKey: string; deletedAt: number }[],
-): boolean {
-  if (!Array.isArray(rawItems)) return false;
-  const deleted = deletedLineKeySet(recentlyDeletedLines);
-  if (deleted.size === 0) return false;
-  return parseWebCartItems(rawItems).some(row => deleted.has(row.lineKey));
 }

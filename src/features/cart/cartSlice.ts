@@ -2,9 +2,9 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
 
 import type { CartLineItem } from './cartTypes';
-import { cartTotalQuantity, parseWebCartItems } from './parseWebCartItems';
+import { cartTotalQuantity } from './parseWebCartItems';
 import type { DeletedCartLine } from './cartDeletedKeys';
-import { deletedLineKeySet, mergeDeletedLines, pruneDeletedLines } from './cartDeletedKeys';
+import { mergeDeletedLines, pruneDeletedLines } from './cartDeletedKeys';
 
 type CartState = {
   items: CartLineItem[];
@@ -15,6 +15,12 @@ type CartState = {
   webWriteGeneration: number;
   /** Lines removed natively — block stale web from re-adding for a TTL window. */
   recentlyDeletedLines: DeletedCartLine[];
+  /** Quantities from the previous web snapshot this session (key → qty) for diffing re-adds. */
+  lastWebCartByKey: Record<string, number>;
+  /** True once we've recorded a web snapshot this session (baseline for deliberate-add detection). */
+  webBaselineReady: boolean;
+  /** Bumped when a native delete/clear must reload the Home WebView so its SPA drops ghost lines. */
+  webCartReloadSeq: number;
 };
 
 const initialState: CartState = {
@@ -24,6 +30,9 @@ const initialState: CartState = {
   pendingWebWriteAt: null,
   webWriteGeneration: 0,
   recentlyDeletedLines: [],
+  lastWebCartByKey: {},
+  webBaselineReady: false,
+  webCartReloadSeq: 0,
 };
 
 const slice = createSlice({
@@ -50,25 +59,12 @@ const slice = createSlice({
     markDeletedLineKeys(state, action: PayloadAction<string[]>) {
       state.recentlyDeletedLines = mergeDeletedLines(state.recentlyDeletedLines, action.payload);
     },
-    mergeWebCartSnapshot(state, action: PayloadAction<unknown[]>) {
-      const prevByKey = new Map(state.items.map(row => [row.lineKey, row]));
-      const deleted = deletedLineKeySet(state.recentlyDeletedLines);
-      const incoming = parseWebCartItems(action.payload).filter(row => !deleted.has(row.lineKey));
-      const merged = [...state.items];
-
-      for (const row of incoming) {
-        const prev = prevByKey.get(row.lineKey);
-        if (prev) {
-          const idx = merged.findIndex(m => m.lineKey === row.lineKey);
-          if (idx >= 0) merged[idx] = { ...row, isSelected: prev.isSelected };
-        } else {
-          merged.push(row);
-        }
-      }
-
-      state.items = merged;
-      state.lastSyncedAt = Date.now();
-      state.recentlyDeletedLines = pruneDeletedLines(state.recentlyDeletedLines);
+    recordWebSnapshot(state, action: PayloadAction<Record<string, number>>) {
+      state.lastWebCartByKey = action.payload;
+      state.webBaselineReady = true;
+    },
+    requestWebCartReload(state) {
+      state.webCartReloadSeq += 1;
     },
     toggleCartLineSelected(state, action: PayloadAction<string>) {
       const row = state.items.find(r => r.lineKey === action.payload);
@@ -109,7 +105,8 @@ export const {
   ackPendingWebWrite,
   setRecentlyDeletedLines,
   markDeletedLineKeys,
-  mergeWebCartSnapshot,
+  recordWebSnapshot,
+  requestWebCartReload,
   removeCartLine,
   setCartLineQuantity,
   toggleCartLineSelected,
@@ -134,3 +131,6 @@ export const selectPendingWebWriteAt = (state: { cart: CartState }): number | nu
 
 export const selectWebWriteGeneration = (state: { cart: CartState }): number =>
   state.cart.webWriteGeneration;
+
+export const selectWebCartReloadSeq = (state: { cart: CartState }): number =>
+  state.cart.webCartReloadSeq;

@@ -2,8 +2,8 @@
   "expo": {
     "name": "Dress Fair Shopping",
     "slug": "dressfair-rn-hybrid",
-    "version": "1.0.16",
-    "runtimeVersion": "1.0.16",
+    "version": "1.0.17",
+    "runtimeVersion": "1.0.17",
     "scheme": "dressfair",
     "orientation": "portrait",
     "platforms": [

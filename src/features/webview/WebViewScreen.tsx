@@ -54,7 +54,7 @@ import { applyWebCartSnapshot } from '@features/cart/cartActions';
 import { parseWebCartItems } from '@features/cart/parseWebCartItems';
 import { scheduleHomeTabWarmPrefetch } from '@features/shell/homeTabWarmPrefetch';
 import { pushNativeCartToWebView } from '@features/cart/pushNativeCartToWeb';
-import { selectWebWriteGeneration } from '@features/cart/cartSlice';
+import { selectWebCartReloadSeq, selectWebWriteGeneration } from '@features/cart/cartSlice';
 
 type Props = {
   /** Relative path (e.g. `/ae/cart`) or full storefront URL (`https://…`). */
@@ -754,11 +754,16 @@ export function WebViewScreen({
   );
   const webViewRef = useRef<WebView>(null);
   const webWriteGeneration = useAppSelector(selectWebWriteGeneration);
+  const webCartReloadSeq = useAppSelector(selectWebCartReloadSeq);
   const isFirstCartFocusRef = useRef(true);
   const [canGoBack, setCanGoBack] = useState(false);
   const spaPdpSurfaceRef = useRef(false);
   const [loading, setLoading] = useState(showLoaderUntilFirstPaint);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  // Reload watchdog: `pendingLoad` is true while a full-page load is in flight;
+  // `loadAttemptSeq` bumps on every `onLoadStart` so the watchdog re-arms per load.
+  const [pendingLoad, setPendingLoad] = useState(false);
+  const [loadAttemptSeq, setLoadAttemptSeq] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [webViewInstanceKey, setWebViewInstanceKey] = useState(0);
   const [clearWebStorageOnNextLoad, setClearWebStorageOnNextLoad] = useState(false);
@@ -766,6 +771,7 @@ export function WebViewScreen({
     setError(null);
     setLoading(showLoaderUntilFirstPaint);
     setInitialLoadDone(false);
+    setPendingLoad(false);
     setClearWebStorageOnNextLoad(true);
     webViewRef.current?.clearCache?.(true);
     setWebViewInstanceKey(key => key + 1);
@@ -854,6 +860,18 @@ export function WebViewScreen({
     pushNativeCartToWebView(webViewRef);
   }, [syncWebCartToNative, webWriteGeneration]);
 
+  // A native delete/clear reloads the storefront WebView so its in-memory (SPA)
+  // cart is re-hydrated from the just-written localStorage — otherwise the SPA
+  // keeps deleted lines in memory and re-adds them on the next web add-to-cart.
+  useEffect(() => {
+    if (!syncWebCartToNative || !applyWebNavFromStore || webCartReloadSeq === 0) return;
+    pushNativeCartToWebView(webViewRef);
+    const t = setTimeout(() => {
+      webViewRef.current?.reload();
+    }, 80);
+    return () => clearTimeout(t);
+  }, [syncWebCartToNative, applyWebNavFromStore, webCartReloadSeq]);
+
   useFocusEffect(
     useCallback(() => {
       if (!syncWebCartToNative) return undefined;
@@ -861,8 +879,10 @@ export function WebViewScreen({
       // native cart on focus, which can wipe a web add-to-cart before the bridge
       // snapshot reaches Redux (seen on iOS tab switches).
       const t = setTimeout(() => {
-        const { items, pendingWebWriteAt } = store.getState().cart;
-        if (items.length === 0 && !pendingWebWriteAt) return;
+        const { pendingWebWriteAt } = store.getState().cart;
+        if (pendingWebWriteAt) return;
+        // Always mirror native cart (including empty) so stale web localStorage
+        // cannot resurrect deleted lines on the next add-to-cart.
         pushNativeCartToWebView(webViewRef);
       }, 120);
       return () => clearTimeout(t);
@@ -1223,6 +1243,26 @@ export function WebViewScreen({
     return () => clearTimeout(timer);
   }, [initialLoadDone, isFocused, showLoaderUntilFirstPaint]);
 
+  // Reload watchdog. The safety timeout above only arms *before* the first
+  // successful load (`initialLoadDone`). Once the WebView has loaded once,
+  // `initialLoadDone` stays true forever, so a later stalled *reload* — e.g.
+  // the storefront reload after a cart mutation while rapidly switching tabs —
+  // would otherwise spin on the remote page's own loader with no timeout and
+  // no Retry. Re-arm a watchdog on each subsequent load attempt (keyed on
+  // `loadAttemptSeq`, cleared when the load settles via `pendingLoad`) so a
+  // stuck reload always recovers into the existing Retry UI. Full-page loads
+  // are the only trigger — SPA client-side route changes do not fire
+  // `onLoadStart`, so this never false-trips on in-page navigation.
+  React.useEffect(() => {
+    if (!initialLoadDone || !isFocused || !pendingLoad) return undefined;
+    const timer = setTimeout(() => {
+      analytics.track('webview_reload_watchdog_timeout', { path });
+      if (showLoaderUntilFirstPaint) setLoading(false);
+      setError(prev => prev ?? 'Page load is taking too long. Tap Retry.');
+    }, 15000);
+    return () => clearTimeout(timer);
+  }, [initialLoadDone, isFocused, pendingLoad, loadAttemptSeq, showLoaderUntilFirstPaint, path]);
+
   // PDP embeds: never block longer than ~2s on the native overlay — reveal the
   // WebView as soon as the document is mostly loaded even if the sentinel lags.
   React.useEffect(() => {
@@ -1246,6 +1286,7 @@ export function WebViewScreen({
       if (typeof raw === 'string' && raw.indexOf(FIRST_PAINT_SENTINEL) !== -1) {
         const parsed = JSON.parse(raw) as { type?: unknown };
         if (parsed && parsed.type === FIRST_PAINT_SENTINEL) {
+          setPendingLoad(false);
           if (!initialLoadDone) {
             setInitialLoadDone(true);
             hideNativeSplashOnce('webview_first_paint');
@@ -1264,6 +1305,7 @@ export function WebViewScreen({
         const parsed = JSON.parse(raw) as { type?: unknown };
         if (parsed && parsed.type === NEXTJS_ERROR_SENTINEL) {
           hideNativeSplashOnce('webview_nextjs_error');
+          setPendingLoad(false);
           if (showLoaderUntilFirstPaint) setLoading(false);
           setError(prev =>
             prev ?? 'Storefront needs a refresh. Tap Retry.',
@@ -1451,6 +1493,8 @@ export function WebViewScreen({
             //    transition so we never flash an AppLoader over a working UI
             //    (a slow redirect would otherwise leave the spinner stuck).
             setError(null);
+            setPendingLoad(true);
+            setLoadAttemptSeq(seq => seq + 1);
             analytics.track('webview_load_start', { path });
           }}
           onLoadProgress={event => {
@@ -1468,6 +1512,7 @@ export function WebViewScreen({
             }
           }}
           onLoadEnd={() => {
+            setPendingLoad(false);
             if (!showLoaderUntilFirstPaint || initialLoadDone) {
               setLoading(false);
             }
@@ -1546,6 +1591,7 @@ export function WebViewScreen({
             // If the very first load fails, the native splash must still be
             // dropped so the user can see the error UI and retry.
             hideNativeSplashOnce('webview_onError');
+            setPendingLoad(false);
             if (showLoaderUntilFirstPaint) setLoading(false);
             setError('Unable to load page. Please retry.');
           }}
