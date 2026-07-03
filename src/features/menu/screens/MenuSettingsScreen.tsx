@@ -1,7 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   Alert,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -18,7 +17,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDispatch, useAppSelector } from '@app/hooks';
-import { colors, radii, spacing } from '@app/theme/tokens';
+import { colors, spacing } from '@app/theme/tokens';
 import { openStorefrontLogin } from '@features/account/requireStorefrontLogin';
 import { logoutEverywhere } from '@features/auth/authSync';
 import { signOutGoogle } from '@features/auth/googleAuth';
@@ -26,7 +25,6 @@ import { applyCountryChange } from '@features/region/applyCountryChange';
 import type { MainTabParamList, RootStackParamList } from '@navigation/types';
 import {
   COUNTRY_OPTIONS,
-  getEnvConfig,
   type CountryCode,
 } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
@@ -55,49 +53,6 @@ function ThinDivider(): React.ReactElement {
 
 function SectionGap(): React.ReactElement {
   return <View style={{ height: 8, backgroundColor: '#F2F2F2' }} />;
-}
-
-type GridTileProps = {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-};
-
-function SettingsGridTile({ icon, label, onPress }: GridTileProps): React.ReactElement {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      style={({ pressed }) => ({
-        flex: 1,
-        margin: 4,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 10,
-        borderWidth: 1,
-        borderColor: '#EAEAEA',
-        borderRadius: 8,
-        backgroundColor: pressed ? '#F9FAFB' : '#FFFFFF',
-      })}
-    >
-      <Ionicons name={icon} size={20} color={TEMU_GREEN} />
-      <Text
-        style={{
-          flex: 1,
-          marginLeft: 8,
-          fontSize: 13,
-          fontWeight: '500',
-          color: colors.textPrimary,
-        }}
-        numberOfLines={2}
-      >
-        {label}
-      </Text>
-      <Ionicons name="chevron-forward" size={16} color={TEMU_GREEN} />
-    </Pressable>
-  );
 }
 
 type ChevronRowProps = {
@@ -160,7 +115,6 @@ export function MenuSettingsScreen(): React.ReactElement {
   const country = useAppSelector(s => s.app.country) as CountryCode;
   const storeCurrencyCode = useAppSelector(s => s.app.storeCurrencyCode);
   const isAuthenticated = useAppSelector(s => s.app.isAuthenticated);
-  const cfg = getEnvConfig(country);
 
   const [loggingOut, setLoggingOut] = useState(false);
   const [switchingCountry, setSwitchingCountry] = useState(false);
@@ -348,46 +302,17 @@ export function MenuSettingsScreen(): React.ReactElement {
           </Text>
         </View>
 
-        <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.lg }}>
-          <View style={{ flexDirection: 'row' }}>
-            <SettingsGridTile
-              icon="person"
-              label="Account security"
-              onPress={() => {
-                analytics.track('settings_grid_account_security');
-                navigation.navigate('AccountSetting');
-              }}
-            />
-            <SettingsGridTile
-              icon="lock-closed"
-              label="Privacy"
-              onPress={() => {
-                analytics.track('settings_grid_privacy');
-                navigation.navigate('Privacy');
-              }}
-            />
-          </View>
-          <View style={{ flexDirection: 'row' }}>
-            <SettingsGridTile
-              icon="key"
-              label="Permissions"
-              onPress={() => {
-                analytics.track('settings_grid_permissions');
-                navigation.navigate('AppPermissions');
-              }}
-            />
-            <SettingsGridTile
-              icon="shield-checkmark"
-              label="Safety center"
-              onPress={() => {
-                analytics.track('settings_grid_safety_center');
-                navigation.navigate('SafetyCenter');
-              }}
-            />
-          </View>
-        </View>
-
         <View style={{ height: spacing.md }} />
+        <SectionGap />
+
+        <SettingsChevronRow
+          title="Privacy"
+          onPress={() => {
+            analytics.track('settings_privacy_tap');
+            navigation.navigate('Privacy');
+          }}
+        />
+
         <SectionGap />
 
         <FormSelectField

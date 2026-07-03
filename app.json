@@ -87,6 +87,7 @@
       ],
       "./plugins/with-no-nav-bar-contrast",
       "./plugins/with-android-status-bar-edge",
+      "./plugins/with-google-signin-modular-headers",
       "expo-font",
       "@react-native-google-signin/google-signin",
       "expo-web-browser"

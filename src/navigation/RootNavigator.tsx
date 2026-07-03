@@ -11,10 +11,8 @@ import { StorefrontProductWebScreen } from '@features/webview/StorefrontProductW
 import { PdpWebPrewarmHost } from '@features/webview/PdpWebPrewarmHost';
 import {
   LazyAboutScreen,
-  LazyAccountSettingScreen,
   LazyAddressFormScreen,
   LazyAddressListScreen,
-  LazyAppPermissionsScreen,
   LazyAuthNavigator,
   LazyCardPaymentWebScreen,
   LazyCheckoutScreen,
@@ -31,7 +29,6 @@ import {
   LazyProfileScreen,
   LazyPurchaseProtectionScreen,
   LazyReturnPolicyScreen,
-  LazySafetyCenterScreen,
   LazyStorefrontCheckoutWebScreen,
   LazyStorefrontLoginScreen,
   LazyTermsScreen,
@@ -97,21 +94,6 @@ export function RootNavigator() {
       <Stack.Screen
         name="MenuSettings"
         component={LazyMenuSettingsScreen}
-        options={{ presentation: 'card' }}
-      />
-      <Stack.Screen
-        name="AccountSetting"
-        component={LazyAccountSettingScreen}
-        options={{ presentation: 'card' }}
-      />
-      <Stack.Screen
-        name="SafetyCenter"
-        component={LazySafetyCenterScreen}
-        options={{ presentation: 'card' }}
-      />
-      <Stack.Screen
-        name="AppPermissions"
-        component={LazyAppPermissionsScreen}
         options={{ presentation: 'card' }}
       />
       <Stack.Screen

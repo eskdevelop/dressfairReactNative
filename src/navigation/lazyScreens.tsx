@@ -45,18 +45,6 @@ export const LazyMenuSettingsScreen = lazyScreen(() =>
   import('@features/menu/screens/MenuSettingsScreen').then(m => ({ default: m.MenuSettingsScreen })),
 );
 
-export const LazyAccountSettingScreen = lazyScreen(() =>
-  import('@features/settings/AccountSettingScreen').then(m => ({ default: m.AccountSettingScreen })),
-);
-
-export const LazySafetyCenterScreen = lazyScreen(() =>
-  import('@features/settings/SafetyCenterScreen').then(m => ({ default: m.SafetyCenterScreen })),
-);
-
-export const LazyAppPermissionsScreen = lazyScreen(() =>
-  import('@features/settings/AppPermissionsScreen').then(m => ({ default: m.AppPermissionsScreen })),
-);
-
 export const LazyNotificationsInboxScreen = lazyScreen(() =>
   import('@features/notifications/NotificationsInboxScreen').then(m => ({
     default: m.NotificationsInboxScreen,

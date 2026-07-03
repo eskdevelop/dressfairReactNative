@@ -232,6 +232,14 @@ export const privacyPolicyUrl = (country: CountryCode): string => {
   return `${base}${locale}/privacy-policy`;
 };
 
+/** Storefront account security page — delete account link lives at the bottom. */
+export const accountSecurityUrl = (country: CountryCode): string => {
+  const { webBaseUrl, webCategoriesPath } = getEnvConfig(country);
+  const base = webBaseUrl.replace(/\/+$/, '');
+  const locale = webCategoriesPath.replace(/\/+$/, '');
+  return `${base}${locale}/user/account-security`;
+};
+
 // Build a relative storefront path for a product, given its SKU (the OpenCart
 // `model` field on result items, or the `sku` field on suggestion items).
 // The path is intentionally relative so callers can dispatch it through

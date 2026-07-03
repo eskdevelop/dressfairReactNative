@@ -24,6 +24,7 @@
       }
     },
     "production": {
+      "developmentClient": false,
       "channel": "production",
       "autoIncrement": true,
       "android": {

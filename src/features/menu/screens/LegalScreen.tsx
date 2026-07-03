@@ -31,6 +31,8 @@ type Props = {
   absoluteWebUrl?: string;
   webEventName?: string;
   isPlaceholder?: boolean;
+  /** Small muted footer link (e.g. account deletion buried on About). */
+  buriedLink?: { label: string; onPress: () => void };
 };
 
 const blocksFromParagraphs = (paragraphs: string[]): LegalBlock[] =>
@@ -45,6 +47,7 @@ export function LegalScreen({
   absoluteWebUrl,
   webEventName,
   isPlaceholder = false,
+  buriedLink,
 }: Props) {
   const navigation =
     useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -219,6 +222,25 @@ export function LegalScreen({
           >
             <Text style={{ color: colors.brand, textAlign: 'center' }}>
               View the latest version on dressfair.com
+            </Text>
+          </TouchableOpacity>
+        ) : null}
+
+        {buriedLink ? (
+          <TouchableOpacity
+            onPress={buriedLink.onPress}
+            accessibilityRole="button"
+            style={{ marginTop: spacing.xl * 2, paddingVertical: spacing.sm }}
+          >
+            <Text
+              style={{
+                color: colors.textMuted,
+                fontSize: 11,
+                textAlign: 'center',
+                opacity: 0.55,
+              }}
+            >
+              {buriedLink.label}
             </Text>
           </TouchableOpacity>
         ) : null}

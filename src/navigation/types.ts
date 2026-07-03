@@ -73,9 +73,6 @@ export type RootStackParamList = {
   /** @deprecated Web checkout — use native Checkout. */
   StorefrontCheckoutWeb: undefined;
   MenuSettings: undefined;
-  AccountSetting: undefined;
-  SafetyCenter: undefined;
-  AppPermissions: undefined;
   NotificationsInbox: undefined;
   /** Saved items, opened above tabs so back returns to the You tab (not app exit). */
   Wishlist: undefined;
