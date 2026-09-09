@@ -26,7 +26,7 @@ import type {
   MainTabParamList,
   RootStackParamList,
 } from '@navigation/types';
-import { productHrefForSku, getEnvConfig } from '@shared/config/env';
+import { productHrefForSku } from '@shared/config/env';
 import { analytics } from '@shared/observability/analytics';
 import { crashReporter } from '@shared/observability/crash';
 import {
@@ -38,7 +38,6 @@ import type { CategoryRow } from '@features/categories/categoryModel';
 import { CartNewArrivalProductTile } from '@features/cart/components/CartNewArrivalProductTile';
 import { QuickAddToCartSheet } from '@features/cart/components/QuickAddToCartSheet';
 import type { CountryCode } from '@shared/config/env';
-import { WebViewScreen } from '@features/webview/WebViewScreen';
 
 import {
   APP_SEARCH_BORDER,
@@ -99,25 +98,10 @@ export function SearchScreen() {
   const [recents, setRecents] = useState<RecentSearchEntry[]>([]);
   const { data: popularCategories = [], isPending: popularQueryPending } = useCategoryTreeQuery(country);
   const popularLoading = popularQueryPending && popularCategories.length === 0;
-  /** Set from embedded browsing-history WebView bridge when the page lists product hits. */
-  const [browsingHistoryHasItems, setBrowsingHistoryHasItems] = useState(false);
 
   const cardWidth = useMemo(() => {
     const screenWidth = Dimensions.get('window').width;
     return Math.floor((screenWidth - GRID_HORIZONTAL_PADDING * 2 - GRID_GAP) / 2);
-  }, []);
-
-  const browsingHistoryPath = useMemo(() => {
-    const base = getEnvConfig(country).webCategoriesPath.replace(/\/+$/, '');
-    return `${base}/user/browsing-history`;
-  }, [country]);
-
-  useEffect(() => {
-    setBrowsingHistoryHasItems(false);
-  }, [browsingHistoryPath]);
-
-  const onBrowsingHistoryLayout = useCallback((hasItems: boolean) => {
-    setBrowsingHistoryHasItems(hasItems);
   }, []);
 
   useFocusEffect(
@@ -636,45 +620,6 @@ export function SearchScreen() {
               categories={popularCategories}
               loading={popularLoading}
               onPressCategory={onPopularCategoryPress}
-            />
-            {browsingHistoryHasItems ? (
-              <View
-                style={{
-                  paddingHorizontal: spacing.lg,
-                  paddingTop: spacing.md,
-                  paddingBottom: spacing.xs,
-                }}
-              >
-                <Text
-                  style={{
-                    color: colors.textPrimary,
-                    fontWeight: '600',
-                    fontSize: 11,
-                  }}
-                >
-                  Browsing history
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <View
-            style={{
-              flex: 1,
-              minHeight: 280,
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-            }}
-          >
-            <WebViewScreen
-              key={`search-browsing-history-${country}`}
-              path={browsingHistoryPath}
-              applyWebNavFromStore={false}
-              applyTopSafeArea={false}
-              hideStorefrontMobileHeader
-              hideStorefrontMobileFooter
-              hideStorefrontMobileFooterMode="semantic"
-              forceMobileStorefrontUserAgent
-              onBrowsingHistoryLayout={onBrowsingHistoryLayout}
             />
           </View>
         </View>

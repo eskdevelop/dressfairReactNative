@@ -41,7 +41,7 @@ export function prefetchListingProduct(
   if (first) {
     const uri = cdnAssetUrl(country, first);
     if (uri && isSupportedRemoteImage(uri)) {
-      void Image.prefetch(uri);
+      void Image.prefetch(uri).catch(() => undefined);
     }
   }
 }

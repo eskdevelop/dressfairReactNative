@@ -51,11 +51,12 @@ export function StorefrontProductWebScreen({ navigation, route }: Props) {
       <ProductDetailHeader onBack={onBack} />
       <View style={{ flex: 1 }}>
         <WebViewScreen
-          key={`storefront-product-web-${sku.trim()}-${country}-${storefrontSurfaceGeneration}`}
+          key={`storefront-product-web-${sku.trim()}-${country}-${storefrontSurfaceGeneration}-nocartfab`}
           path={path}
           applyWebNavFromStore={false}
           applyTopSafeArea={false}
           hideStorefrontMobileHeader
+          hideStorefrontFloatingCart
           hardwareBackOffloadsToNavigation
           forceMobileStorefrontUserAgent
           syncWebCartToNative

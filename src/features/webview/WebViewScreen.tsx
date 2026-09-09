@@ -34,6 +34,7 @@ import { detectPaymentRedirect } from './paymentRedirectPolicy';
 import { BROWSING_HISTORY_LAYOUT_BRIDGE_INJECTION } from './browsingHistoryLayoutBridgeInjection';
 import { CART_COUNT_BRIDGE_INJECTION } from './cartCountBridgeInjection';
 import { STOREFRONT_HIDE_EMBEDDED_SITE_APP_BAR_INJECTION } from './storefrontHideEmbeddedSiteAppBarInjection';
+import { STOREFRONT_HIDE_FLOATING_CART_INJECTION } from './storefrontHideFloatingCartInjection';
 import { STOREFRONT_HIDE_MOBILE_HEADER_INJECTION } from './storefrontHideMobileHeaderInjection';
 import {
   STOREFRONT_HIDE_MOBILE_FOOTER_INJECTION,
@@ -107,6 +108,12 @@ type Props = {
    * storefront toolbar (see `storefrontHideEmbeddedSiteAppBarInjection.ts`).
    */
   hideEmbeddedSiteAppBar?: boolean;
+  /**
+   * Product-detail WebViews: hide the storefront's green floating cart FAB
+   * (`#theme9-floating-cart`). Leave false on Home — injecting it there during
+   * hydration can surface the Next.js client-exception Retry screen.
+   */
+  hideStorefrontFloatingCart?: boolean;
   /**
    * When true, skip the native auth/session bridge injections (fetch/XHR header
    * patching + web session hydration). Use for guest-capable storefront pages
@@ -262,6 +269,19 @@ const safeHost = (url: string): string | null => {
   } catch {
     return null;
   }
+};
+
+/** Main-document loads we should wait on. Ignore widgets/iframes (`about:blank`, Facebook, Play). */
+const isStorefrontDocumentLoad = (url: string, allowedHosts: Set<string>): boolean => {
+  const trimmed = url.trim();
+  if (!trimmed || isInternalWebViewUrl(trimmed)) return false;
+  const host = safeHost(trimmed)?.replace(/^www\./i, '').toLowerCase();
+  if (!host) return false;
+  for (const allowed of allowedHosts) {
+    const a = allowed.replace(/^www\./i, '').toLowerCase();
+    if (host === a || host.endsWith(`.${a}`)) return true;
+  }
+  return isPaymentGatewayHost(host);
 };
 
 // Bridge sentinel posted by the injected JS once the storefront has actually
@@ -721,6 +741,7 @@ export function WebViewScreen({
   hideStorefrontMobileFooter = false,
   hideStorefrontMobileFooterMode = 'full',
   hideEmbeddedSiteAppBar = false,
+  hideStorefrontFloatingCart = false,
   disableStorefrontAuthBridge = false,
   reportCartCountToNative = false,
   syncWebCartToNative = false,
@@ -788,8 +809,11 @@ export function WebViewScreen({
     // Guest-capable pages (Settings) must behave like a plain browser: forcing
     // native auth headers onto their own API calls makes the storefront return
     // empty data and render "undefined". Skip the auth/session bridge here.
+    const floatingCartHidePrefix = hideStorefrontFloatingCart
+      ? `${STOREFRONT_HIDE_FLOATING_CART_INJECTION}\n`
+      : '';
     if (disableStorefrontAuthBridge) {
-      return `${storageClearPrefix}${cartBridgePrefix}${authCapturePrefix}${
+      return `${storageClearPrefix}${cartBridgePrefix}${floatingCartHidePrefix}${authCapturePrefix}${
         extraBeforeContentScripts ? `\n${extraBeforeContentScripts}` : ''
       }`;
     }
@@ -811,7 +835,7 @@ export function WebViewScreen({
     } catch {
       /* ignore */
     }
-    return `${storageClearPrefix}${cartBridgePrefix}${authCapturePrefix}${buildStorefrontFetchAuthInjection(
+    return `${storageClearPrefix}${cartBridgePrefix}${floatingCartHidePrefix}${authCapturePrefix}${buildStorefrontFetchAuthInjection(
       JSON.stringify(initialHeaders),
       JSON.stringify([...checkoutHosts]),
     )}\n${buildStorefrontWebSessionHydration(JSON.stringify(customerInfoApiUrl))}${
@@ -828,6 +852,7 @@ export function WebViewScreen({
     customerSessionToken,
     disableStorefrontAuthBridge,
     extraBeforeContentScripts,
+    hideStorefrontFloatingCart,
     storefrontApiKey,
     syncWebCartToNative,
   ]);
@@ -899,6 +924,7 @@ export function WebViewScreen({
     const parts = [baseInjection];
     if (applyWebNavFromStore) parts.push(STOREFRONT_NEXTJS_ERROR_DETECTION);
     if (hideStorefrontMobileHeader) parts.push(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
+    if (hideStorefrontFloatingCart) parts.push(STOREFRONT_HIDE_FLOATING_CART_INJECTION);
     if (hideStorefrontMobileFooter) {
       parts.push(
         hideStorefrontMobileFooterMode === 'semantic'
@@ -916,6 +942,7 @@ export function WebViewScreen({
   }, [
     applyWebNavFromStore,
     hideEmbeddedSiteAppBar,
+    hideStorefrontFloatingCart,
     hideStorefrontMobileFooter,
     hideStorefrontMobileFooterMode,
     hideStorefrontMobileHeader,
@@ -1244,21 +1271,16 @@ export function WebViewScreen({
   }, [initialLoadDone, isFocused, showLoaderUntilFirstPaint]);
 
   // Reload watchdog. The safety timeout above only arms *before* the first
-  // successful load (`initialLoadDone`). Once the WebView has loaded once,
-  // `initialLoadDone` stays true forever, so a later stalled *reload* — e.g.
-  // the storefront reload after a cart mutation while rapidly switching tabs —
-  // would otherwise spin on the remote page's own loader with no timeout and
-  // no Retry. Re-arm a watchdog on each subsequent load attempt (keyed on
-  // `loadAttemptSeq`, cleared when the load settles via `pendingLoad`) so a
-  // stuck reload always recovers into the existing Retry UI. Full-page loads
-  // are the only trigger — SPA client-side route changes do not fire
-  // `onLoadStart`, so this never false-trips on in-page navigation.
+  // successful load (`initialLoadDone`). Once the shop has painted, a later
+  // `onLoadStart` (iframe widget, hung redirect, cart-sync reload) must NOT
+  // cover the storefront with Retry — shoppers would be stuck tapping Reload.
+  // We still clear `pendingLoad` so the timer does not sit armed forever.
   React.useEffect(() => {
     if (!initialLoadDone || !isFocused || !pendingLoad) return undefined;
     const timer = setTimeout(() => {
       analytics.track('webview_reload_watchdog_timeout', { path });
+      setPendingLoad(false);
       if (showLoaderUntilFirstPaint) setLoading(false);
-      setError(prev => prev ?? 'Page load is taking too long. Tap Retry.');
     }, 15000);
     return () => clearTimeout(timer);
   }, [initialLoadDone, isFocused, pendingLoad, loadAttemptSeq, showLoaderUntilFirstPaint, path]);
@@ -1486,13 +1508,19 @@ export function WebViewScreen({
           injectedJavaScriptBeforeContentLoaded={beforeContentScripts}
           setSupportMultipleWindows={false}
           originWhitelist={['https://*', 'about:blank', 'data:*', 'blob:*']}
-          onLoadStart={() => {
+          onLoadStart={event => {
             // Intentionally NO setLoading(true) here:
             //  • First load: native splash is still covering the screen.
             //  • Subsequent loads: keep the current page visible during the
             //    transition so we never flash an AppLoader over a working UI
             //    (a slow redirect would otherwise leave the spinner stuck).
-            setError(null);
+            const startedUrl = event.nativeEvent.url ?? '';
+            if (!isStorefrontDocumentLoad(startedUrl, allowedHostSet)) {
+              return;
+            }
+            if (!initialLoadDone) {
+              setError(null);
+            }
             setPendingLoad(true);
             setLoadAttemptSeq(seq => seq + 1);
             analytics.track('webview_load_start', { path });
@@ -1511,7 +1539,11 @@ export function WebViewScreen({
               setInitialLoadDone(true);
             }
           }}
-          onLoadEnd={() => {
+          onLoadEnd={event => {
+            const endedUrl = event.nativeEvent.url ?? '';
+            if (endedUrl && !isStorefrontDocumentLoad(endedUrl, allowedHostSet)) {
+              return;
+            }
             setPendingLoad(false);
             if (!showLoaderUntilFirstPaint || initialLoadDone) {
               setLoading(false);
@@ -1544,6 +1576,9 @@ export function WebViewScreen({
             webViewRef.current?.injectJavaScript(HIDE_THIRD_PARTY_LOGIN_INJECTION);
             if (hideStorefrontMobileHeader) {
               webViewRef.current?.injectJavaScript(STOREFRONT_HIDE_MOBILE_HEADER_INJECTION);
+            }
+            if (hideStorefrontFloatingCart) {
+              webViewRef.current?.injectJavaScript(STOREFRONT_HIDE_FLOATING_CART_INJECTION);
             }
             if (hideEmbeddedSiteAppBar) {
               webViewRef.current?.injectJavaScript(STOREFRONT_HIDE_EMBEDDED_SITE_APP_BAR_INJECTION);
